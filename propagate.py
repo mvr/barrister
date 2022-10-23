@@ -1,4 +1,6 @@
-# from golchemy.basics import *
+import itertools
+
+from common import *
 
 name = "PropagateStable"
 n_states = 8
@@ -13,16 +15,6 @@ OFFSIGNALON = 5
 ONSIGNALON = 6
 ABORT = 7
 
-# @COLORS
-# 0 0 0 0
-# 1 255 255 255
-# 2 60 60 60
-# 3 80 0 0
-# 4 255 200 200
-# 5 0 0 80
-# 6 200 200 255
-# 7 255 0 0
-
 def underlying(cell):
     if cell == OFF or cell == OFFSIGNALOFF or cell == OFFSIGNALON:
         return OFF
@@ -30,55 +22,13 @@ def underlying(cell):
         return ON
     return cell
 
-# def bits_to_num(state, background, active, known):
-#     x = 0
-#     if state: x += 1
-#     if background: x += 2
-#     if active: x += 4
-#     if known: x += 8
-#     return x
-
-# def num_to_bits(n):
-#     return (n >> 0) % 2 == 1, (n >> 1) % 2 == 1, (n >> 2) % 2 == 1, (n >> 3) % 2 == 1
-
-def life_rule(center, count):
-    if center == ON:
-        return count == 2 or count == 3
-    if center == OFF:
-        return count == 3
-
 def life_stable(center, count):
     if center == ON:
         return count == 2 or count == 3
     if center == OFF:
         return not count == 3
 
-
-def transition_function(s):
-    if any([c == ABORT for c in s]):
-        return ABORT
-
-    center = s[8]
-
-    oncount = 0
-    unkcount = 0
-    signalon = False
-    signaloff = False
-    for c in s[0:8]:
-        if underlying(c) == ON:
-            oncount += 1
-        if c == UNKNOWN:
-            unkcount += 1
-        if c == OFFSIGNALON or c == ONSIGNALON:
-            signalon = True
-        if c == OFFSIGNALOFF or c == ONSIGNALOFF:
-            signaloff = True
-
-    if center == UNKNOWN:
-        if signalon and signaloff: return ABORT
-        if signalon: return ON
-        if signaloff: return OFF
-
+def propagate_function(center, oncount, unkcount):
     lower = oncount
     upper = oncount + unkcount + 1
 
@@ -131,20 +81,93 @@ def transition_function(s):
 
     return center
 
-    # statecount = 0
-    # bgcount = 0
-    # activecount = 0
-    # knowncount = 0
-    # for c in s[0:8]:
-    #     state, bg, active, known = num_to_bits(c)
-    #     if state: statecount += 1
-    #     if bg: bgcount += 1
-    #     if active: activecount += 1
-    #     if known: knowncount += 1
+def stateresult2string(state, result):
+    if state == UNKNOWN and result == OFF:
+        return "10000"
+    if state == UNKNOWN and result == ON:
+        return "01000"
+    if state == UNKNOWN:
+        return "00000"
+    if result == OFFSIGNALOFF:
+        return "--100"
+    if result == ONSIGNALOFF:
+        return "--100"
+    if result == OFFSIGNALON:
+        return "--010"
+    if result == ONSIGNALON:
+        return "--010"
+    if result == ABORT:
+        return "----1"
+    return "--000"
 
-    # if center == 0 and statecount == 3: return 1
-    # if center == 0: return 0
+def emit_boolean(state, u_on, c_on, l_on, u_unk, c_unk, l_unk, result, rdigs=5):
+    inputs = int2bin(state, 2) + \
+        int2bin(u_on, 2) + int2bin(c_on, 2) + int2bin(l_on, 2) + \
+        int2bin(u_unk, 2) + int2bin(c_unk, 2) + int2bin(l_unk, 2)
+    outputs = stateresult2string(state, result)
 
-    # if center == 1 and (statecount == 3 or statecount == 2): return 1
-    # if center == 1: return 0
-    # return 0
+    return f"{inputs} {outputs}\n"
+
+def emit_rule(u_on, c_on, l_on, u_unk, c_unk, l_unk):
+    result = ""
+
+    # this is the whole 3x3 square, so we have to -1 below
+    live_count = u_on + c_on + l_on
+    unknown_count = u_unk + c_unk + l_unk
+
+    if c_on < 3:
+        result += emit_boolean(OFF, u_on, c_on, l_on, u_unk, c_unk, l_unk,
+                               propagate_function(OFF, live_count, unknown_count))
+
+    if c_on > 0:
+        result += emit_boolean(ON, u_on, c_on, l_on, u_unk, c_unk, l_unk,
+                               propagate_function(ON, live_count-1, unknown_count))
+
+    if c_unk > 0:
+        result += emit_boolean(UNKNOWN, u_on, c_on, l_on, u_unk, c_unk, l_unk,
+                               propagate_function(UNKNOWN, live_count, unknown_count-1))
+
+    return result
+
+def make_propagate_rule():
+    data = """.i 14
+.o 5
+.type fr
+"""
+    for u_on, c_on, l_on, u_unk, c_unk, l_unk in itertools.product(range(0,4), repeat=6):
+        data += emit_rule(u_on, c_on, l_on, u_unk, c_unk, l_unk)
+
+    innames = ["state1", "state0", "u_on1", "u_on0", "c_on1", "c_on0", "l_on1", "l_on0", "u_unk1", "u_unk0", "c_unk1", "c_unk0", "l_unk1", "l_unk0"]
+    outnames = ["set_off", "set_on", "signal_off", "signal_on", "abort"]
+
+    run_espresso(data, innames, outnames)
+
+make_propagate_rule()
+
+# For golly
+def transition_function(s):
+    if any([c == ABORT for c in s]):
+        return ABORT
+
+    center = s[8]
+
+    oncount = 0
+    unkcount = 0
+    signalon = False
+    signaloff = False
+    for c in s[0:8]:
+        if underlying(c) == ON:
+            oncount += 1
+        if c == UNKNOWN:
+            unkcount += 1
+        if c == OFFSIGNALON or c == ONSIGNALON:
+            signalon = True
+        if c == OFFSIGNALOFF or c == ONSIGNALOFF:
+            signaloff = True
+
+    if center == UNKNOWN:
+        if signalon and signaloff: return ABORT
+        if signalon: return ON
+        if signaloff: return OFF
+
+    return propagate_function(center, oncount, unkcount)

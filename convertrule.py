@@ -85,6 +85,8 @@ def stateresult2string(state, result):
         return "10000"
     if state == UNKNOWN and result == ON:
         return "01000"
+    if state == UNKNOWN:
+        return "00000"
     if result == OFFSIGNALOFF:
         return "--100"
     if result == ONSIGNALOFF:
@@ -95,7 +97,7 @@ def stateresult2string(state, result):
         return "--010"
     if result == ABORT:
         return "----1"
-    return "-----"
+    return "--000"
 
 def emit_boolean(state, u_on, c_on, l_on, u_unk, c_unk, l_unk, result, rdigs=5):
     inputs = int2bin(state, 2) + \
@@ -166,4 +168,35 @@ def print_output(lines, innames, outnames):
             if val == "1":
                 print(name, "|=", code, ";")
 
-make_propagate_rule()
+# make_propagate_rule()
+
+name = "PropagateStable"
+n_states = 8
+n_neighbors = 8
+
+def transition_function(s):
+    if any([c == ABORT for c in s]):
+        return ABORT
+
+    center = s[8]
+
+    oncount = 0
+    unkcount = 0
+    signalon = False
+    signaloff = False
+    for c in s[0:8]:
+        if underlying(c) == ON:
+            oncount += 1
+        if c == UNKNOWN:
+            unkcount += 1
+        if c == OFFSIGNALON or c == ONSIGNALON:
+            signalon = True
+        if c == OFFSIGNALOFF or c == ONSIGNALOFF:
+            signaloff = True
+
+    if center == UNKNOWN:
+        if signalon and signaloff: return ABORT
+        if signalon: return ON
+        if signaloff: return OFF
+
+    return propagate_function(center, oncount, unkcount)
