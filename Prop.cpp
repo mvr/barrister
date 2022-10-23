@@ -25,72 +25,6 @@ void CountRows(LifeState &state, LifeState &bit1, LifeState &bit0) {
   }
 }
 
-void CountNeighbours(LifeState &state, LifeState &zero, LifeState &one, LifeState &two, LifeState &three, LifeState &four, LifeState &more) {
-
-  uint64_t triplezero[N];
-  uint64_t tripleone[N];
-  uint64_t tripletwo[N];
-  uint64_t triplethree[N];
-
-  for (int i = 0; i < N; i++) {
-    uint64_t a = state.state[i];
-    uint64_t l = RotateLeft(a);
-    uint64_t r = RotateRight(a);
-    triplezero[i] = ~l & ~a & ~r;
-    tripleone[i] = l ^ a ^ r ^ (l & a & r);
-    tripletwo[i] = l ^ a ^ r ^ (l | a | r);
-    triplethree[i] = l & a & r;
-  }
-
-  for (int i = 0; i < N; i++) {
-    int idxU;
-    int idxB;
-    if (i == 0)
-      idxU = N - 1;
-    else
-      idxU = i - 1;
-
-    if (i == N - 1)
-      idxB = 0;
-    else
-      idxB = i + 1;
-
-    zero.state[i] = (triplezero[idxU] & triplezero[i] & triplezero[idxB]);
-    one.state[i] = (tripleone[idxU] & triplezero[i] & triplezero[idxB]) |
-                       (triplezero[idxU] & tripleone[i] & triplezero[idxB]) |
-                       (triplezero[idxU] & triplezero[i] & tripleone[idxB]);
-    two.state[i] = (tripletwo[idxU] & triplezero[i] & triplezero[idxB]) |
-                   (triplezero[idxU] & tripletwo[i] & triplezero[idxB]) |
-                   (triplezero[idxU] & triplezero[i] & tripletwo[idxB]) |
-                   (triplezero[idxU] & tripleone[i] & tripleone[idxB]) |
-                   (tripleone[idxU] & triplezero[i] & tripleone[idxB]) |
-                   (tripleone[idxU] & tripleone[i] & triplezero[idxB]);
-    three.state[i] = (triplethree[idxU] & triplezero[i] & triplezero[idxB]) |
-                     (triplezero[idxU] & triplethree[i] & triplezero[idxB]) |
-                     (triplezero[idxU] & triplezero[i] & triplethree[idxB]) |
-                     (triplezero[idxU] & tripleone[i] & tripletwo[idxB]) |
-                     (tripleone[idxU] & triplezero[i] & tripletwo[idxB]) |
-                     (tripleone[idxU] & tripletwo[i] & triplezero[idxB]) |
-                     (triplezero[idxU] & tripletwo[i] & tripleone[idxB]) |
-                     (tripletwo[idxU] & triplezero[i] & tripleone[idxB]) |
-                     (tripletwo[idxU] & tripleone[i] & triplezero[idxB]) |
-                     (tripleone[idxU] & tripleone[i] & tripleone[idxB]);
-    four.state[i] = (triplezero[idxU] & tripleone[i] & triplethree[idxB]) |
-                    (tripleone[idxU] & triplezero[i] & triplethree[idxB]) |
-                    (tripleone[idxU] & triplethree[i] & triplezero[idxB]) |
-                    (triplezero[idxU] & triplethree[i] & tripleone[idxB]) |
-                    (triplethree[idxU] & triplezero[i] & tripleone[idxB]) |
-                    (triplethree[idxU] & tripleone[i] & triplezero[idxB]) |
-                    (triplezero[idxU] & tripletwo[i] & tripletwo[idxB]) |
-                    (tripletwo[idxU] & triplezero[i] & tripletwo[idxB]) |
-                    (tripletwo[idxU] & tripletwo[i] & triplezero[idxB]) |
-                    (tripletwo[idxU] & tripleone[i] & tripleone[idxB]) |
-                    (tripleone[idxU] & tripletwo[i] & tripleone[idxB]) |
-                    (tripleone[idxU] & tripleone[i] & tripletwo[idxB]);
-    more.state[i] = ~(zero.state[i] | one.state[i] | two.state[i] | three.state[i] | four.state[i]);
-  }
-}
-
 class CountState {
 public:
   uint64_t state[4 * N];
@@ -124,15 +58,8 @@ public:
 
   std::string UnknownRLE() const;
 
-  static void CountNeighbours(LifeState &state, LifeState &zero, LifeState &one,
-                              LifeState &two, LifeState &three, LifeState &four,
-                              LifeState &more);
-
   std::pair<bool, bool> PropagateStableStep();
-  std::pair<bool, bool> PropagateStableStep2();
   bool PropagateStable();
-
-
 
   bool CheckSanity();
 };
@@ -328,43 +255,6 @@ abort |= state0 & (~on2) & (~on1) & (~unk3) & (~unk2) & (~unk1) ;
   return std::make_pair(consistent, startKnown == known);
 }
 
-std::pair<bool, bool> SearchState::PropagateStableStep2() {
-  LifeState zero, one, two, three, four, more;
-  LifeState unkzero, unkone, unktwo, unkthree, unkfour, unkmore;
-  LifeState actzero, actone, acttwo, actthree, actfour, actmore;
-  LifeState startKnown = known;
-  LifeState unk = ~known;
-
-  // Remember these include the center cell
-  CountNeighbours(stable, zero, one, two, three, four, more);
-  CountNeighbours(unk, unkzero, unkone, unktwo, unkthree, unkfour, unkmore);
-  CountNeighbours(active, actzero, actone, acttwo, actthree, actfour, actmore);
-
-  LifeState existingON = stable & ~unk;
-  LifeState existingOFF = ~stable & ~unk;
-
-  LifeState forceON = three & unkone & unk;
-  stable |= forceON;
-  known |= forceON;
-
-  LifeState forceOFF = more | (zero & unk & unkone) | (one & unk & unkone) | (zero & unk & unktwo);
-  known |= forceOFF;
-
-  LifeState inconsistentON = existingON & (more | (one & unkzero) | (two & unkzero) | (one & unkone));
-  LifeState inconsistentOFF = existingOFF & (three & unkzero);
-
-  // Unk neighbours have to be ON
-  LifeState needsON = (existingON & ((one & unktwo) | (two & unkone))) |
-                      (existingOFF & three & unkone);
-  stable |= needsON.ZOI() & unk;
-  known |= needsON.ZOI();
-
-  LifeState needsOFF = (existingON & four) | (existingOFF & two & unkone);
-  known |= needsOFF.ZOI();
-
-  return std::make_pair((inconsistentON | inconsistentOFF).IsEmpty(), startKnown == known);
-}
-
 bool SearchState::PropagateStable() {
   bool done = false;
   while (!done) {
@@ -390,24 +280,6 @@ bool SearchState::CheckSanity() {
   bool unknownDisjoint = (~known & stable).IsEmpty() && (~known & active).IsEmpty();
 
   return stableIsStable && unknownDisjoint;
-}
-
-void StepWKnown(LifeState &state, LifeState &known) {
-  LifeState zero, one, two, three, four, more;
-  LifeState unkzero, unkone, unktwo, unkthree, unkfour, unkmore;
-  LifeState unk = ~known;
-
-  CountNeighbours(state, zero, one, two, three, four, more);
-  CountNeighbours(unk, unkzero, unkone, unktwo, unkthree, unkfour, unkmore);
-
-  LifeState OFFstable = (four | more) | (zero & (unkzero | unkone | unktwo)) | (one & (unkzero | unkone));
-  LifeState OFFbirth = three & unkzero;
-
-  LifeState ONstable = (three & (unkzero | unkone)) | (four & unkzero);
-  LifeState ONdeath = more | (one & (unkzero | unkone)) | (two & unkzero);
-
-  state = (~state & OFFbirth) | (state & ONstable);
-  known &= (~state & OFFstable) | (~state & OFFbirth) | (state & ONstable) | (state & ONdeath);
 }
 
 void Run(SearchState state) {
