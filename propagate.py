@@ -100,44 +100,37 @@ def stateresult2string(state, result):
         return "----1"
     return "--000"
 
-def emit_boolean(state, u_on, c_on, l_on, u_unk, c_unk, l_unk, result, rdigs=5):
+def emit_boolean(state, live_count, unknown_count, result, rdigs=5):
     inputs = int2bin(state, 2) + \
-        int2bin(u_on, 2) + int2bin(c_on, 2) + int2bin(l_on, 2) + \
-        int2bin(u_unk, 2) + int2bin(c_unk, 2) + int2bin(l_unk, 2)
+        int2bin(live_count, 4) + int2bin(unknown_count, 4)
     outputs = stateresult2string(state, result)
 
     return f"{inputs} {outputs}\n"
 
-def emit_rule(u_on, c_on, l_on, u_unk, c_unk, l_unk):
+def emit_rule(live_count, unknown_count):
     result = ""
 
-    # this is the whole 3x3 square, so we have to -1 below
-    live_count = u_on + c_on + l_on
-    unknown_count = u_unk + c_unk + l_unk
+    result += emit_boolean(OFF, live_count, unknown_count,
+                           propagate_function(OFF, live_count, unknown_count))
 
-    if c_on < 3:
-        result += emit_boolean(OFF, u_on, c_on, l_on, u_unk, c_unk, l_unk,
-                               propagate_function(OFF, live_count, unknown_count))
+    result += emit_boolean(ON, live_count, unknown_count,
+                           propagate_function(ON, live_count-1, unknown_count))
 
-    if c_on > 0:
-        result += emit_boolean(ON, u_on, c_on, l_on, u_unk, c_unk, l_unk,
-                               propagate_function(ON, live_count-1, unknown_count))
-
-    if c_unk > 0:
-        result += emit_boolean(UNKNOWN, u_on, c_on, l_on, u_unk, c_unk, l_unk,
-                               propagate_function(UNKNOWN, live_count, unknown_count-1))
+    result += emit_boolean(UNKNOWN, live_count, unknown_count,
+                           propagate_function(UNKNOWN, live_count, unknown_count-1))
 
     return result
 
 def make_propagate_rule():
-    data = """.i 14
+    data = """.i 10
 .o 5
 .type fr
 """
-    for u_on, c_on, l_on, u_unk, c_unk, l_unk in itertools.product(range(0,4), repeat=6):
-        data += emit_rule(u_on, c_on, l_on, u_unk, c_unk, l_unk)
+    for live_count in range(0,10):
+        for unknown_count in range(0,10-live_count):
+            data += emit_rule(live_count, unknown_count)
 
-    innames = ["state1", "state0", "u_on1", "u_on0", "c_on1", "c_on0", "l_on1", "l_on0", "u_unk1", "u_unk0", "c_unk1", "c_unk0", "l_unk1", "l_unk0"]
+    innames = ["state1", "state0", "on3", "on2", "on1", "on0", "unk3", "unk2", "unk1", "unk0"]
     outnames = ["set_off", "set_on", "signal_off", "signal_on", "abort"]
 
     run_espresso(data, innames, outnames)
