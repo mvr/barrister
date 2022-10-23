@@ -140,9 +140,9 @@ std::pair<bool, bool> SearchState::PropagateStableStep() {
   LifeState startKnown = known;
   LifeState unk = ~known;
 
-  LifeState on0, on1, unk0, unk1;
-  CountRows(stable, on0, on1);
-  CountRows(unk, unk0, unk1);
+  LifeState oncol0, oncol1, unkcol0, unkcol1;
+  CountRows(stable, oncol0, oncol1);
+  CountRows(unk, unkcol0, unkcol1);
 
   LifeState new_off, new_on, new_signal_off, new_signal_on, new_abort;
 
@@ -167,12 +167,12 @@ std::pair<bool, bool> SearchState::PropagateStableStep() {
     uint64_t unk3, unk2, unk1, unk0;
 
     {
-      uint64_t u_on1 = on1.state[idxU];
-      uint64_t u_on0 = on0.state[idxU];
-      uint64_t c_on1 = on1.state[i];
-      uint64_t c_on0 = on0.state[i];
-      uint64_t l_on1 = on1.state[idxB];
-      uint64_t l_on0 = on0.state[idxB];
+      uint64_t u_on1 = oncol1.state[idxU];
+      uint64_t u_on0 = oncol0.state[idxU];
+      uint64_t c_on1 = oncol1.state[i];
+      uint64_t c_on0 = oncol0.state[i];
+      uint64_t l_on1 = oncol1.state[idxB];
+      uint64_t l_on0 = oncol0.state[idxB];
 
       uint64_t uc0, uc1, uc2, uc_carry0;
       HalfAdd(uc0, uc_carry0, u_on0, c_on0);
@@ -183,12 +183,12 @@ std::pair<bool, bool> SearchState::PropagateStableStep() {
       FullAdd(on1, on_carry1, uc1, l_on1, on_carry0);
       HalfAdd(on2, on3, uc2, on_carry1);
 
-      uint64_t u_unk1 = unk1.state[idxU];
-      uint64_t u_unk0 = unk0.state[idxU];
-      uint64_t c_unk1 = unk1.state[i];
-      uint64_t c_unk0 = unk0.state[i];
-      uint64_t l_unk1 = unk1.state[idxB];
-      uint64_t l_unk0 = unk0.state[idxB];
+      uint64_t u_unk1 = unkcol1.state[idxU];
+      uint64_t u_unk0 = unkcol0.state[idxU];
+      uint64_t c_unk1 = unkcol1.state[i];
+      uint64_t c_unk0 = unkcol0.state[i];
+      uint64_t l_unk1 = unkcol1.state[idxB];
+      uint64_t l_unk0 = unkcol0.state[idxB];
 
       uint64_t ucunk0, ucunk1, ucunk2, ucunk_carry0;
       HalfAdd(ucunk0, ucunk_carry0, u_unk0, c_unk0);
