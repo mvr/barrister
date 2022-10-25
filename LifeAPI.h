@@ -631,6 +631,26 @@ public:
     return boundary;
   }
 
+  LifeState MooreZOI() const {
+    LifeState temp;
+    LifeState boundary;
+    for (int i = 0; i < N; i++) {
+      uint64_t col = state[i];
+      temp.state[i] = col | RotateLeft(col) | RotateRight(col);
+    }
+
+    boundary.state[0] = state[N - 1] | temp.state[0] | state[1];
+
+    for (int i = 1; i < N - 1; i++)
+      boundary.state[i] = state[i - 1] | temp.state[i] | state[i + 1];
+
+    boundary.state[N - 1] = state[N - 2] | temp.state[N - 1] | state[0];
+
+    boundary.RecalculateMinMax();
+    return boundary;
+  }
+
+
   LifeState GetBoundary() const {
     LifeState boundary = ZOI();
     boundary.Copy(*this, ANDNOT);
@@ -900,7 +920,7 @@ public:
     return result;
   }
 
-#if 0
+#ifdef __AVX2__
   // https://stackoverflow.com/questions/56153183/is-using-avx2-can-implement-a-faster-processing-of-lzcnt-on-a-word-array
   std::pair<int, int> FirstOn() const
   {

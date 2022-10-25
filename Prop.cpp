@@ -1,5 +1,6 @@
 #include "LifeAPI.h"
 #include <deque>
+#include <limits>
 
 void inline HalfAdd(uint64_t &out0, uint64_t &out1, const uint64_t ina, const uint64_t inb) {
   out0 = ina ^ inb;
@@ -14,7 +15,7 @@ void inline FullAdd(uint64_t &out0, uint64_t &out1, const uint64_t ina, const ui
   out1 = halfcarry1 | halfcarry2;
 }
 
-void CountRows(LifeState &state, LifeState &bit1, LifeState &bit0) {
+void inline CountRows(LifeState &state, LifeState &__restrict__ bit1, LifeState &__restrict__ bit0) {
   for (int i = 0; i < N; i++) {
     uint64_t a = state.state[i];
     uint64_t l = RotateLeft(a);
@@ -56,10 +57,19 @@ public:
   // LifeState dontcare;
   bool hasInteracted;
   unsigned interactionStartTime;
-  unsigned choices;
+  unsigned preInteractionChoices;
+  unsigned postInteractionChoices;
   unsigned stabletime;
 
+  SearchState()
+      : hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
+        postInteractionChoices(0), stabletime(0) {}
+
+  SearchState ( const SearchState & ) = default;
+  SearchState &operator= ( const SearchState & ) = default;
+
   std::string UnknownRLE() const;
+  static SearchState ParseUnknown(const char *rle);
 
   std::pair<bool, bool> PropagateStableStep();
   bool PropagateStable();
@@ -144,7 +154,82 @@ std::string SearchState::UnknownRLE() const {
   return result.str();
 }
 
+SearchState SearchState::ParseUnknown(const char *rle) {
+  SearchState result;
+  result.known = ~result.known;
 
+  char ch;
+  int cnt, i, j;
+  int x, y;
+  x = 0;
+  y = 0;
+  cnt = 0;
+
+  i = 0;
+
+  while ((ch = rle[i]) != '\0') {
+
+    if (ch >= '0' && ch <= '9') {
+      cnt *= 10;
+      cnt += (ch - '0');
+    } else if (ch == '.') {
+      if (cnt == 0)
+        cnt = 1;
+
+      for (j = 0; j < cnt; j++) {
+        x++;
+      }
+
+      cnt = 0;
+    } else if (ch == 'A') {
+
+      if (cnt == 0)
+        cnt = 1;
+
+      for (j = 0; j < cnt; j++) {
+        result.state.SetCell(x, y, 1);
+        result.stable.SetCell(x, y, 1);
+        x++;
+      }
+
+      cnt = 0;
+    } else if (ch == 'B') {
+
+      if (cnt == 0)
+        cnt = 1;
+
+      for (j = 0; j < cnt; j++) {
+        result.known.SetCell(x, y, 0);
+        x++;
+      }
+
+      cnt = 0;
+    } else if (ch == '$') {
+      if (cnt == 0)
+        cnt = 1;
+
+      if (cnt == 129)
+        // TODO: error
+        return result;
+
+      y += cnt;
+      x = 0;
+      cnt = 0;
+    } else if (ch == '!') {
+      break;
+    } else {
+      // TODO: error
+      return result;
+    }
+
+    i++;
+  }
+  result.state.RecalculateMinMax();
+  result.stable.RecalculateMinMax();
+  result.known.RecalculateMinMax();
+
+  return result;
+}
 
 std::pair<bool, bool> SearchState::PropagateStableStep() {
   LifeState startKnown = known;
@@ -155,6 +240,12 @@ std::pair<bool, bool> SearchState::PropagateStableStep() {
   CountRows(unk, unkcol0, unkcol1);
 
   LifeState new_off, new_on, new_signal_off, new_signal_on, new_abort;
+
+  uint64_t has_set_off = 0;
+  uint64_t has_set_on = 0;
+  uint64_t has_signal_off = 0;
+  uint64_t has_signal_on = 0;
+  uint64_t has_abort = 0;
 
   for (int i = 0; i < N; i++) {
     int idxU;
@@ -248,14 +339,37 @@ abort |= state0 & (~on2) & (~on0) & (~unk3) & (~unk2) & (~unk1) & (~unk0);
    new_signal_off.state[i] = signal_off;
    new_signal_on.state[i] = signal_on;
    new_abort.state[i] = abort;
+
+   has_set_off |= set_off;
+   has_set_on |= set_on;
+   has_signal_off |= signal_off;
+   has_signal_on |= signal_on;
+   has_abort |= abort;
   }
 
-  stable |= (new_on | new_signal_on.ZOI()) & unk;
-  state |= (new_on | new_signal_on.ZOI()) & unk;
-  known |= new_signal_on.ZOI() | new_signal_off.ZOI() | ((new_on | new_off) & unk);
+  if (has_set_off != 0) {
+    known |= new_off & unk;
+  }
 
-  bool consistent = new_abort.IsEmpty();
-  return std::make_pair(consistent, startKnown == known);
+  if (has_set_on != 0) {
+    stable |= new_on & unk;
+    state |= new_on & unk;
+    known |= new_on & unk;
+  }
+
+  if (has_signal_off != 0) {
+    LifeState off_zoi = new_signal_off.ZOI();
+    known |= off_zoi;
+  }
+
+  if (has_signal_on != 0) {
+    LifeState on_zoi = new_signal_on.ZOI();
+    stable |= on_zoi & unk;
+    state |= on_zoi & unk;
+    known |= on_zoi;
+  }
+
+  return std::make_pair(has_abort == 0, startKnown == known);
 }
 
 bool SearchState::PropagateStable() {
@@ -413,23 +527,25 @@ bool SearchState::TestUnknowns() {
     auto newPlacement = newPlacements.FirstOn();
     newPlacements.Erase(newPlacement.first, newPlacement.second);
 
-    bool offConsistent;
+    SearchState onSearch;
+    SearchState offSearch;
     bool onConsistent;
+    bool offConsistent;
 
     // Try on
     {
-      SearchState nextState = *this;
-      nextState.stable.Set(newPlacement.first, newPlacement.second);
-      nextState.known.Set(newPlacement.first, newPlacement.second);
-      onConsistent = nextState.PropagateStable();
+      onSearch = *this;
+      onSearch.stable.Set(newPlacement.first, newPlacement.second);
+      onSearch.known.Set(newPlacement.first, newPlacement.second);
+      onConsistent = onSearch.PropagateStable();
     }
 
     // Try off
     {
-      SearchState nextState = *this;
-      nextState.stable.Erase(newPlacement.first, newPlacement.second);
-      nextState.known.Set(newPlacement.first, newPlacement.second);
-      offConsistent = nextState.PropagateStable();
+      offSearch = *this;
+      offSearch.stable.Erase(newPlacement.first, newPlacement.second);
+      offSearch.known.Set(newPlacement.first, newPlacement.second);
+      offConsistent = offSearch.PropagateStable();
     }
 
     if(!onConsistent && !offConsistent) {
@@ -437,21 +553,22 @@ bool SearchState::TestUnknowns() {
     }
 
     if(onConsistent && !offConsistent) {
-      stable.Set(newPlacement.first, newPlacement.second);
-      known.Set(newPlacement.first, newPlacement.second);
+      *this = onSearch;
     }
 
-    if(!onConsistent && offConsistent) {
-      stable.Erase(newPlacement.first, newPlacement.second);
-      known.Set(newPlacement.first, newPlacement.second);
+    if (!onConsistent && offConsistent) {
+      *this = offSearch;
     }
+
+    newPlacements &= ~known;
   }
   return true;
 }
+
 LifeState SearchState::CompleteStable() {
   SearchState copy = *this;
   LifeState best;
-  unsigned maxPop = 1000000; // TODO: INTMAX
+  unsigned maxPop = std::numeric_limits<int>::max();
   copy.CompleteStable(maxPop, best);
   return best;
 }
@@ -485,14 +602,19 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
     // We win
     best = stable;
     maxPop = stable.GetPop();
-    std::cout << maxPop << std::endl;
-    std::cout << best.RLE() << std::endl;
+    // std::cout << maxPop << std::endl;
+    // std::cout << best.RLE() << std::endl;
 
     return true;
   }
 
+
   // Now make a guess
   LifeState newPlacements = changes.ZOI() & ~known;
+  // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
+  // std::cout << UnknownRLE() << std::endl;
+  // std::cout << newPlacements.RLE() << std::endl;
+  // std::cin.get();
   auto newPlacement = newPlacements.FirstOn();
   // Try off
   {
@@ -512,10 +634,8 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
 }
 
 bool SearchState::RunSearch() {
-
-  bool consistent = PropagateStable();
-
   bool debug = false;
+
   if (!hasInteracted && state.gen > 50) {
     if(debug) std::cout << "failed: didn't interact" << std::endl;
     return false;
@@ -526,24 +646,36 @@ bool SearchState::RunSearch() {
     return false;
   }
 
-  if (choices > 15) {
-    if (debug) std::cout << "failed: too many choices " << stable.RLE() << std::endl;
+  if (preInteractionChoices > 4) {
+    if (debug) std::cout << "failed: too many preInteractionChoices " << stable.RLE() << std::endl;
     return false;
   }
 
-  if (!consistent) {
-    if (debug) std::cout << "failed: inconsistent" << std::endl;
+  if (postInteractionChoices > 15) {
+    if (debug) std::cout << "failed: too many postInteractionChoices " << stable.RLE() << std::endl;
     return false;
   }
 
   if (stabletime > 5) {
     std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
     std::cout << UnknownRLE() << std::endl << std::flush;
-    std::cout << state.RLE() << std::endl << std::flush;
+    std::cout << stable.RLE() << std::endl << std::flush;
+    // std::cout << preInteractionChoices << std::endl << std::flush;
+    // std::cout << postInteractionChoices << std::endl << std::flush;
+    // std::cout << "minimising:" << std::endl;
     // LifeState completed = CompleteStable();
     // std::cout << completed.RLE() << std::endl << std::flush;
     // We win
     return true;
+  }
+
+  bool consistent = PropagateStable();
+  bool consistent2 = true;
+  // bool consistent2 = TestUnknowns();
+
+  if (!consistent || !consistent2) {
+    if (debug) std::cout << "failed: inconsistent" << std::endl;
+    return false;
   }
 
   LifeState nextUnknowns;
@@ -560,6 +692,8 @@ bool SearchState::RunSearch() {
         if (state.gen < 1) return false;
         hasInteracted = true;
         interactionStartTime = state.gen;
+        // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
+        // std::cout << UnknownRLE() << std::endl << std::flush;
       }
     }
 
@@ -573,7 +707,7 @@ bool SearchState::RunSearch() {
       stabletime = 0;
     }
 
-    if (differences.GetPop() > 20) {
+    if (differences.GetPop() > 15) {
       if (debug) std::cout << "failed: too high differences " << stable.RLE() << std::endl;
       return false;
     }
@@ -581,11 +715,24 @@ bool SearchState::RunSearch() {
     return RunSearch();
   } else {
     // Set an unknown cell and recur
-    auto unknown = nearbyUnknowns.FirstOn();
+
+    // Prefer setting an orthogonal cell to a diagonal cell
+    LifeState mooreUnknowns = ~known & nextUnknowns.MooreZOI();
+    std::pair<int, int> unknown;
+    if (!mooreUnknowns.IsEmpty()) {
+      unknown = mooreUnknowns.FirstOn();
+    } else {
+      unknown = nearbyUnknowns.FirstOn();
+    }
+
     {
       SearchState nextState = *this;
+
+      if(!hasInteracted)
+        nextState.preInteractionChoices += 1;
       if(hasInteracted)
-        nextState.choices += 1;
+        nextState.postInteractionChoices += 1;
+
       nextState.state.Set(unknown.first, unknown.second);
       nextState.stable.Set(unknown.first, unknown.second);
       nextState.known.Set(unknown.first, unknown.second);
@@ -597,8 +744,12 @@ bool SearchState::RunSearch() {
     }
     {
       SearchState nextState = *this;
+
+      // if(!hasInteracted)
+      //   nextState.preInteractionChoices += 1;
       if(hasInteracted)
-        nextState.choices += 1;
+        nextState.postInteractionChoices += 1;
+
       nextState.state.Erase(unknown.first, unknown.second);
       nextState.stable.Erase(unknown.first, unknown.second);
       nextState.known.Set(unknown.first, unknown.second);
@@ -615,23 +766,28 @@ bool SearchState::RunSearch() {
 }
 
 int main(int argc, char *argv[]) {
-  // LifeState glider = LifeState::Parse("bo$2bo$3o!");
-  // glider.Move(-5, -4);
+  LifeState glider = LifeState::Parse("bo$2bo$3o!");
+  glider.Move(-5, -5);
 
   LifeState herschel = LifeState::Parse("o$obo$3o$2bo!");
   herschel.Move(-5, 5);
 
+  LifeState honeyfarm = LifeState::Parse("2bo$bobo$o3bo$o3bo$o3bo$bobo$2bo!");
+  honeyfarm.Move(-6, 3);
+
   // LifeState unknown = LifeState::Parse("20o$20o$20o$20o$20o$20o$20o$20o$20o$20o!");
-  // unknown.Move(-10, 0);
 
   LifeState unknown = LifeState::Parse("20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o!");
   unknown.Move(0, -10);
 
+  // SearchState complete = SearchState::ParseUnknown("20B$20B$20B$20B$20B$20B$20B$20B$20B$5.A14B$4.2A14B$6.14B$4.2A.13B$3.A.A.13B$4.A2.13B$5.2A13B$6.14B$4.16B$4.16B$3.17B!");
+  // LifeState completed = complete.CompleteStable();
+  // std::cout << completed.RLE() << std::endl << std::flush;
+  // exit(0);
+
   SearchState search;
-  search.hasInteracted = false;
-  search.interactionStartTime = 0;
-  search.choices = 0;
-  search.stabletime = 0;
+  // search.state = glider;
+  // search.state = honeyfarm;
   search.state = herschel;
   search.known = ~unknown;
 
@@ -648,26 +804,3 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
 }
-
-// Idea: try inactive off, then inactive on, then active off, then active on
-// Active cells should always be next to other active cells
-// Maybe try active on first?
-//
-// After choosing a cell, need to check that it can be locally completed to a
-// still life
-// Leave all the known cells, add a sea of dontcare a couple of cells away
-//
-// Active should only be set when it actually changes in a generation.
-
-// Is StepWUnknown even what we want?  We need to do something like
-// what Bellman does: stable non-active neighbourhoods that only have
-// unknown neighbours should stay stable
-
-// Need to settle on a collection of bits for each cell, probably different ways
- // to factor it.
-
-// 1.
-
-// Also remember, the tempand and tempxor variables are basically
-// giving 2-bit counts for the number of neighbours, so we could use
-// the same sort of espresso trick that Bellman uses
