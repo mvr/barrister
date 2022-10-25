@@ -20,6 +20,9 @@ UNKNOWN = 5
 # 4 200 200 255
 # 5 60 60 100
 
+def is_stable(cell):
+    return cell == OFFSTABLE or cell == ONSTABLE or cell == UNKNOWNSTABLE
+
 def underlying(cell):
     if cell == OFFSTABLE or cell == OFF:
         return OFF
@@ -46,18 +49,18 @@ def life_stable(center, count):
 def stepactive_function(center, oncount, unkcount, stablecount):
     u = underlying(center)
 
-    if stablecount == 8:
+    if is_stable(center) and stablecount == 8:
         return center
 
     lower = oncount
-    upper = oncount + unkcount + 1
+    upper = oncount + unkcount
 
     maybe_on = False
     maybe_off = False
     stable_on = True
     stable_off = True
 
-    r = range(lower, upper)
+    r = range(lower, upper + 1)
     for i in r:
         if u == ON or u == UNKNOWN:
             if life_rule(ON, i) == ON:
@@ -108,10 +111,24 @@ def state2string(state):
     if state == UNKNOWN:
         return "010"
 
+def state2result(state):
+    if state == OFFSTABLE:
+        return "00"
+    if state == ONSTABLE:
+        return "10"
+    if state == UNKNOWNSTABLE:
+        return "00"
+    if state == OFF:
+        return "00"
+    if state == ON:
+        return "10"
+    if state == UNKNOWN:
+        return "01"
+
 def emit_boolean(state, live_count, unknown_count, stable_count, result, rdigs=5):
     inputs = state2string(state) + \
         int2bin(live_count, 4) + int2bin(unknown_count, 4) + int2bin(stable_count, 4)
-    outputs = state2string(result)
+    outputs = state2result(result)
 
     return f"{inputs} {outputs}\n"
 
@@ -143,7 +160,7 @@ def emit_rule(live_count, unknown_count, stable_count):
 
 def make_step_rule():
     data = """.i 15
-.o 3
+.o 2
 .type fr
 """
     for live_count in range(0,10):
@@ -152,7 +169,7 @@ def make_step_rule():
                 data += emit_rule(live_count, unknown_count, stable_count)
 
     innames = ["stateon", "stateunk", "statesta", "on3", "on2", "on1", "on0", "unk3", "unk2", "unk1", "unk0", "sta3", "sta2", "sta1", "sta0"]
-    outnames = ["unknown"]
+    outnames = ["next_on", "unknown"]
 
     run_espresso(data, innames, outnames)
 
