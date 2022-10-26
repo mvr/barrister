@@ -112,12 +112,13 @@ def emit_rule(live_count, unknown_count):
 
     result += emit_boolean(OFF, live_count, unknown_count,
                            propagate_function(OFF, live_count, unknown_count))
+    if live_count > 0:
+        result += emit_boolean(ON, live_count, unknown_count,
+                               propagate_function(ON, live_count-1, unknown_count))
 
-    result += emit_boolean(ON, live_count, unknown_count,
-                           propagate_function(ON, live_count-1, unknown_count))
-
-    result += emit_boolean(UNKNOWN, live_count, unknown_count,
-                           propagate_function(UNKNOWN, live_count, unknown_count-1))
+    if unknown_count > 0:
+        result += emit_boolean(UNKNOWN, live_count, unknown_count,
+                               propagate_function(UNKNOWN, live_count, unknown_count-1))
 
     return result
 
