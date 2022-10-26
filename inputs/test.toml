@@ -1,0 +1,15 @@
+min-first-active-gen = 0
+max-first-active-gen = 20
+max-active-window-gens = 20
+max-pre-interaction-choices = 3
+max-post-interaction-choices = 15
+max-active-cells = 15
+min-stable-interval = 5
+max-changed-cells = 100
+max-changed-cells-grace-period = 5
+
+stabilise-results = true
+
+pattern = '''
+.A$2.A$3A$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B!
+'''

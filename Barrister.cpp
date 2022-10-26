@@ -1,6 +1,130 @@
+#include "toml/toml.hpp"
+
 #include "LifeAPI.h"
 #include <deque>
 #include <limits>
+
+void ParseTristate(const char *rle, LifeState &state0, LifeState &state1, LifeState &state2) {
+  char ch;
+  int cnt, i, j;
+  int x, y;
+  x = 0;
+  y = 0;
+  cnt = 0;
+
+  i = 0;
+
+  while ((ch = rle[i]) != '\0') {
+
+    if (ch >= '0' && ch <= '9') {
+      cnt *= 10;
+      cnt += (ch - '0');
+    } else if (ch == '.') {
+      if (cnt == 0)
+        cnt = 1;
+
+      for (j = 0; j < cnt; j++) {
+        state0.SetCell(x, y, 1);
+        x++;
+      }
+
+      cnt = 0;
+    } else if (ch == 'A') {
+
+      if (cnt == 0)
+        cnt = 1;
+
+      for (j = 0; j < cnt; j++) {
+        state1.SetCell(x, y, 1);
+        x++;
+      }
+
+      cnt = 0;
+    } else if (ch == 'B') {
+
+      if (cnt == 0)
+        cnt = 1;
+
+      for (j = 0; j < cnt; j++) {
+        state2.SetCell(x,y,1);
+        x++;
+      }
+
+      cnt = 0;
+    } else if (ch == '$') {
+      if (cnt == 0)
+        cnt = 1;
+
+      if (cnt == 129)
+        // TODO: error
+        return;
+
+      y += cnt;
+      x = 0;
+      cnt = 0;
+    } else if (ch == '!') {
+      break;
+    } else {
+      // TODO: error
+      return;
+    }
+
+    i++;
+  }
+  state0.RecalculateMinMax();
+  state1.RecalculateMinMax();
+  state2.RecalculateMinMax();
+}
+
+struct SearchParams {
+public:
+  int minFirstActiveGen;
+  int maxFirstActiveGen;
+  int maxActiveWindowGens;
+  int maxPreInteractionChoices;
+  int maxPostInteractionChoices;
+  int maxActiveCells;
+  int minStableInterval;
+
+  int maxChanges;
+  int changesGracePeriod;
+
+  LifeState activePattern;
+  LifeState searchArea;
+
+  bool stabiliseResults;
+
+  static SearchParams FromToml(toml::value &toml);
+};
+
+SearchParams SearchParams::FromToml(toml::value &toml) {
+  SearchParams params;
+
+  params.minFirstActiveGen = toml::find_or(toml, "min-first-active-gen", 0);
+  params.maxFirstActiveGen = toml::find_or(toml, "max-first-active-gen", 20);
+  params.maxActiveWindowGens = toml::find_or(toml, "max-active-window-gens", 20);
+  params.maxPreInteractionChoices = toml::find_or(toml, "max-pre-interaction-choices", 3);
+  params.maxPostInteractionChoices = toml::find_or(toml, "max-post-interaction-choices", 25);
+  params.maxActiveCells = toml::find_or(toml, "max-active-cells", 15);
+  params.minStableInterval = toml::find_or(toml, "min-stable-interval", 5);
+
+  params.maxChanges = toml::find_or(toml, "max-changed-cells", 100);
+  params.changesGracePeriod = toml::find_or(toml, "max-changed-cells-grace-period", 5);
+
+  params.stabiliseResults = toml::find_or(toml, "stabilise-results", false);
+
+  LifeState state0;
+  LifeState state1;
+  LifeState state2;
+
+  std::string rle = toml::find<std::string>(toml, "pattern");
+  ParseTristate(rle.c_str(), state0, state1, state2);
+
+  params.activePattern = state1;
+  params.searchArea = state2;
+
+  return params;
+}
 
 void inline HalfAdd(uint64_t &out0, uint64_t &out1, const uint64_t ina, const uint64_t inb) {
   out0 = ina ^ inb;
@@ -79,7 +203,7 @@ public:
 
   void UncertainStep(LifeState &nextUnknown, LifeState &next);
 
-  bool RunSearch();
+  bool RunSearch(SearchParams &params);
 
   bool CheckSanity();
 };
@@ -155,78 +279,15 @@ std::string SearchState::UnknownRLE() const {
 }
 
 SearchState SearchState::ParseUnknown(const char *rle) {
+  LifeState state0;
+  LifeState state1;
+  LifeState state2;
+
+  ParseTristate(rle, state0, state1, state2);
+
   SearchState result;
-  result.known = ~result.known;
-
-  char ch;
-  int cnt, i, j;
-  int x, y;
-  x = 0;
-  y = 0;
-  cnt = 0;
-
-  i = 0;
-
-  while ((ch = rle[i]) != '\0') {
-
-    if (ch >= '0' && ch <= '9') {
-      cnt *= 10;
-      cnt += (ch - '0');
-    } else if (ch == '.') {
-      if (cnt == 0)
-        cnt = 1;
-
-      for (j = 0; j < cnt; j++) {
-        x++;
-      }
-
-      cnt = 0;
-    } else if (ch == 'A') {
-
-      if (cnt == 0)
-        cnt = 1;
-
-      for (j = 0; j < cnt; j++) {
-        result.state.SetCell(x, y, 1);
-        result.stable.SetCell(x, y, 1);
-        x++;
-      }
-
-      cnt = 0;
-    } else if (ch == 'B') {
-
-      if (cnt == 0)
-        cnt = 1;
-
-      for (j = 0; j < cnt; j++) {
-        result.known.SetCell(x, y, 0);
-        x++;
-      }
-
-      cnt = 0;
-    } else if (ch == '$') {
-      if (cnt == 0)
-        cnt = 1;
-
-      if (cnt == 129)
-        // TODO: error
-        return result;
-
-      y += cnt;
-      x = 0;
-      cnt = 0;
-    } else if (ch == '!') {
-      break;
-    } else {
-      // TODO: error
-      return result;
-    }
-
-    i++;
-  }
-  result.state.RecalculateMinMax();
-  result.stable.RecalculateMinMax();
-  result.known.RecalculateMinMax();
+  result.state = state1;
+  result.known = state0 | state1;
 
   return result;
 }
@@ -633,33 +694,39 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
   return false;
 }
 
-bool SearchState::RunSearch() {
+bool SearchState::RunSearch(SearchParams &params) {
   bool debug = false;
 
-  if (!hasInteracted && state.gen > 50) {
-    if(debug) std::cout << "failed: didn't interact" << std::endl;
+  if (!hasInteracted && state.gen > params.maxFirstActiveGen) {
+    if(debug) std::cout << "failed: didn't interact before " << params.maxFirstActiveGen << std::endl;
     return false;
   }
-  if (hasInteracted && state.gen - interactionStartTime > 10) {
+  if (hasInteracted && state.gen - interactionStartTime > params.maxActiveWindowGens) {
     if (debug) std::cout << "failed: too long " << stable.RLE() << std::endl;
 
     return false;
   }
 
-  if (preInteractionChoices > 4) {
+  if (preInteractionChoices > params.maxPreInteractionChoices) {
     if (debug) std::cout << "failed: too many preInteractionChoices " << stable.RLE() << std::endl;
     return false;
   }
 
-  if (postInteractionChoices > 15) {
+  if (postInteractionChoices > params.maxPostInteractionChoices) {
     if (debug) std::cout << "failed: too many postInteractionChoices " << stable.RLE() << std::endl;
     return false;
   }
 
-  if (stabletime > 5) {
-    std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
+  if (stabletime > params.minStableInterval) {
+    std::cout << "Success:" << std::endl;
+    std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
     std::cout << UnknownRLE() << std::endl << std::flush;
-    std::cout << stable.RLE() << std::endl << std::flush;
+    if (params.stabiliseResults) {
+      std::cout << "Stabilising:" << std::endl;
+      LifeState completed = CompleteStable();
+      std::cout << completed.RLE() << std::endl << std::flush;
+    }
+    // std::cout << stable.RLE() << std::endl << std::flush;
     // std::cout << preInteractionChoices << std::endl << std::flush;
     // std::cout << postInteractionChoices << std::endl << std::flush;
     // std::cout << "minimising:" << std::endl;
@@ -689,30 +756,37 @@ bool SearchState::RunSearch() {
       LifeState stateonly = state & ~stable;
       stateonly.Step();
       if (stateonly != (next & ~stable)) {
-        if (state.gen < 1) return false;
+        if (state.gen < params.minFirstActiveGen) return false;
         hasInteracted = true;
         interactionStartTime = state.gen;
         // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
         // std::cout << UnknownRLE() << std::endl << std::flush;
       }
     }
+    LifeState stableZOI = stable.ZOI();
+
+    LifeState changes = (state ^ next) & stableZOI;
+    if (state.gen - interactionStartTime > params.changesGracePeriod && changes.GetPop() > params.maxChanges) {
+      if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
+      return false;
+    }
 
     // We can safely take a step
     state = next;
 
-    LifeState differences = (stable ^ state) & stable.ZOI();
-    if (hasInteracted && differences.IsEmpty()) {
+    LifeState actives = (stable ^ state) & stableZOI;
+    if (hasInteracted && actives.IsEmpty()) {
       stabletime += 1;
     } else {
       stabletime = 0;
     }
 
-    if (differences.GetPop() > 15) {
-      if (debug) std::cout << "failed: too high differences " << stable.RLE() << std::endl;
+    if (actives.GetPop() > params.maxActiveCells) {
+      if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
       return false;
     }
 
-    return RunSearch();
+    return RunSearch(params);
   } else {
     // Set an unknown cell and recur
 
@@ -725,18 +799,19 @@ bool SearchState::RunSearch() {
       unknown = nearbyUnknowns.FirstOn();
     }
 
+    bool whichFirst = !hasInteracted;
     {
       SearchState nextState = *this;
 
-      if(!hasInteracted)
+      if(!hasInteracted && whichFirst)
         nextState.preInteractionChoices += 1;
       if(hasInteracted)
         nextState.postInteractionChoices += 1;
 
-      nextState.state.Set(unknown.first, unknown.second);
-      nextState.stable.Set(unknown.first, unknown.second);
+      nextState.state.SetCell(unknown.first, unknown.second, whichFirst);
+      nextState.stable.SetCell(unknown.first, unknown.second, whichFirst);
       nextState.known.Set(unknown.first, unknown.second);
-      bool result = nextState.RunSearch();
+      bool result = nextState.RunSearch(params);
       // if (result) {
       //   *this = nextState;
       //   return true;
@@ -745,15 +820,15 @@ bool SearchState::RunSearch() {
     {
       SearchState nextState = *this;
 
-      // if(!hasInteracted)
-      //   nextState.preInteractionChoices += 1;
+      if(!hasInteracted && !whichFirst)
+        nextState.preInteractionChoices += 1;
       if(hasInteracted)
         nextState.postInteractionChoices += 1;
 
-      nextState.state.Erase(unknown.first, unknown.second);
-      nextState.stable.Erase(unknown.first, unknown.second);
+      nextState.state.SetCell(unknown.first, unknown.second, !whichFirst);
+      nextState.stable.SetCell(unknown.first, unknown.second, !whichFirst);
       nextState.known.Set(unknown.first, unknown.second);
-      bool result = nextState.RunSearch();
+      bool result = nextState.RunSearch(params);
       // if (result) {
       //   *this = nextState;
       //   return true;
@@ -766,39 +841,14 @@ bool SearchState::RunSearch() {
 }
 
 int main(int argc, char *argv[]) {
-  LifeState glider = LifeState::Parse("bo$2bo$3o!");
-  glider.Move(-5, -5);
-
-  LifeState herschel = LifeState::Parse("o$obo$3o$2bo!");
-  herschel.Move(-5, 5);
-
-  LifeState honeyfarm = LifeState::Parse("2bo$bobo$o3bo$o3bo$o3bo$bobo$2bo!");
-  honeyfarm.Move(-6, 3);
-
-  // LifeState unknown = LifeState::Parse("20o$20o$20o$20o$20o$20o$20o$20o$20o$20o!");
-
-  LifeState unknown = LifeState::Parse("20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o$20o!");
-  unknown.Move(0, -10);
-
-  // SearchState complete = SearchState::ParseUnknown("20B$20B$20B$20B$20B$20B$20B$20B$20B$5.A14B$4.2A14B$6.14B$4.2A.13B$3.A.A.13B$4.A2.13B$5.2A13B$6.14B$4.16B$4.16B$3.17B!");
-  // LifeState completed = complete.CompleteStable();
-  // std::cout << completed.RLE() << std::endl << std::flush;
-  // exit(0);
+  auto toml = toml::parse(argv[1]);
+  SearchParams params = SearchParams::FromToml(toml);
 
   SearchState search;
-  // search.state = glider;
-  // search.state = honeyfarm;
-  search.state = herschel;
-  search.known = ~unknown;
+  search.state = params.activePattern;
+  search.known = ~params.searchArea;
 
-  // LifeState corner = LifeState::Parse("2o$2o!");
-  // search.state |= corner;
-  // search.stable |= corner;
-  // search.known |= corner;
-  // LifeState anti = LifeState::Parse("5o$4o$3o$2o$o!");
-  // search.known |= anti;
-
-  bool result = search.RunSearch();
+  bool result = search.RunSearch(params);
   if (result) {
     search.stable.Print();
     exit(0);
