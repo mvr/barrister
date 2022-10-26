@@ -94,6 +94,8 @@ public:
 
   bool stabiliseResults;
 
+  bool debug;
+
   static SearchParams FromToml(toml::value &toml);
 };
 
@@ -112,6 +114,8 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.changesGracePeriod = toml::find_or(toml, "max-changed-cells-grace-period", 5);
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", false);
+
+  params.debug = toml::find_or(toml, "debug", false);
 
   LifeState state0;
   LifeState state1;
@@ -695,7 +699,7 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
 }
 
 bool SearchState::RunSearch(SearchParams &params) {
-  bool debug = false;
+  bool debug = params.debug;
 
   if (!hasInteracted && state.gen > params.maxFirstActiveGen) {
     if(debug) std::cout << "failed: didn't interact before " << params.maxFirstActiveGen << std::endl;
