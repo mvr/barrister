@@ -132,29 +132,28 @@ def emit_boolean(state, live_count, unknown_count, stable_count, result, rdigs=5
 
     return f"{inputs} {outputs}\n"
 
+def remove(state, live_count, unknown_count, stable_count):
+    if state == OFFSTABLE:
+        return live_count, unknown_count, stable_count - 1
+    if state == ONSTABLE:
+        return live_count - 1, unknown_count, stable_count - 1
+    if state == UNKNOWNSTABLE:
+        return live_count, unknown_count - 1, stable_count - 1
+    if state == OFF:
+        return live_count, unknown_count, stable_count
+    if state == ON:
+        return live_count - 1, unknown_count, stable_count
+    if state == UNKNOWN:
+        return live_count, unknown_count - 1, stable_count
+
 def emit_rule(live_count, unknown_count, stable_count):
     result = ""
 
-    if stable_count > 0:
-        result += emit_boolean(OFFSTABLE, live_count, unknown_count, stable_count,
-                               stepactive_function(OFFSTABLE, live_count, unknown_count, stable_count-1))
-
-        result += emit_boolean(ONSTABLE, live_count, unknown_count, stable_count,
-                               stepactive_function(ONSTABLE, live_count-1, unknown_count, stable_count-1))
-
-        if unknown_count > 0:
-            result += emit_boolean(UNKNOWNSTABLE, live_count, unknown_count, stable_count,
-                                   stepactive_function(UNKNOWNSTABLE, live_count, unknown_count-1, stable_count-1))
-
-    result += emit_boolean(OFF, live_count, unknown_count, stable_count,
-                           stepactive_function(OFF, live_count, unknown_count, stable_count))
-
-    result += emit_boolean(ON, live_count, unknown_count, stable_count,
-                           stepactive_function(ON, live_count-1, unknown_count, stable_count))
-
-    if unknown_count > 0:
-        result += emit_boolean(UNKNOWN, live_count, unknown_count, stable_count,
-                               stepactive_function(UNKNOWN, live_count, unknown_count-1, stable_count))
+    for c in [OFFSTABLE, ONSTABLE, UNKNOWNSTABLE, OFF, ON, UNKNOWN]:
+        l2, u2, s2 = remove(c, live_count, unknown_count, stable_count)
+        if l2 >= 0 and u2 >= 0 and s2 >= 0:
+            result += emit_boolean(c, live_count, unknown_count, stable_count,
+                               stepactive_function(c, l2, u2, s2))
 
     return result
 
