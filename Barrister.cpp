@@ -418,16 +418,24 @@ abort |= state0 & (~on2) & (~on0) & (~unk2) & (~unk1) & (~unk0) ;
     known |= new_on & unk;
   }
 
+  LifeState off_zoi;
+  LifeState on_zoi;
   if (has_signal_off != 0) {
-    LifeState off_zoi = new_signal_off.ZOI();
+    off_zoi = new_signal_off.ZOI();
     known |= off_zoi;
   }
 
   if (has_signal_on != 0) {
-    LifeState on_zoi = new_signal_on.ZOI();
+    on_zoi = new_signal_on.ZOI();
     stable |= on_zoi & unk;
     state |= on_zoi & unk;
     known |= on_zoi;
+  }
+
+  if (has_signal_on != 0 && has_signal_off != 0) {
+    if(!(on_zoi & off_zoi & unk).IsEmpty()) {
+      has_abort = 1;
+    }
   }
 
   return std::make_pair(has_abort == 0, startKnown == known);
