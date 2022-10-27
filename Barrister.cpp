@@ -199,6 +199,8 @@ public:
   std::string UnknownRLE() const;
   static SearchState ParseUnknown(const char *rle);
 
+  std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
+
   std::pair<bool, bool> PropagateStableStep();
   bool PropagateStable();
   bool TestUnknowns();
@@ -207,7 +209,7 @@ public:
 
   void UncertainStep(LifeState &nextUnknown, LifeState &next);
 
-  bool RunSearch(SearchParams &params);
+  bool RunSearch(SearchParams &params, std::pair<int, int> focus);
 
   bool CheckSanity();
 };
@@ -294,6 +296,17 @@ SearchState SearchState::ParseUnknown(const char *rle) {
   result.known = state0 | state1;
 
   return result;
+}
+
+std::pair<int, int> SearchState::UnknownNeighbour(std::pair<int, int> cell) {
+  const std::vector<std::pair<int, int>> directions = {{-1,0}, {0,-1}, {1,0}, {0,1}, {-1,-1}, {-1, 1}, {1, -1}, {1, 1}};
+  for (auto d : directions) {
+    int x = cell.first + d.first;
+    int y = cell.second + d.second;
+    if (!known.GetCell(x, y))
+      return std::make_pair(x, y);
+  }
+  return std::make_pair(-1, -1);
 }
 
 std::pair<bool, bool> SearchState::PropagateStableStep() {
@@ -702,7 +715,7 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
   return false;
 }
 
-bool SearchState::RunSearch(SearchParams &params) {
+bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
   bool debug = params.debug;
 
   if (!hasInteracted && state.gen > params.maxFirstActiveGen) {
@@ -794,20 +807,17 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
     }
 
-    return RunSearch(params);
+    return RunSearch(params, std::make_pair(-1, -1));
   } else {
     // Set an unknown cell and recur
 
-    // Prefer setting an orthogonal cell to a diagonal cell
-    LifeState mooreUnknowns = ~known & nextUnknowns.MooreZOI();
-    std::pair<int, int> unknown;
-    if (!mooreUnknowns.IsEmpty()) {
-      unknown = mooreUnknowns.FirstOn();
-    } else {
-      unknown = nearbyUnknowns.FirstOn();
+    if (focus == std::make_pair(-1, -1) || known.GetCell(focus.first, focus.second) == true) {
+      focus = nextUnknowns.FirstOn();
     }
 
-    bool whichFirst = !hasInteracted;
+    std::pair<int, int> unknown = UnknownNeighbour(focus);
+
+    bool whichFirst = true;
     {
       SearchState nextState = *this;
 
@@ -819,7 +829,7 @@ bool SearchState::RunSearch(SearchParams &params) {
       nextState.state.SetCell(unknown.first, unknown.second, whichFirst);
       nextState.stable.SetCell(unknown.first, unknown.second, whichFirst);
       nextState.known.Set(unknown.first, unknown.second);
-      bool result = nextState.RunSearch(params);
+      bool result = nextState.RunSearch(params, focus);
       // if (result) {
       //   *this = nextState;
       //   return true;
@@ -836,7 +846,7 @@ bool SearchState::RunSearch(SearchParams &params) {
       nextState.state.SetCell(unknown.first, unknown.second, !whichFirst);
       nextState.stable.SetCell(unknown.first, unknown.second, !whichFirst);
       nextState.known.Set(unknown.first, unknown.second);
-      bool result = nextState.RunSearch(params);
+      bool result = nextState.RunSearch(params, focus);
       // if (result) {
       //   *this = nextState;
       //   return true;
@@ -856,7 +866,7 @@ int main(int argc, char *argv[]) {
   search.state = params.activePattern;
   search.known = ~params.searchArea;
 
-  bool result = search.RunSearch(params);
+  bool result = search.RunSearch(params, {-1, -1});
   if (result) {
     search.stable.Print();
     exit(0);
