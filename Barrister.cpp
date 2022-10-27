@@ -708,12 +708,12 @@ bool SearchState::RunSearch(SearchParams &params) {
   }
 
   if (preInteractionChoices > params.maxPreInteractionChoices) {
-    if (debug) std::cout << "failed: too many preInteractionChoices " << stable.RLE() << std::endl;
+    if (debug) std::cout << "failed: too many pre-interaction choices " << stable.RLE() << std::endl;
     return false;
   }
 
   if (postInteractionChoices > params.maxPostInteractionChoices) {
-    if (debug) std::cout << "failed: too many postInteractionChoices " << stable.RLE() << std::endl;
+    if (debug) std::cout << "failed: too many post-interaction choices " << stable.RLE() << std::endl;
     return false;
   }
 
