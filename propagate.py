@@ -102,12 +102,13 @@ def stateresult2string(state, result):
 
 def emit_boolean(state, live_count, unknown_count, result, rdigs=5):
     inputs = int2bin(state, 2) + \
-        int2bin(live_count, 4) + int2bin(unknown_count, 4)
+        int2bin(live_count, 3) + int2bin(unknown_count, 3)
     outputs = stateresult2string(state, result)
 
     return f"{inputs} {outputs}\n"
 
 def emit_rule(live_count, unknown_count):
+    if live_count > 7 or unknown_count > 3: return ""
     result = ""
 
     result += emit_boolean(OFF, live_count, unknown_count,
@@ -123,7 +124,7 @@ def emit_rule(live_count, unknown_count):
     return result
 
 def make_propagate_rule():
-    data = """.i 10
+    data = """.i 8
 .o 5
 .type fr
 """
@@ -131,7 +132,7 @@ def make_propagate_rule():
         for unknown_count in range(0,10-live_count):
             data += emit_rule(live_count, unknown_count)
 
-    innames = ["state1", "state0", "on3", "on2", "on1", "on0", "unk3", "unk2", "unk1", "unk0"]
+    innames = ["state1", "state0", "on2", "on1", "on0", "unk2", "unk1", "unk0"]
     outnames = ["set_off", "set_on", "signal_off", "signal_on", "abort"]
 
     run_espresso(data, innames, outnames)
