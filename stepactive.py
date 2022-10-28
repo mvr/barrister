@@ -123,7 +123,7 @@ def state2result(state):
     if state == ON:
         return "10"
     if state == UNKNOWN:
-        return "01"
+        return "-1"
 
 def emit_boolean(state, live_count, unknown_count, stable_count, result, rdigs=5):
     inputs = state2string(state) + \
@@ -147,6 +147,8 @@ def remove(state, live_count, unknown_count, stable_count):
         return live_count, unknown_count - 1, stable_count
 
 def emit_rule(live_count, unknown_count, stable_count):
+    if live_count > 7 or unknown_count > 3: return ""
+
     result = ""
 
     for c in [OFFSTABLE, ONSTABLE, UNKNOWNSTABLE, OFF, ON, UNKNOWN]:
