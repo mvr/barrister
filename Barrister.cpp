@@ -178,6 +178,23 @@ void inline CountRows(LifeState &state, LifeState &__restrict__ bit1, LifeState 
 //   }
 // }
 
+enum FocusType {
+  NONE,
+  NORMAL,
+  GLANCING
+};
+
+struct Focus {
+  FocusType type;
+  std::pair<int, int> coords;
+
+  Focus(FocusType t, std::pair<int, int> c) : type(t), coords(c) {}
+  static Focus None()
+  {
+    return Focus(NONE, std::make_pair(-1,-1));
+  }
+};
+
 class SearchState {
 public:
   LifeState state;
@@ -215,9 +232,13 @@ public:
   LifeState CompleteStable();
 
   void UncertainActiveStep(LifeState &next, LifeState &nextUnknown);
-  void UncertainStep(LifeState &next, LifeState &nextUnknown);
+  void UncertainStep(LifeState &next, LifeState &nextUnknown, LifeState &glancing);
 
-  bool RunSearch(SearchParams &params, std::pair<int, int> focus);
+  bool RunSearch(SearchParams &params, Focus focus, LifeState &triedGlancing);
+  bool RunSearch(SearchParams &params) {
+    LifeState blank;
+    return RunSearch(params, Focus::None(), blank);
+  }
 
   bool CheckSanity();
 };
@@ -853,7 +874,7 @@ unknown |= (~on2) & (~on1) & (~on0) & (~unk0) ;
   next.gen = state.gen + 1;
 }
 
-void SearchState::UncertainStep(LifeState &next, LifeState &nextUnknown) {
+void SearchState::UncertainStep(LifeState &next, LifeState &nextUnknown, LifeState &glancing) {
   LifeState result;
 
   LifeState unk = ~known;
@@ -940,6 +961,7 @@ next_on |= stateon & (~on1) & (~on0) & (~unk1) & (~unk0) ;
 
     next.state[i] = next_on;
     nextUnknown.state[i] = unknown;
+    glancing.state[i] = (~stateon) & (~stateunk) & (~on2) & (~on1) & on0 & (~unk3) & (~unk2) & unk1 & (~unk0);
   }
   next.gen = state.gen + 1;
 }
@@ -1102,8 +1124,10 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
 }
 
 bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
+bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedGlancing) {
   bool debug = params.debug;
 
+  if(debug) std::cout << "focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
   if (!hasInteracted && state.gen > params.maxFirstActiveGen) {
     if(debug) std::cout << "failed: didn't interact before " << params.maxFirstActiveGen << std::endl;
     return false;
@@ -1146,8 +1170,8 @@ bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
     return true;
   }
 
-  if (focus != std::make_pair(-1, -1)) {
-    bool consistent = SimplePropagateColumnStep(focus.first);
+  if (focus.type != NONE) {
+    bool consistent = SimplePropagateColumnStep(focus.coords.first);
 
     if (!consistent) {
       if (debug) std::cout << "failed: inconsistent" << std::endl;
@@ -1162,17 +1186,19 @@ bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
     }
   }
 
-  if (focus != std::make_pair(-1, -1) && known.GetCell(focus.first, focus.second)) {
-    // Done with this focus
-    focus = std::make_pair(-1, -1);
+  if (focus.type != NONE && known.GetCell(focus.coords.first, focus.coords.second)) {
+    // Done with this focus.coords
+    focus = Focus::None();
   }
 
   LifeState next;
   LifeState nextUnknowns;
-  if (focus == std::make_pair(-1, -1)) {
+  LifeState glancing;
+
+  if (focus.type == NONE) {
     // Find the next unknown cell
 
-    UncertainStep(next, nextUnknowns);
+    UncertainStep(next, nextUnknowns, glancing);
 
     // Prevent the unknown zone from growing, as in Bellman
     LifeState uneqStableNbhd = (state ^ stable).ZOI();
@@ -1180,15 +1206,29 @@ bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
     next |= stable & ~uneqStableNbhd;
     nextUnknowns &= uneqStableNbhd;
     nextUnknowns |= ~known & ~uneqStableNbhd;
+    glancing &= ~triedGlancing;
 
     // Find unknown cells that were known in the previous generation
     LifeState newUnknowns = nextUnknowns & known;
-    focus = newUnknowns.FirstOn();
+    auto coords = (newUnknowns & ~glancing).FirstOn();
+    if (coords != std::make_pair(-1, -1)) {
+      focus = Focus(NORMAL, coords);
+    } else {
+      coords = (newUnknowns & glancing).FirstOn();
+      if (coords != std::make_pair(-1, -1)) {
+        focus = Focus(GLANCING, coords);
+      } else {
+        focus = Focus::None();
+      }
+    }
+
+    // LifeState newUnknown = nextUnknowns & known;
+    // focus.coords = newUnknown.FirstOn();
   }
 
-  if (focus != std::make_pair(-1, -1)) {
+  if (focus.type == NORMAL) {
     // Set an unknown neighbour of the focus
-    std::pair<int, int> unknown = UnknownNeighbour(focus);
+    std::pair<int, int> unknown = UnknownNeighbour(focus.coords);
 
     bool whichFirst = false;
     {
@@ -1202,7 +1242,7 @@ bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
       nextState.state.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
       nextState.stable.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
       nextState.known.Set(unknown.first, unknown.second);
-      bool result = nextState.RunSearch(params, focus);
+      bool result = nextState.RunSearch(params, focus, triedGlancing);
       // if (result) {
       //   *this = nextState;
       //   return true;
@@ -1219,7 +1259,47 @@ bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
       nextState.state.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
       nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
       nextState.known.Set(unknown.first, unknown.second);
-      bool result = nextState.RunSearch(params, focus);
+      bool result = nextState.RunSearch(params, focus, triedGlancing);
+      // if (result) {
+      //   *this = nextState;
+      //   return true;
+      // }
+    }
+    return true;
+  } else if (focus.type == GLANCING) {
+    // Try all on
+    {
+      SearchState nextState = *this;
+
+      if(!hasInteracted)
+        nextState.preInteractionChoices += 2;
+      if(hasInteracted)
+        nextState.postInteractionChoices += 2;
+
+      std::pair<int, int> unknown;
+      unknown = UnknownNeighbour(focus.coords);
+      nextState.state.Set(unknown.first, unknown.second);
+      nextState.stable.Set(unknown.first, unknown.second);
+      nextState.known.Set(unknown.first, unknown.second);
+      unknown = UnknownNeighbour(focus.coords);
+      nextState.state.Set(unknown.first, unknown.second);
+      nextState.stable.Set(unknown.first, unknown.second);
+      nextState.known.Set(unknown.first, unknown.second);
+
+      bool result = nextState.RunSearch(params, Focus::None(), triedGlancing);
+      // if (result) {
+      //   *this = nextState;
+      //   return true;
+      // }
+    }
+    // Leave unknown
+    {
+      SearchState nextState = *this;
+
+      LifeState newGlancing = triedGlancing;
+      newGlancing.Set(focus.coords.first, focus.coords.second);
+
+      bool result = nextState.RunSearch(params, Focus::None(), newGlancing);
       // if (result) {
       //   *this = nextState;
       //   return true;
@@ -1269,7 +1349,7 @@ bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
       return false;
     }
 
-    return RunSearch(params, std::make_pair(-1, -1));
+    return RunSearch(params);
   }
 }
 
@@ -1281,9 +1361,5 @@ int main(int argc, char *argv[]) {
   search.state = params.activePattern;
   search.known = ~params.searchArea;
 
-  bool result = search.RunSearch(params, {-1, -1});
-  if (result) {
-    search.stable.Print();
-    exit(0);
-  }
+  bool result = search.RunSearch(params);
 }
