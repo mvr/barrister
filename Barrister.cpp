@@ -3,6 +3,7 @@
 #include "LifeAPI.h"
 #include <deque>
 #include <limits>
+#include <chrono>
 
 void ParseTristate(const char *rle, LifeState &state0, LifeState &state1, LifeState &state2) {
   char ch;
@@ -1012,14 +1013,29 @@ bool SearchState::TestUnknowns() {
 }
 
 LifeState SearchState::CompleteStable() {
-  SearchState copy = *this;
   LifeState best;
   unsigned maxPop = std::numeric_limits<int>::max();
-  copy.CompleteStable(maxPop, best);
+  LifeState searchArea = stable;
+
+  auto startTime = std::chrono::system_clock::now();
+
+  while(!(~known & ~searchArea).IsEmpty()) {
+    searchArea = searchArea.ZOI();
+    SearchState copy = *this;
+    copy.known |= ~searchArea;
+    copy.CompleteStable(maxPop, best);
+
+    auto currentTime = std::chrono::system_clock::now();
+    int seconds = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime).count();
+
+    if (best.GetPop() > 0 || seconds > 10)
+      break;
+  }
   return best;
 }
 
 bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
+  // std::cout << stable.RLE() << std::endl;
   if (stable.GetPop() >= maxPop) {
     return false;
   }
@@ -1054,29 +1070,35 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
     return true;
   }
 
-
   // Now make a guess
   LifeState newPlacements = changes.ZOI() & ~known;
+  if(newPlacements.IsEmpty())
+    return false;
+
   // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
   // std::cout << UnknownRLE() << std::endl;
   // std::cout << newPlacements.RLE() << std::endl;
   // std::cin.get();
   auto newPlacement = newPlacements.FirstOn();
+  bool onresult = false;
+  bool offresult = false;
+
   // Try off
   {
     SearchState nextState = *this;
     nextState.stable.Erase(newPlacement.first, newPlacement.second);
     nextState.known.Set(newPlacement.first, newPlacement.second);
-    bool result = nextState.CompleteStable(maxPop, best);
+    onresult = nextState.CompleteStable(maxPop, best);
   }
   // Then must be on
   {
     SearchState nextState = *this;
     nextState.stable.Set(newPlacement.first, newPlacement.second);
     nextState.known.Set(newPlacement.first, newPlacement.second);
-    bool result = nextState.CompleteStable(maxPop, best);
+    offresult = nextState.CompleteStable(maxPop, best);
   }
-  return false;
+
+  return onresult || offresult;
 }
 
 bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
