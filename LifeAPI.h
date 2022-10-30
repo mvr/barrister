@@ -190,6 +190,12 @@ public:
     if (val == 0)
       Erase((x + 64) % N, (y + 64) % 64);
   }
+  void SetCellUnsafe(int x, int y, int val) {
+    if (val == 1)
+      Set(x, y);
+    if (val == 0)
+      Erase(x, y);
+  }
   int GetCell(int x, int y) const {
     return Get((x + 64) % N, (y + 64) % 64);
   }
