@@ -1123,7 +1123,6 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
   return onresult || offresult;
 }
 
-bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
 bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedGlancing) {
   bool debug = params.debug;
 
@@ -1221,6 +1220,7 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
     focus = Focus::None();
   }
 
+  if(focus.type == NONE) {
     // Find unknown cells that were known in the previous generation
     LifeState newUnknowns = nextUnknowns & known;
 
@@ -1244,7 +1244,7 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
         focus = Focus::None();
       }
     }
-
+  }
 
     // auto coords = newUnknowns.FirstOn();
     // if (coords != std::make_pair(-1, -1)) {
