@@ -5,7 +5,7 @@
 #include <limits>
 #include <chrono>
 
-void ParseTristate(const char *rle, LifeState &state0, LifeState &state1, LifeState &state2) {
+void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) {
   char ch;
   int cnt, i, j;
   int x, y;
@@ -20,38 +20,6 @@ void ParseTristate(const char *rle, LifeState &state0, LifeState &state1, LifeSt
     if (ch >= '0' && ch <= '9') {
       cnt *= 10;
       cnt += (ch - '0');
-    } else if (ch == '.') {
-      if (cnt == 0)
-        cnt = 1;
-
-      for (j = 0; j < cnt; j++) {
-        state0.SetCell(x, y, 1);
-        x++;
-      }
-
-      cnt = 0;
-    } else if (ch == 'A') {
-
-      if (cnt == 0)
-        cnt = 1;
-
-      for (j = 0; j < cnt; j++) {
-        state1.SetCell(x, y, 1);
-        x++;
-      }
-
-      cnt = 0;
-    } else if (ch == 'B') {
-
-      if (cnt == 0)
-        cnt = 1;
-
-      for (j = 0; j < cnt; j++) {
-        state2.SetCell(x,y,1);
-        x++;
-      }
-
-      cnt = 0;
     } else if (ch == '$') {
       if (cnt == 0)
         cnt = 1;
@@ -66,15 +34,32 @@ void ParseTristate(const char *rle, LifeState &state0, LifeState &state1, LifeSt
     } else if (ch == '!') {
       break;
     } else {
-      // TODO: error
-      return;
+      if (cnt == 0)
+        cnt = 1;
+
+      for (j = 0; j < cnt; j++) {
+        switch(ch) {
+        case 'A':
+          stateon.Set(x, y);
+          break;
+        case 'B':
+          statemarked.Set(x, y);
+          break;
+        case 'C':
+          stateon.Set(x, y);
+          statemarked.Set(x, y);
+          break;
+        }
+        x++;
+      }
+
+      cnt = 0;
     }
 
     i++;
   }
-  state0.RecalculateMinMax();
-  state1.RecalculateMinMax();
-  state2.RecalculateMinMax();
+  stateon.RecalculateMinMax();
+  statemarked.RecalculateMinMax();
 }
 
 struct SearchParams {
@@ -92,6 +77,7 @@ public:
   int changesGracePeriod;
 
   LifeState activePattern;
+  LifeState startingStable;
   LifeState searchArea;
 
   bool stabiliseResults;
@@ -120,15 +106,15 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
 
   params.debug = toml::find_or(toml, "debug", false);
 
-  LifeState state0;
-  LifeState state1;
-  LifeState state2;
+  LifeState stateon;
+  LifeState statemarked;
 
   std::string rle = toml::find<std::string>(toml, "pattern");
-  ParseTristate(rle.c_str(), state0, state1, state2);
+  ParseTristate(rle.c_str(), stateon, statemarked);
 
-  params.activePattern = state1;
-  params.searchArea = state2;
+  params.activePattern = stateon & ~statemarked;
+  params.startingStable = stateon & statemarked;
+  params.searchArea = ~stateon & statemarked;
 
   return params;
 }
@@ -314,15 +300,14 @@ std::string SearchState::UnknownRLE() const {
 }
 
 SearchState SearchState::ParseUnknown(const char *rle) {
-  LifeState state0;
-  LifeState state1;
-  LifeState state2;
+  LifeState stateon;
+  LifeState statemarked;
 
-  ParseTristate(rle, state0, state1, state2);
+  ParseTristate(rle, stateon, statemarked);
 
   SearchState result;
-  result.state = state1;
-  result.known = ~state2;
+  result.state = stateon;
+  result.known = stateon | (~stateon & ~statemarked);
 
   return result;
 }
@@ -1359,6 +1344,7 @@ int main(int argc, char *argv[]) {
 
   SearchState search;
   search.state = params.activePattern;
+  search.stable = params.startingStable;
   search.known = ~params.searchArea;
 
   bool result = search.RunSearch(params);
