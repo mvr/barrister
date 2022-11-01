@@ -946,7 +946,7 @@ next_on |= stateon & (~on1) & (~on0) & (~unk1) & (~unk0) ;
 
     next.state[i] = next_on;
     nextUnknown.state[i] = unknown;
-    glancing.state[i] = (~stateon) & (~stateunk) & (~on2) & (~on1) & on0 & (~unk3) & (~unk2) & unk1 & (~unk0);
+    glancing.state[i] = (~stateon) & (~stateunk) & (~on2) & (~on1) & on0 & (unk0 | unk1);
   }
   next.gen = state.gen + 1;
 }
@@ -1108,7 +1108,6 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
   return onresult || offresult;
 }
 
-bool SearchState::RunSearch(SearchParams &params, std::pair<int, int> focus) {
 bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedGlancing) {
   bool debug = params.debug;
 
@@ -1171,30 +1170,45 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
     }
   }
 
-  if (focus.type != NONE && known.GetCell(focus.coords.first, focus.coords.second)) {
-    // Done with this focus.coords
-    focus = Focus::None();
-  }
-
   LifeState next;
   LifeState nextUnknowns;
   LifeState glancing;
 
-  if (focus.type == NONE) {
+  //  if (focus.type == NONE) {
     // Find the next unknown cell
 
-    UncertainStep(next, nextUnknowns, glancing);
-
+  UncertainStep(next, nextUnknowns, glancing);
     // Prevent the unknown zone from growing, as in Bellman
-    LifeState uneqStableNbhd = (state ^ stable).ZOI();
-    next &= uneqStableNbhd;
-    next |= stable & ~uneqStableNbhd;
-    nextUnknowns &= uneqStableNbhd;
-    nextUnknowns |= ~known & ~uneqStableNbhd;
-    glancing &= ~triedGlancing;
+  LifeState uneqStableNbhd = (state ^ stable).ZOI();
+  next &= uneqStableNbhd;
+  next |= stable & ~uneqStableNbhd;
+  nextUnknowns &= uneqStableNbhd;
+  nextUnknowns |= ~known & ~uneqStableNbhd;
+  nextUnknowns &= ~triedGlancing;
+  glancing &= ~triedGlancing;
 
+
+  if (focus.type == GLANCING && !nextUnknowns.GetCell(focus.coords.first, focus.coords.second) && !next.GetCell(focus.coords.first, focus.coords.second)) {
+    // std::cout << "glancing failed:" << std::endl << std::flush;
+    // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+    // std::cout << UnknownRLE() << std::endl << std::flush;
+    // LifeState without = state;
+    // without.Set(focus.coords.first, focus.coords.second);
+    // std::cout << state.RLE() << std::endl << std::flush;
+    // std::cout << without.RLE() << std::endl << std::flush;
+    // This glancing interaction failed
+    return false;
+  }
+
+  if (focus.type != NONE && !nextUnknowns.GetCell(focus.coords.first, focus.coords.second)) {
+    // Done with this focus
+    focus = Focus::None();
+  }
+
+  if(focus.type == NONE) {
     // Find unknown cells that were known in the previous generation
     LifeState newUnknowns = nextUnknowns & known;
+
     auto coords = (newUnknowns & ~glancing).FirstOn();
     if (coords != std::make_pair(-1, -1)) {
       focus = Focus(NORMAL, coords);
@@ -1202,16 +1216,27 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
       coords = (newUnknowns & glancing).FirstOn();
       if (coords != std::make_pair(-1, -1)) {
         focus = Focus(GLANCING, coords);
+        {
+          // Just ignore any glancing interaction and proceed
+          SearchState nextState = *this;
+
+          LifeState newGlancing = triedGlancing;
+          newGlancing.Set(focus.coords.first, focus.coords.second);
+
+          bool result = nextState.RunSearch(params, Focus::None(), newGlancing);
+        }
       } else {
         focus = Focus::None();
       }
     }
-
-    // LifeState newUnknown = nextUnknowns & known;
-    // focus.coords = newUnknown.FirstOn();
   }
 
-  if (focus.type == NORMAL) {
+    // auto coords = newUnknowns.FirstOn();
+    // if (coords != std::make_pair(-1, -1)) {
+    //   focus = Focus(NORMAL, coords);
+    // }
+
+  if (focus.type == NORMAL || focus.type == GLANCING) {
     // Set an unknown neighbour of the focus
     std::pair<int, int> unknown = UnknownNeighbour(focus.coords);
 
@@ -1245,46 +1270,6 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
       nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
       nextState.known.Set(unknown.first, unknown.second);
       bool result = nextState.RunSearch(params, focus, triedGlancing);
-      // if (result) {
-      //   *this = nextState;
-      //   return true;
-      // }
-    }
-    return true;
-  } else if (focus.type == GLANCING) {
-    // Try all on
-    {
-      SearchState nextState = *this;
-
-      if(!hasInteracted)
-        nextState.preInteractionChoices += 2;
-      if(hasInteracted)
-        nextState.postInteractionChoices += 2;
-
-      std::pair<int, int> unknown;
-      unknown = UnknownNeighbour(focus.coords);
-      nextState.state.Set(unknown.first, unknown.second);
-      nextState.stable.Set(unknown.first, unknown.second);
-      nextState.known.Set(unknown.first, unknown.second);
-      unknown = UnknownNeighbour(focus.coords);
-      nextState.state.Set(unknown.first, unknown.second);
-      nextState.stable.Set(unknown.first, unknown.second);
-      nextState.known.Set(unknown.first, unknown.second);
-
-      bool result = nextState.RunSearch(params, Focus::None(), triedGlancing);
-      // if (result) {
-      //   *this = nextState;
-      //   return true;
-      // }
-    }
-    // Leave unknown
-    {
-      SearchState nextState = *this;
-
-      LifeState newGlancing = triedGlancing;
-      newGlancing.Set(focus.coords.first, focus.coords.second);
-
-      bool result = nextState.RunSearch(params, Focus::None(), newGlancing);
       // if (result) {
       //   *this = nextState;
       //   return true;
