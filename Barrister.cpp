@@ -73,6 +73,7 @@ public:
   int maxActiveCells;
   int minStableInterval;
 
+  int maxStablePop;
   int maxChanges;
   int changesGracePeriod;
 
@@ -96,6 +97,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxActiveWindowGens = toml::find_or(toml, "max-active-window-gens", 20);
   params.maxPreInteractionChoices = toml::find_or(toml, "max-pre-interaction-choices", 3);
   params.maxPostInteractionChoices = toml::find_or(toml, "max-post-interaction-choices", 25);
+  params.maxStablePop = toml::find_or(toml, "max-stable-pop", 25);
   params.maxActiveCells = toml::find_or(toml, "max-active-cells", 15);
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 5);
 
@@ -193,11 +195,12 @@ public:
   unsigned interactionStartTime;
   unsigned preInteractionChoices;
   unsigned postInteractionChoices;
+  unsigned stablePop;
   unsigned stabletime;
 
   SearchState()
       : hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
-        postInteractionChoices(0), stabletime(0) {}
+        postInteractionChoices(0), stablePop(0), stabletime(0) {}
 
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
@@ -1131,6 +1134,11 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
     return false;
   }
 
+  if (stablePop > params.maxStablePop) {
+    if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
+    return false;
+  }
+
   if (stabletime > params.minStableInterval) {
     if(state.gen - interactionStartTime < params.minActiveWindowGens + params.minStableInterval)
       return false;
@@ -1243,6 +1251,8 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
     {
       SearchState nextState = *this;
 
+      if(whichFirst)
+        nextState.stablePop += 1;
       if(!hasInteracted && whichFirst)
         nextState.preInteractionChoices += 1;
       if(hasInteracted)
@@ -1260,6 +1270,8 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
     {
       SearchState nextState = *this;
 
+      if(!whichFirst)
+        nextState.stablePop += 1;
       if(!hasInteracted && !whichFirst)
         nextState.preInteractionChoices += 1;
       if(hasInteracted)
