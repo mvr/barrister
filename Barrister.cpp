@@ -565,7 +565,7 @@ abort |= state0 & on1 & (~on0) & (~unk1) & (~unk0) ;
     known |= new_on & unk;
   }
 
-  return std::make_pair(has_abort == 0, startKnown == known);
+  return std::make_pair(has_abort == 0, known == startKnown);
 }
 
 bool SearchState::SimplePropagateStable() {
@@ -728,11 +728,10 @@ abort |= state0 & on1 & (~on0) & (~unk1) & (~unk0) ;
     }
   }
 
-  return std::make_pair(has_abort == 0, true);
+  return std::make_pair(has_abort == 0, known == startKnown);
 }
 
 bool SearchState::PropagateStable() {
-  return PropagateStableStep().first;
   bool done = false;
   while (!done) {
     auto result = PropagateStableStep();
