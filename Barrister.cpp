@@ -463,10 +463,6 @@ abort |= state0 & on1 & (~on0) & (~unk1) & (~unk0) ;
     unknown.state[orig] &= ~new_on[i];
     stable.state[orig] |= new_on[i];
     state.state[orig] |= new_on[i];
-
-    nextUnknown.state[orig] &= ~new_off[i];
-    nextUnknown.state[orig] &= ~new_on[i];
-    next.state[orig] |= new_on[i];
   }
 
   return true;
@@ -579,15 +575,10 @@ abort |= state0 & on1 & (~on0) & (~unk1) & (~unk0) ;
     stable |= new_on;
     state |= new_on;
     unknown &= ~new_on;
-
-    next |= new_on;
-    nextUnknown &= ~new_on;
   }
 
   if (has_set_off != 0) {
     unknown &= ~new_off;
-
-    nextUnknown &= ~new_off;
   }
 
   return std::make_pair(has_abort == 0, unknown == startUnknown);
@@ -1333,7 +1324,9 @@ bool SearchState::RunSearch(SearchParams &params) {
       std::cout << " next " << next.RLE() << std::endl;
       std::cout << " nextunk " << nextUnknown.RLE() << std::endl;
     }
+  }
 
+  if(newUnknown.IsEmpty() && newGlancing.IsEmpty()) {
     // We can safely take a step
 
     if (hasInteracted && state.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval) {
@@ -1388,8 +1381,6 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
     }
 
-    SetNext(params);
-
     return RunSearch(params);
   }
 
@@ -1409,8 +1400,6 @@ bool SearchState::RunSearch(SearchParams &params) {
 
           nextState.focus = Focus::None();
           nextState.unknown.Erase(focus.coords.first, focus.coords.second);
-          nextState.nextUnknown.Erase(focus.coords.first, focus.coords.second);
-          nextState.newGlancing.Erase(focus.coords.first, focus.coords.second);
 
           bool result = nextState.RunSearch(params);
         }
@@ -1430,9 +1419,6 @@ bool SearchState::RunSearch(SearchParams &params) {
   int y = focus.coords.second;
   bool focusNext    = (nextColumn & (1ULL << y)) >> y;
   bool focusUnknown = (nextUnknownColumn & (1ULL << y)) >> y;
-
-  next.SetCellUnsafe(focus.coords.first, focus.coords.second, focusNext);
-  nextUnknown.SetCellUnsafe(focus.coords.first, focus.coords.second, focusUnknown);
 
   if (focus.type == GLANCING && !focusUnknown && !focusNext) {
     return false;
@@ -1475,7 +1461,6 @@ bool SearchState::RunSearch(SearchParams &params) {
     nextState.state.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
     nextState.stable.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
     nextState.unknown.Erase(unknown.first, unknown.second);
-    nextState.nextUnknown.Erase(unknown.first, unknown.second);
     nextState.newUnknown.Erase(unknown.first, unknown.second);
     nextState.newGlancing.Erase(unknown.first, unknown.second);
 
@@ -1502,7 +1487,6 @@ bool SearchState::RunSearch(SearchParams &params) {
     nextState.state.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
     nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
     nextState.unknown.Erase(unknown.first, unknown.second);
-    nextState.nextUnknown.Erase(unknown.first, unknown.second);
     nextState.newUnknown.Erase(unknown.first, unknown.second);
     nextState.newGlancing.Erase(unknown.first, unknown.second);
 
