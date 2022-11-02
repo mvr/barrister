@@ -1270,25 +1270,6 @@ bool SearchState::RunSearch(SearchParams &params) {
   bool debug = params.debug;
 
   if(debug) std::cout << "focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
-  if (!hasInteracted && state.gen > params.maxFirstActiveGen) {
-    if(debug) std::cout << "failed: didn't interact before " << params.maxFirstActiveGen << std::endl;
-    return false;
-  }
-  if (hasInteracted && state.gen - interactionStartTime > params.maxActiveWindowGens + params.minStableInterval) {
-    if (debug) std::cout << "failed: too long " << stable.RLE() << std::endl;
-
-    return false;
-  }
-
-  if (preInteractionChoices > params.maxPreInteractionChoices) {
-    if (debug) std::cout << "failed: too many pre-interaction choices " << stable.RLE() << std::endl;
-    return false;
-  }
-
-  if (postInteractionChoices > params.maxPostInteractionChoices) {
-    if (debug) std::cout << "failed: too many post-interaction choices " << stable.RLE() << std::endl;
-    return false;
-  }
 
   if (stablePop > params.maxStablePop) {
     if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
@@ -1354,6 +1335,13 @@ bool SearchState::RunSearch(SearchParams &params) {
     }
 
     // We can safely take a step
+
+    if (hasInteracted && state.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval) {
+      if (debug) std::cout << "failed: too long " << stable.RLE() << std::endl;
+
+      return false;
+    }
+
     if (!hasInteracted) {
       // See if there is any difference caused by the stable cells
       LifeState stateonly = state & ~stable;
@@ -1364,6 +1352,11 @@ bool SearchState::RunSearch(SearchParams &params) {
         interactionStartTime = state.gen;
         // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
         // std::cout << UnknownRLE() << std::endl << std::flush;
+      } else {
+        if (!hasInteracted && state.gen > params.maxFirstActiveGen - 1) {
+          if(debug) std::cout << "failed: didn't interact before " << params.maxFirstActiveGen << std::endl;
+          return false;
+        }
       }
     }
     LifeState stableZOI = stable.ZOI();
@@ -1452,6 +1445,17 @@ bool SearchState::RunSearch(SearchParams &params) {
     focus = Focus::None();
 
     return RunSearch(params);
+  }
+
+
+  if (preInteractionChoices > params.maxPreInteractionChoices - 1) {
+    if (debug) std::cout << "failed: too many pre-interaction choices " << stable.RLE() << std::endl;
+    return false;
+  }
+
+  if (postInteractionChoices > params.maxPostInteractionChoices - 1) {
+    if (debug) std::cout << "failed: too many post-interaction choices " << stable.RLE() << std::endl;
+    return false;
   }
 
   // Set an unknown neighbour of the focus
