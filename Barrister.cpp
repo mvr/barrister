@@ -1490,7 +1490,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     // }
   }
   {
-    SearchState nextState = *this;
+    SearchState &nextState = *this;
 
     if(!whichFirst)
       nextState.stablePop += 1;
