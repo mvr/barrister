@@ -211,9 +211,11 @@ public:
   unsigned stablePop;
   unsigned stabletime;
 
+  unsigned depth;
+
   SearchState()
       : hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
-        postInteractionChoices(0), stablePop(0), stabletime(0), focus(Focus::None()) {}
+        postInteractionChoices(0), stablePop(0), stabletime(0), focus(Focus::None()), depth(0) {}
 
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
@@ -1264,9 +1266,20 @@ void SearchState::SetNext(SearchParams &params) {
 }
 
 bool SearchState::RunSearch(SearchParams &params) {
-  bool debug = params.debug;
+  depth += 1;
+  bool debug = params.debug || depth > 1500;
 
-  if(debug) std::cout << "focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
+  if(debug) {
+    std::cout << "depth: " << depth << std::endl;
+    std::cout << "gen: " << state.gen << std::endl;
+    std::cout << "state: " << state.RLE() << std::endl;
+    std::cout << "stable: " << stable.RLE() << std::endl;
+    std::cout << "unk: " << unknown.RLE() << std::endl;
+    std::cout << "newunk: " << newUnknown.RLE() << std::endl;
+    std::cout << "newglancing: " << newGlancing.RLE() << std::endl;
+    std::cout << "focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
+  }
+
 
   if (stablePop > params.maxStablePop) {
     if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
@@ -1317,19 +1330,7 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
     }
 
-    if (debug) {
-      std::cout << "attempt " << std::endl;
-      std::cout << " next " << next.RLE() << std::endl;
-      std::cout << " nextunk " << nextUnknown.RLE() << std::endl;
-    }
-
-    // TODO: this shouldn't be necessary, it computes step twice
     SetNext(params);
-    if (debug) {
-      std::cout << "actual " << std::endl;
-      std::cout << " next " << next.RLE() << std::endl;
-      std::cout << " nextunk " << nextUnknown.RLE() << std::endl;
-    }
   }
 
   if(newUnknown.IsEmpty() && newGlancing.IsEmpty()) {
@@ -1395,6 +1396,8 @@ bool SearchState::RunSearch(SearchParams &params) {
     auto coords = newUnknown.FirstOn();
     if (coords != std::make_pair(-1, -1)) {
       focus = Focus(NORMAL, coords);
+      if (debug) std::cout << "normal focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
+      if (debug) std::cout << "from newunk: " << newUnknown.RLE() << std::endl;
     } else {
       coords = newGlancing.FirstOn();
       if (coords != std::make_pair(-1, -1)) {
@@ -1409,6 +1412,7 @@ bool SearchState::RunSearch(SearchParams &params) {
 
           bool result = nextState.RunSearch(params);
         }
+        if (debug) std::cout << "glancing focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
       } else {
         std::cout << "impossible" << std::endl;
         exit(1);
@@ -1431,6 +1435,9 @@ bool SearchState::RunSearch(SearchParams &params) {
   }
 
   if (!focusUnknown){
+    if (debug) {
+      std::cout << "done with this focus, fixed to " << focusNext << std::endl;
+    }
     // Done with this focus
     newUnknown.Erase(focus.coords.first, focus.coords.second);
     newGlancing.Erase(focus.coords.first, focus.coords.second);
@@ -1473,6 +1480,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     bool consistent = nextState.SimplePropagateColumnStep(unknown.first);
 
     if (consistent) {
+      if (debug) std::cout << "trying on" << std::endl;
       bool result = nextState.RunSearch(params);
     }
     // if (result) {
@@ -1499,6 +1507,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     bool consistent = nextState.SimplePropagateColumnStep(unknown.first);
 
     if (consistent) {
+      if (debug) std::cout << "trying off" << std::endl;
       bool result = nextState.RunSearch(params);
     }
     // if (result) {
@@ -1522,6 +1531,3 @@ int main(int argc, char *argv[]) {
 
   bool result = search.RunSearch(params);
 }
-
-// TODO: just add fields to SearchState for newUnknown and glancing,
-// so that we don't have to use UncertainStep every time.
