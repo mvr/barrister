@@ -1299,7 +1299,9 @@ bool SearchState::RunSearch(SearchParams &params) {
     if (params.stabiliseResults) {
       std::cout << "Stabilising:" << std::endl;
       LifeState completed = CompleteStable();
-      std::cout << completed.RLE() << std::endl << std::flush;
+      std::cout << completed.RLE() << std::endl;
+      std::cout << "Completed:" << std::endl;
+      std::cout << (completed | params.activePattern).RLE() << std::endl << std::flush;
     }
     // We win
     return true;
