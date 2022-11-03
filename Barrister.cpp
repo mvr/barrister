@@ -349,6 +349,10 @@ bool SearchState::SimplePropagateColumnStep(int column) {
       c = N-2;
     if (c == -1)
       c = N-1;
+    if (c == N)
+      c = 0;
+    if (c == N+1)
+      c = 1;
     nearbyStable[i] = stable.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
@@ -964,6 +968,8 @@ void SearchState::UncertainStepColumn(int column, uint64_t &next, uint64_t &next
     int c = column + i - 1;
     if (c == -1)
       c = N-1;
+    if (c == N)
+      c = 0;
     nearbyState[i] = state.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
