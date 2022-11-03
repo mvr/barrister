@@ -1324,7 +1324,7 @@ bool SearchState::RunSearch(SearchParams &params) {
   //   }
   // }
 
-  if(newUnknown.IsEmpty() && newGlancing.IsEmpty()) {
+  if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
     bool consistent = SimplePropagateStable();
 
     if (!consistent) {
@@ -1335,7 +1335,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     SetNext(params);
   }
 
-  if(newUnknown.IsEmpty() && newGlancing.IsEmpty()) {
+  if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
     // We can safely take a step
 
     if (hasInteracted && state.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval) {
@@ -1370,7 +1370,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     }
 
     state = next;
-    unknown = nextUnknown;
+    unknown = nextUnknown & ~newGlancing;
 
     // bool consistent = PropagateStable();
     // if (!consistent) {
@@ -1404,16 +1404,6 @@ bool SearchState::RunSearch(SearchParams &params) {
       coords = newGlancing.FirstOn();
       if (coords != std::make_pair(-1, -1)) {
         focus = Focus(GLANCING, coords);
-        {
-          if (debug) std::cout << "skipping glancing " << stable.RLE() << std::endl;
-          // Just ignore any glancing interaction and proceed
-          SearchState nextState = *this;
-
-          nextState.focus = Focus::None();
-          nextState.unknown.Erase(focus.coords.first, focus.coords.second);
-
-          bool result = nextState.RunSearch(params);
-        }
         if (debug) std::cout << "glancing focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
       } else {
         std::cout << "impossible" << std::endl;
