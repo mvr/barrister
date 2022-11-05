@@ -1084,9 +1084,9 @@ bool SearchState::CheckSanity() {
 
   bool stableIsStable = (stable & interior) == (nextStable & interior);
 
-  //  bool unknownDisjoint = (~known & stable).IsEmpty() && (~known & active).IsEmpty();
+  bool unknownDisjoint = (unknown & stable).IsEmpty() && (unknown & state).IsEmpty();
 
-  return stableIsStable;
+  return stableIsStable && unknownDisjoint;
 }
 
 bool SearchState::TestUnknowns() {
