@@ -1449,4 +1449,18 @@ int main(int argc, char *argv[]) {
   search.unknown = params.searchArea;
 
   bool result = search.RunSearch(params);
+
+  // auto rle = argv[1];
+
+  // LifeState stateon;
+  // LifeState statemarked;
+
+  // ParseTristateWHeader(std::string(rle), stateon, statemarked);
+
+  // SearchState search;
+  // search.state = stateon;
+  // search.stable = stateon;
+  // search.unknown = statemarked & ~stateon;
+  // LifeState completed = search.CompleteStable();
+  // std::cout << completed.RLE() << std::endl;
 }
