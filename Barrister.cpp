@@ -1,12 +1,10 @@
 #include "toml/toml.hpp"
 
 #include "LifeAPI.h"
-#include <deque>
 #include <limits>
 #include <chrono>
 
-void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) {
-  char ch;
+void ParseTristate(const std::string &rle, LifeState &stateon, LifeState &statemarked) {
   int cnt, i, j;
   int x, y;
   x = 0;
@@ -15,7 +13,7 @@ void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) 
 
   i = 0;
 
-  while ((ch = rle[i]) != '\0') {
+  for (char const ch : rle) {
 
     if (ch >= '0' && ch <= '9') {
       cnt *= 10;
@@ -42,7 +40,7 @@ void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) 
         case 'A':
           stateon.Set(x, y);
           break;
-        case 'B':
+        case 'B': case 'E': // For LifeBellman
           statemarked.Set(x, y);
           break;
         case 'C':
@@ -60,6 +58,78 @@ void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) 
   }
   stateon.RecalculateMinMax();
   statemarked.RecalculateMinMax();
+}
+
+void ParseTristateWHeader(const std::string &s, LifeState &stateon, LifeState &statemarked) {
+  std::string rle;
+  std::istringstream iss(s);
+
+  for (std::string line; std::getline(iss, line); ) {
+    if(line[0] != 'x')
+      rle += line;
+  }
+
+  ParseTristate(rle, stateon, statemarked);
+}
+
+std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &state, const LifeState &marked) {
+  std::stringstream result;
+
+  unsigned eol_count = 0;
+
+  for (unsigned j = 0; j < N; j++) {
+    unsigned last_val = (state.GetCell(0 - 32, j - 32) == 1) + ((marked.GetCell(0 - 32, j - 32) == 1) << 1);
+    unsigned run_count = 0;
+
+    for (unsigned i = 0; i < N; i++) {
+      unsigned val = (state.GetCell(i - 32, j - 32) == 1) + ((marked.GetCell(i - 32, j - 32) == 1) << 1);
+
+      // Flush linefeeds if we find a live cell
+      if (val && eol_count > 0) {
+        if (eol_count > 1)
+          result << eol_count;
+
+        result << "$";
+
+        eol_count = 0;
+      }
+
+      // Flush current run if val changes
+      if (val != last_val) {
+        if (run_count > 1)
+          result << run_count;
+          result << table[last_val];
+        run_count = 0;
+      }
+
+      run_count++;
+      last_val = val;
+    }
+
+    // Flush run of live cells at end of line
+    if (last_val) {
+      if (run_count > 1)
+        result << run_count;
+
+      result << table[last_val];
+
+      run_count = 0;
+    }
+
+    eol_count++;
+  }
+
+  // Flush trailing linefeeds
+  if (eol_count > 0) {
+    if (eol_count > 1)
+      result << eol_count;
+
+    result << "$";
+
+    eol_count = 0;
+  }
+
+  return result.str();
 }
 
 struct SearchParams {
@@ -115,7 +185,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   LifeState statemarked;
 
   std::string rle = toml::find<std::string>(toml, "pattern");
-  ParseTristate(rle.c_str(), stateon, statemarked);
+  ParseTristateWHeader(rle, stateon, statemarked);
 
   // std::cout << "stateon " << stateon.RLE() << std::endl;
   // std::cout << "statemarked " << statemarked.RLE() << std::endl;
@@ -221,7 +291,8 @@ public:
   SearchState &operator= ( const SearchState & ) = default;
 
   std::string UnknownRLE() const;
-  static SearchState ParseUnknown(const char *rle);
+  std::string LifeBellmanRLE(SearchParams &params) const;
+  // static SearchState ParseUnknown(const char *rle);
 
   std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
 
@@ -249,87 +320,25 @@ public:
 };
 
 std::string SearchState::UnknownRLE() const {
-  std::stringstream result;
-
-  unsigned eol_count = 0;
-
-  for (unsigned j = 0; j < N; j++) {
-    unsigned last_val = (stable.GetCell(0 - 32, j - 32) == 1) + ((unknown.GetCell(0 - 32, j - 32) == 1) << 1);
-    unsigned run_count = 0;
-
-    for (unsigned i = 0; i < N; i++) {
-      unsigned val = (stable.GetCell(i - 32, j - 32) == 1) + ((unknown.GetCell(i - 32, j - 32) == 1) << 1);
-
-      // Flush linefeeds if we find a live cell
-      if (val && eol_count > 0) {
-        if (eol_count > 1)
-          result << eol_count;
-
-        result << "$";
-
-        eol_count = 0;
-      }
-
-      // Flush current run if val changes
-      if (val != last_val) {
-        if (run_count > 1)
-          result << run_count;
-
-        switch(last_val) {
-        case 0: result << "."; break;
-        case 1: result << "A"; break;
-        case 2: result << "B"; break;
-        }
-
-        run_count = 0;
-      }
-
-      run_count++;
-      last_val = val;
-    }
-
-    // Flush run of live cells at end of line
-    if (last_val) {
-      if (run_count > 1)
-        result << run_count;
-
-      switch(last_val) {
-      case 0: result << "."; break;
-      case 1: result << "A"; break;
-      case 2: result << "B"; break;
-      }
-
-      run_count = 0;
-    }
-
-    eol_count++;
-  }
-
-  // Flush trailing linefeeds
-  if (eol_count > 0) {
-    if (eol_count > 1)
-      result << eol_count;
-
-    result << "$";
-
-    eol_count = 0;
-  }
-
-  return result.str();
+  return MultiStateRLE({'.', 'A', 'B', 'Q'}, stable, unknown);
 }
 
-SearchState SearchState::ParseUnknown(const char *rle) {
-  LifeState stateon;
-  LifeState statemarked;
-
-  ParseTristate(rle, stateon, statemarked);
-
-  SearchState result;
-  result.state = stateon;
-  result.unknown = ~stateon & statemarked;
-
-  return result;
+std::string SearchState::LifeBellmanRLE(SearchParams &params) const {
+  return MultiStateRLE({'.', 'A', 'E', 'C'}, stable | params.activePattern, unknown | stable);
 }
+
+// SearchState SearchState::ParseUnknown(const char *rle) {
+//   LifeState stateon;
+//   LifeState statemarked;
+
+//   ParseTristate(rle, stateon, statemarked);
+
+//   SearchState result;
+//   result.state = stateon;
+//   result.unknown = ~stateon & statemarked;
+
+//   return result;
+// }
 
 std::pair<int, int> SearchState::UnknownNeighbour(std::pair<int, int> cell) {
   const std::vector<std::pair<int, int>> directions = {{-1,0}, {0,-1}, {1,0}, {0,1}, {-1,-1}, {-1, 1}, {1, -1}, {1, 1}};
@@ -1285,8 +1294,8 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
 
     std::cout << "Success:" << std::endl;
-    std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-    std::cout << UnknownRLE() << std::endl << std::flush;
+    std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+    std::cout << LifeBellmanRLE(params) << std::endl << std::flush;
     // std::cout << "start time " << interactionStartTime << std::endl;
     // std::cout << "prechoices " << preInteractionChoices << std::endl << std::flush;
     // std::cout << "postchoices " << postInteractionChoices << std::endl << std::flush;
