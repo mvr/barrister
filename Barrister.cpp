@@ -1307,23 +1307,6 @@ bool SearchState::RunSearch(SearchParams &params) {
     return true;
   }
 
-  // if (focus.type != NONE) {
-  //   bool consistent = SimplePropagateColumnStep(focus.coords.first);
-
-  //   if (!consistent) {
-  //     if (debug) std::cout << "failed: inconsistent" << std::endl;
-  //     return false;
-  //   }
-
-  // } else {
-  //   bool consistent = SimplePropagateStable();
-
-  //   if (!consistent) {
-  //     if (debug) std::cout << "failed: inconsistent" << std::endl;
-  //     return false;
-  //   }
-  // }
-
   if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
     bool consistent = SimplePropagateStable();
 
@@ -1423,13 +1406,12 @@ bool SearchState::RunSearch(SearchParams &params) {
   bool focusUnknown = (nextUnknownColumn & (1ULL << y)) >> y;
 
   if (focus.type == GLANCING && !focusUnknown && !focusNext) {
+    if (debug) std::cout << "failed glancing: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
     return false;
   }
 
   if (!focusUnknown){
-    if (debug) {
-      std::cout << "done with this focus, fixed to " << focusNext << std::endl;
-    }
+    if (debug) std::cout << "done with this focus, fixed to " << focusNext << std::endl;
     // Done with this focus
     newUnknown.Erase(focus.coords.first, focus.coords.second);
     newGlancing.Erase(focus.coords.first, focus.coords.second);
