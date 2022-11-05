@@ -1,12 +1,10 @@
 #include "toml/toml.hpp"
 
 #include "LifeAPI.h"
-#include <deque>
 #include <limits>
 #include <chrono>
 
-void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) {
-  char ch;
+void ParseTristate(const std::string &rle, LifeState &stateon, LifeState &statemarked) {
   int cnt, i, j;
   int x, y;
   x = 0;
@@ -15,7 +13,7 @@ void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) 
 
   i = 0;
 
-  while ((ch = rle[i]) != '\0') {
+  for (char const ch : rle) {
 
     if (ch >= '0' && ch <= '9') {
       cnt *= 10;
@@ -42,7 +40,7 @@ void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) 
         case 'A':
           stateon.Set(x, y);
           break;
-        case 'B':
+        case 'B': case 'E': // For LifeBellman
           statemarked.Set(x, y);
           break;
         case 'C':
@@ -60,6 +58,78 @@ void ParseTristate(const char *rle, LifeState &stateon, LifeState &statemarked) 
   }
   stateon.RecalculateMinMax();
   statemarked.RecalculateMinMax();
+}
+
+void ParseTristateWHeader(const std::string &s, LifeState &stateon, LifeState &statemarked) {
+  std::string rle;
+  std::istringstream iss(s);
+
+  for (std::string line; std::getline(iss, line); ) {
+    if(line[0] != 'x')
+      rle += line;
+  }
+
+  ParseTristate(rle, stateon, statemarked);
+}
+
+std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &state, const LifeState &marked) {
+  std::stringstream result;
+
+  unsigned eol_count = 0;
+
+  for (unsigned j = 0; j < N; j++) {
+    unsigned last_val = (state.GetCell(0 - 32, j - 32) == 1) + ((marked.GetCell(0 - 32, j - 32) == 1) << 1);
+    unsigned run_count = 0;
+
+    for (unsigned i = 0; i < N; i++) {
+      unsigned val = (state.GetCell(i - 32, j - 32) == 1) + ((marked.GetCell(i - 32, j - 32) == 1) << 1);
+
+      // Flush linefeeds if we find a live cell
+      if (val && eol_count > 0) {
+        if (eol_count > 1)
+          result << eol_count;
+
+        result << "$";
+
+        eol_count = 0;
+      }
+
+      // Flush current run if val changes
+      if (val != last_val) {
+        if (run_count > 1)
+          result << run_count;
+          result << table[last_val];
+        run_count = 0;
+      }
+
+      run_count++;
+      last_val = val;
+    }
+
+    // Flush run of live cells at end of line
+    if (last_val) {
+      if (run_count > 1)
+        result << run_count;
+
+      result << table[last_val];
+
+      run_count = 0;
+    }
+
+    eol_count++;
+  }
+
+  // Flush trailing linefeeds
+  if (eol_count > 0) {
+    if (eol_count > 1)
+      result << eol_count;
+
+    result << "$";
+
+    eol_count = 0;
+  }
+
+  return result.str();
 }
 
 struct SearchParams {
@@ -115,7 +185,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   LifeState statemarked;
 
   std::string rle = toml::find<std::string>(toml, "pattern");
-  ParseTristate(rle.c_str(), stateon, statemarked);
+  ParseTristateWHeader(rle, stateon, statemarked);
+
+  // std::cout << "stateon " << stateon.RLE() << std::endl;
+  // std::cout << "statemarked " << statemarked.RLE() << std::endl;
 
   params.activePattern = stateon & ~statemarked;
   params.startingStable = stateon & statemarked;
@@ -191,9 +264,16 @@ public:
   LifeState state;
   // Stable background
   LifeState stable;
-  // Cells that are toggled at some point
   LifeState unknown;
-  // LifeState dontcare;
+
+  // // Cells in this generation that need to be determined
+  LifeState newUnknown;
+  LifeState newGlancing;
+  Focus focus;
+
+  LifeState next;
+  LifeState nextUnknown;
+
   bool hasInteracted;
   unsigned interactionStartTime;
   unsigned preInteractionChoices;
@@ -201,15 +281,18 @@ public:
   unsigned stablePop;
   unsigned stabletime;
 
+  unsigned depth;
+
   SearchState()
       : hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
-        postInteractionChoices(0), stablePop(0), stabletime(0) {}
+        postInteractionChoices(0), stablePop(0), stabletime(0), focus(Focus::None()), depth(0) {}
 
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
 
   std::string UnknownRLE() const;
-  static SearchState ParseUnknown(const char *rle);
+  std::string LifeBellmanRLE(SearchParams &params) const;
+  // static SearchState ParseUnknown(const char *rle);
 
   std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
 
@@ -227,97 +310,35 @@ public:
   void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown);
   void UncertainStep(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown, LifeState &__restrict__ glancing);
 
-  bool RunSearch(SearchParams &params, Focus focus, LifeState &triedGlancing);
-  bool RunSearch(SearchParams &params) {
-    LifeState blank;
-    return RunSearch(params, Focus::None(), blank);
-  }
+  void FindFocus();
+
+  void SetNext(SearchParams &params);
+
+  bool RunSearch(SearchParams &params);
 
   bool CheckSanity();
 };
 
 std::string SearchState::UnknownRLE() const {
-  std::stringstream result;
-
-  unsigned eol_count = 0;
-
-  for (unsigned j = 0; j < N; j++) {
-    unsigned last_val = (stable.GetCell(0 - 32, j - 32) == 1) + ((unknown.GetCell(0 - 32, j - 32) == 1) << 1);
-    unsigned run_count = 0;
-
-    for (unsigned i = 0; i < N; i++) {
-      unsigned val = (stable.GetCell(i - 32, j - 32) == 1) + ((unknown.GetCell(i - 32, j - 32) == 1) << 1);
-
-      // Flush linefeeds if we find a live cell
-      if (val && eol_count > 0) {
-        if (eol_count > 1)
-          result << eol_count;
-
-        result << "$";
-
-        eol_count = 0;
-      }
-
-      // Flush current run if val changes
-      if (val != last_val) {
-        if (run_count > 1)
-          result << run_count;
-
-        switch(last_val) {
-        case 0: result << "."; break;
-        case 1: result << "A"; break;
-        case 2: result << "B"; break;
-        }
-
-        run_count = 0;
-      }
-
-      run_count++;
-      last_val = val;
-    }
-
-    // Flush run of live cells at end of line
-    if (last_val) {
-      if (run_count > 1)
-        result << run_count;
-
-      switch(last_val) {
-      case 0: result << "."; break;
-      case 1: result << "A"; break;
-      case 2: result << "B"; break;
-      }
-
-      run_count = 0;
-    }
-
-    eol_count++;
-  }
-
-  // Flush trailing linefeeds
-  if (eol_count > 0) {
-    if (eol_count > 1)
-      result << eol_count;
-
-    result << "$";
-
-    eol_count = 0;
-  }
-
-  return result.str();
+  return MultiStateRLE({'.', 'A', 'B', 'Q'}, stable, unknown);
 }
 
-SearchState SearchState::ParseUnknown(const char *rle) {
-  LifeState stateon;
-  LifeState statemarked;
-
-  ParseTristate(rle, stateon, statemarked);
-
-  SearchState result;
-  result.state = stateon;
-  result.unknown = ~stateon & statemarked;
-
-  return result;
+std::string SearchState::LifeBellmanRLE(SearchParams &params) const {
+  return MultiStateRLE({'.', 'A', 'E', 'C'}, stable | params.activePattern, unknown | stable);
 }
+
+// SearchState SearchState::ParseUnknown(const char *rle) {
+//   LifeState stateon;
+//   LifeState statemarked;
+
+//   ParseTristate(rle, stateon, statemarked);
+
+//   SearchState result;
+//   result.state = stateon;
+//   result.unknown = ~stateon & statemarked;
+
+//   return result;
+// }
 
 std::pair<int, int> SearchState::UnknownNeighbour(std::pair<int, int> cell) {
   const std::vector<std::pair<int, int>> directions = {{-1,0}, {0,-1}, {1,0}, {0,1}, {-1,-1}, {-1, 1}, {1, -1}, {1, 1}};
@@ -339,6 +360,10 @@ bool SearchState::SimplePropagateColumnStep(int column) {
       c = N-2;
     if (c == -1)
       c = N-1;
+    if (c == N)
+      c = 0;
+    if (c == N+1)
+      c = 1;
     nearbyStable[i] = stable.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
@@ -426,14 +451,11 @@ bool SearchState::SimplePropagateColumnStep(int column) {
 
 // Begin Autogenerated
 set_off |= on2 ;
-set_off |= (~on1) & (~unk1) ;
-set_off |= (~on1) & (~on0) & (~unk0) ;
+set_off |= (~on1) & ((~unk1) | ((~on0) & (~unk0)));
 set_on |= (~on2) & on1 & on0 & (~unk1) ;
-abort |= state0 & on2 & on1 ;
-abort |= state0 & on2 & on0 ;
-abort |= (~state0) & (~on2) & on1 & on0 & (~unk1) & (~unk0) ;
+abort |= state0 & on2 & (on1 | on0) ;
 abort |= state0 & (~on1) & on0 & (~unk1) ;
-abort |= state0 & on1 & (~on0) & (~unk1) & (~unk0) ;
+abort |= on1 & (~unk1) & (~unk0) & (((~state0) & (~on2) & on0) | (state0 & (~on0))) ;
 // End Autogenerated
 
    new_off[i] = set_off & state1;
@@ -540,14 +562,11 @@ std::pair<bool, bool> SearchState::SimplePropagateStableStep() {
 
 // Begin Autogenerated
 set_off |= on2 ;
-set_off |= (~on1) & (~unk1) ;
-set_off |= (~on1) & (~on0) & (~unk0) ;
+set_off |= (~on1) & ((~unk1) | ((~on0) & (~unk0)));
 set_on |= (~on2) & on1 & on0 & (~unk1) ;
-abort |= state0 & on2 & on1 ;
-abort |= state0 & on2 & on0 ;
-abort |= (~state0) & (~on2) & on1 & on0 & (~unk1) & (~unk0) ;
+abort |= state0 & on2 & (on1 | on0) ;
 abort |= state0 & (~on1) & on0 & (~unk1) ;
-abort |= state0 & on1 & (~on0) & (~unk1) & (~unk0) ;
+abort |= on1 & (~unk1) & (~unk0) & (((~state0) & (~on2) & on0) | (state0 & (~on0))) ;
 // End Autogenerated
 
    new_off.state[i] = set_off & state1;
@@ -954,6 +973,8 @@ void SearchState::UncertainStepColumn(int column, uint64_t &next, uint64_t &next
     int c = column + i - 1;
     if (c == -1)
       c = N-1;
+    if (c == N)
+      c = 0;
     nearbyState[i] = state.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
@@ -1063,9 +1084,9 @@ bool SearchState::CheckSanity() {
 
   bool stableIsStable = (stable & interior) == (nextStable & interior);
 
-  //  bool unknownDisjoint = (~known & stable).IsEmpty() && (~known & active).IsEmpty();
+  bool unknownDisjoint = (unknown & stable).IsEmpty() && (unknown & state).IsEmpty();
 
-  return stableIsStable;
+  return stableIsStable && unknownDisjoint;
 }
 
 bool SearchState::TestUnknowns() {
@@ -1211,29 +1232,57 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
   return onresult || offresult;
 }
 
-bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedGlancing) {
-  bool debug = params.debug;
+// void SearchState::FindFocus() {
+//   if(focus.type == NONE) {
+//     // Find the next unknown cell
+//     auto coords = newUnknown.FirstOn();
+//     if (coords != std::make_pair(-1, -1)) {
+//       focus = Focus(NORMAL, coords);
+//       return;
+//     }
+//     coords = newGlancing.FirstOn();
+//     if (coords != std::make_pair(-1, -1)) {
+//       focus = Focus(GLANCING, coords);
+//       return;
+//     }
+//     focus = Focus::None();
+//     return;
+// }
 
-  if(debug) std::cout << "focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
-  if (!hasInteracted && state.gen > params.maxFirstActiveGen) {
-    if(debug) std::cout << "failed: didn't interact before " << params.maxFirstActiveGen << std::endl;
-    return false;
-  }
-  if (hasInteracted && state.gen - interactionStartTime > params.maxActiveWindowGens + params.minStableInterval) {
-    if (debug) std::cout << "failed: too long " << stable.RLE() << std::endl;
+void SearchState::SetNext(SearchParams &params) {
+    UncertainStep(next, nextUnknown, newGlancing);
 
-    return false;
+    if(!params.skipGlancing)
+      newGlancing.Clear();
+
+    // Prevent the unknown zone from growing, as in Bellman
+    LifeState uneqStableNbhd = (state ^ stable).ZOI();
+    next &= uneqStableNbhd;
+    next |= stable & ~uneqStableNbhd;
+    nextUnknown &= uneqStableNbhd;
+    nextUnknown |= unknown & ~uneqStableNbhd;
+    newGlancing &= nextUnknown;
+    nextUnknown &= ~newGlancing;
+
+    // Find unknown cells that were known in the previous generation
+    newUnknown = nextUnknown & ~unknown;
+}
+
+bool SearchState::RunSearch(SearchParams &params) {
+  depth += 1;
+  bool debug = params.debug || depth > 1500;
+
+  if(debug) {
+    std::cout << "depth: " << depth << std::endl;
+    std::cout << "gen: " << state.gen << std::endl;
+    std::cout << "state: " << state.RLE() << std::endl;
+    std::cout << "stable: " << stable.RLE() << std::endl;
+    std::cout << "unk: " << unknown.RLE() << std::endl;
+    std::cout << "newunk: " << newUnknown.RLE() << std::endl;
+    std::cout << "newglancing: " << newGlancing.RLE() << std::endl;
+    std::cout << "focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
   }
 
-  if (preInteractionChoices > params.maxPreInteractionChoices) {
-    if (debug) std::cout << "failed: too many pre-interaction choices " << stable.RLE() << std::endl;
-    return false;
-  }
-
-  if (postInteractionChoices > params.maxPostInteractionChoices) {
-    if (debug) std::cout << "failed: too many post-interaction choices " << stable.RLE() << std::endl;
-    return false;
-  }
 
   if (stablePop > params.maxStablePop) {
     if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
@@ -1245,155 +1294,42 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
       return false;
 
     std::cout << "Success:" << std::endl;
-    std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-    std::cout << UnknownRLE() << std::endl << std::flush;
+    std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+    std::cout << LifeBellmanRLE(params) << std::endl << std::flush;
+    // std::cout << "start time " << interactionStartTime << std::endl;
+    // std::cout << "prechoices " << preInteractionChoices << std::endl << std::flush;
+    // std::cout << "postchoices " << postInteractionChoices << std::endl << std::flush;
     if (params.stabiliseResults) {
       std::cout << "Stabilising:" << std::endl;
       LifeState completed = CompleteStable();
-      std::cout << completed.RLE() << std::endl << std::flush;
+      std::cout << completed.RLE() << std::endl;
+      std::cout << "Completed:" << std::endl;
+      std::cout << (completed | params.activePattern).RLE() << std::endl << std::flush;
     }
-    // std::cout << stable.RLE() << std::endl << std::flush;
-    // std::cout << preInteractionChoices << std::endl << std::flush;
-    // std::cout << postInteractionChoices << std::endl << std::flush;
-    // std::cout << "minimising:" << std::endl;
-    // LifeState completed = CompleteStable();
-    // std::cout << completed.RLE() << std::endl << std::flush;
     // We win
     return true;
   }
 
-  if (focus.type != NONE) {
-    bool consistent = SimplePropagateColumnStep(focus.coords.first);
-
-    if (!consistent) {
-      if (debug) std::cout << "failed: inconsistent" << std::endl;
-      return false;
-    }
-  } else {
+  if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
     bool consistent = SimplePropagateStable();
 
     if (!consistent) {
       if (debug) std::cout << "failed: inconsistent" << std::endl;
       return false;
     }
+
+    SetNext(params);
   }
 
-  if(focus.type != NONE) {
-    uint64_t nextColumn;
-    uint64_t nextUnknownColumn;
-    UncertainStepColumn(focus.coords.first, nextColumn, nextUnknownColumn);
+  if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
+    // We can safely take a step
 
-    int y = focus.coords.second;
-    bool focusNext    = (nextColumn & (1ULL << y)) >> y;
-    bool focusUnknown = (nextUnknownColumn & (1ULL << y)) >> y;
+    if (hasInteracted && state.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval) {
+      if (debug) std::cout << "failed: too long " << stable.RLE() << std::endl;
 
-    if (focus.type == GLANCING && !focusUnknown && !focusNext) {
       return false;
     }
 
-    if (!focusUnknown){
-      // Done with this focus
-      focus = Focus::None();
-    }
-  }
-
-  LifeState next; // These are used later to actually step
-  LifeState nextUnknowns;
-  LifeState glancing;
-
-  if(focus.type == NONE) {
-    // Find the next unknown cell
-
-    UncertainStep(next, nextUnknowns, glancing);
-
-    if(!params.skipGlancing)
-      glancing.Clear();
-
-    // Prevent the unknown zone from growing, as in Bellman
-    LifeState uneqStableNbhd = (state ^ stable).ZOI();
-    next &= uneqStableNbhd;
-    next |= stable & ~uneqStableNbhd;
-    nextUnknowns &= uneqStableNbhd;
-    nextUnknowns |= unknown & ~uneqStableNbhd;
-    nextUnknowns &= ~triedGlancing;
-    glancing &= ~triedGlancing;
-
-    // Find unknown cells that were known in the previous generation
-    LifeState newUnknowns = nextUnknowns & ~unknown;
-
-    auto coords = (newUnknowns & ~glancing).FirstOn();
-    if (coords != std::make_pair(-1, -1)) {
-      focus = Focus(NORMAL, coords);
-    } else {
-      coords = (newUnknowns & glancing).FirstOn();
-      if (coords != std::make_pair(-1, -1)) {
-        focus = Focus(GLANCING, coords);
-        {
-          // Just ignore any glancing interaction and proceed
-          SearchState nextState = *this;
-
-          LifeState newGlancing = triedGlancing;
-          newGlancing.Set(focus.coords.first, focus.coords.second);
-
-          bool result = nextState.RunSearch(params, Focus::None(), newGlancing);
-        }
-      } else {
-        focus = Focus::None();
-      }
-    }
-  }
-
-    // auto coords = newUnknowns.FirstOn();
-    // if (coords != std::make_pair(-1, -1)) {
-    //   focus = Focus(NORMAL, coords);
-    // }
-
-  if (focus.type == NORMAL || focus.type == GLANCING) {
-    // Set an unknown neighbour of the focus
-    std::pair<int, int> unknown = UnknownNeighbour(focus.coords);
-
-    bool whichFirst = false;
-    {
-      SearchState nextState = *this;
-
-      if(whichFirst)
-        nextState.stablePop += 1;
-      if(!hasInteracted && whichFirst)
-        nextState.preInteractionChoices += 1;
-      if(hasInteracted)
-        nextState.postInteractionChoices += 1;
-
-      nextState.state.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
-      nextState.stable.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
-      nextState.unknown.Erase(unknown.first, unknown.second);
-      bool result = nextState.RunSearch(params, focus, triedGlancing);
-      // if (result) {
-      //   *this = nextState;
-      //   return true;
-      // }
-    }
-    {
-      SearchState nextState = *this;
-
-      if(!whichFirst)
-        nextState.stablePop += 1;
-      if(!hasInteracted && !whichFirst)
-        nextState.preInteractionChoices += 1;
-      if(hasInteracted)
-        nextState.postInteractionChoices += 1;
-
-      nextState.state.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
-      nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
-      nextState.unknown.Erase(unknown.first, unknown.second);
-      bool result = nextState.RunSearch(params, focus, triedGlancing);
-      // if (result) {
-      //   *this = nextState;
-      //   return true;
-      // }
-    }
-    return true;
-  } else {
-    // We can safely take a step
     if (!hasInteracted) {
       // See if there is any difference caused by the stable cells
       LifeState stateonly = state & ~stable;
@@ -1404,6 +1340,11 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
         interactionStartTime = state.gen;
         // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
         // std::cout << UnknownRLE() << std::endl << std::flush;
+      } else {
+        if (!hasInteracted && state.gen > params.maxFirstActiveGen - 1) {
+          if(debug) std::cout << "failed: didn't interact before " << params.maxFirstActiveGen << std::endl;
+          return false;
+        }
       }
     }
     LifeState stableZOI = stable.ZOI();
@@ -1415,7 +1356,7 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
     }
 
     state = next;
-    unknown = nextUnknowns;
+    unknown = nextUnknown & ~newGlancing;
 
     // bool consistent = PropagateStable();
     // if (!consistent) {
@@ -1437,6 +1378,121 @@ bool SearchState::RunSearch(SearchParams &params, Focus focus, LifeState& triedG
 
     return RunSearch(params);
   }
+
+  if(focus.type == NONE) {
+    // Find the next unknown cell
+    auto coords = newUnknown.FirstOn();
+    if (coords != std::make_pair(-1, -1)) {
+      focus = Focus(NORMAL, coords);
+      if (debug) std::cout << "normal focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
+      if (debug) std::cout << "from newunk: " << newUnknown.RLE() << std::endl;
+    } else {
+      coords = newGlancing.FirstOn();
+      if (coords != std::make_pair(-1, -1)) {
+        focus = Focus(GLANCING, coords);
+        if (debug) std::cout << "glancing focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
+      } else {
+        std::cout << "impossible" << std::endl;
+        exit(1);
+      }
+    }
+  }
+
+  // We have a focus, see if it is determined
+
+  uint64_t nextColumn;
+  uint64_t nextUnknownColumn;
+  UncertainStepColumn(focus.coords.first, nextColumn, nextUnknownColumn);
+
+  int y = focus.coords.second;
+  bool focusNext    = (nextColumn & (1ULL << y)) >> y;
+  bool focusUnknown = (nextUnknownColumn & (1ULL << y)) >> y;
+
+  if (focus.type == GLANCING && !focusUnknown && !focusNext) {
+    if (debug) std::cout << "failed glancing: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
+    return false;
+  }
+
+  if (!focusUnknown){
+    if (debug) std::cout << "done with this focus, fixed to " << focusNext << std::endl;
+    // Done with this focus
+    newUnknown.Erase(focus.coords.first, focus.coords.second);
+    newGlancing.Erase(focus.coords.first, focus.coords.second);
+    focus = Focus::None();
+
+    return RunSearch(params);
+  }
+
+
+  if (preInteractionChoices > params.maxPreInteractionChoices - 1) {
+    if (debug) std::cout << "failed: too many pre-interaction choices " << stable.RLE() << std::endl;
+    return false;
+  }
+
+  if (postInteractionChoices > params.maxPostInteractionChoices - 1) {
+    if (debug) std::cout << "failed: too many post-interaction choices " << stable.RLE() << std::endl;
+    return false;
+  }
+
+  // Set an unknown neighbour of the focus
+  std::pair<int, int> unknown = UnknownNeighbour(focus.coords);
+
+  bool whichFirst = true;
+  {
+    SearchState nextState = *this;
+
+    if(whichFirst)
+      nextState.stablePop += 1;
+    if(!hasInteracted && whichFirst)
+      nextState.preInteractionChoices += 1;
+    if(hasInteracted)
+      nextState.postInteractionChoices += 1;
+
+    nextState.state.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
+    nextState.stable.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
+    nextState.unknown.Erase(unknown.first, unknown.second);
+    nextState.newUnknown.Erase(unknown.first, unknown.second);
+    nextState.newGlancing.Erase(unknown.first, unknown.second);
+
+    bool consistent = nextState.SimplePropagateColumnStep(unknown.first);
+
+    if (consistent) {
+      if (debug) std::cout << "trying on" << std::endl;
+      bool result = nextState.RunSearch(params);
+    }
+    // if (result) {
+    //   *this = nextState;
+    //   return true;
+    // }
+  }
+  {
+    SearchState &nextState = *this;
+
+    if(!whichFirst)
+      nextState.stablePop += 1;
+    if(!hasInteracted && !whichFirst)
+      nextState.preInteractionChoices += 1;
+    if(hasInteracted)
+      nextState.postInteractionChoices += 1;
+
+    nextState.state.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
+    nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
+    nextState.unknown.Erase(unknown.first, unknown.second);
+    nextState.newUnknown.Erase(unknown.first, unknown.second);
+    nextState.newGlancing.Erase(unknown.first, unknown.second);
+
+    bool consistent = nextState.SimplePropagateColumnStep(unknown.first);
+
+    if (consistent) {
+      if (debug) std::cout << "trying off" << std::endl;
+      bool result = nextState.RunSearch(params);
+    }
+    // if (result) {
+    //   *this = nextState;
+    //   return true;
+    // }
+  }
+  return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -1447,6 +1503,8 @@ int main(int argc, char *argv[]) {
   search.state = params.activePattern;
   search.stable = params.startingStable;
   search.unknown = params.searchArea;
+
+  search.SetNext(params);
 
   bool result = search.RunSearch(params);
 
