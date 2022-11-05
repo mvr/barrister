@@ -154,6 +154,7 @@ public:
 
   bool stabiliseResults;
   bool skipGlancing;
+  bool forbidBlocks;
 
   bool debug;
 
@@ -178,6 +179,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", false);
   params.skipGlancing = toml::find_or(toml, "skip-glancing", false);
+  params.forbidBlocks = toml::find_or(toml, "forbid-blocks", false);
 
   params.debug = toml::find_or(toml, "debug", false);
 
@@ -1292,6 +1294,12 @@ bool SearchState::RunSearch(SearchParams &params) {
   if (stabletime > params.minStableInterval) {
     if(state.gen - interactionStartTime < params.minActiveWindowGens + params.minStableInterval)
       return false;
+
+    if(params.forbidBlocks) {
+      LifeState block = LifeState::Parse("2o$2o");
+      if(!stable.Match(block).IsEmpty())
+        return false;
+    }
 
     std::cout << "Success:" << std::endl;
     std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
