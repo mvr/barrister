@@ -1,15 +1,20 @@
 min-first-active-gen = 0
 max-first-active-gen = 20
-max-active-window-gens = 20
-max-pre-interaction-choices = 3
-max-post-interaction-choices = 15
-max-active-cells = 15
 min-stable-interval = 5
-max-changed-cells = 100
-max-changed-cells-grace-period = 5
+
+max-active-window-gens = 20
+
+max-pre-interaction-choices = 4
+max-post-interaction-choices = 25
+max-stable-pop = 100
+
+max-active-cells = 15
 
 stabilise-results = true
+skip-glancing = true
+
+# debug = true
 
 pattern = '''
-.A$2.A$3A$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B$3.10B!
+9.10B$9.10B$9.10B$5.A3.10B$6.A2.10B$4.3A2.10B$9.10B$9.10B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B!
 '''
