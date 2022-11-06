@@ -268,13 +268,10 @@ public:
   LifeState stable;
   LifeState unknown;
 
-  // // Cells in this generation that need to be determined
+  // Cells in this generation that need to be determined
   LifeState newUnknown;
   LifeState newGlancing;
   Focus focus;
-
-  LifeState next;
-  LifeState nextUnknown;
 
   bool hasInteracted;
   unsigned interactionStartTime;
@@ -314,7 +311,7 @@ public:
 
   void FindFocus();
 
-  void SetNext(SearchParams &params);
+  void SetNext(SearchParams &params, LifeState &next, LifeState &nextUnknown);
 
   bool RunSearch(SearchParams &params);
 
@@ -357,15 +354,15 @@ bool SearchState::SimplePropagateColumnStep(int column) {
   std::array<uint64_t, 5> nearbyStable;
   std::array<uint64_t, 5> nearbyUnknown;
   for (int i = 0; i < 5; i++) {
-    int c = column + i - 2;
-    if (c == -2)
-      c = N-2;
-    if (c == -1)
-      c = N-1;
-    if (c == N)
-      c = 0;
-    if (c == N+1)
-      c = 1;
+    int c = (column + i - 2 + N) % N;
+    // if (c == -2)
+    //   c = N-2;
+    // if (c == -1)
+    //   c = N-1;
+    // if (c == N)
+    //   c = 0;
+    // if (c == N+1)
+    //   c = 1;
     nearbyStable[i] = stable.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
@@ -972,11 +969,12 @@ void SearchState::UncertainStepColumn(int column, uint64_t &next, uint64_t &next
   std::array<uint64_t, 3> nearbyState;
   std::array<uint64_t, 3> nearbyUnknown;
   for (int i = 0; i < 3; i++) {
-    int c = column + i - 1;
-    if (c == -1)
-      c = N-1;
-    if (c == N)
-      c = 0;
+    int c = (column + i - 1 + N) % N;
+    // int c = column + i - 1;
+    // if (c == -1)
+    //   c = N-1;
+    // if (c == N)
+    //   c = 0;
     nearbyState[i] = state.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
@@ -1251,7 +1249,7 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
 //     return;
 // }
 
-void SearchState::SetNext(SearchParams &params) {
+void SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &nextUnknown) {
     UncertainStep(next, nextUnknown, newGlancing);
 
     if(!params.skipGlancing)
@@ -1259,10 +1257,9 @@ void SearchState::SetNext(SearchParams &params) {
 
     // Prevent the unknown zone from growing, as in Bellman
     LifeState uneqStableNbhd = (state ^ stable).ZOI();
-    next &= uneqStableNbhd;
-    next |= stable & ~uneqStableNbhd;
-    nextUnknown &= uneqStableNbhd;
-    nextUnknown |= unknown & ~uneqStableNbhd;
+    next = (next & uneqStableNbhd) | (stable & ~uneqStableNbhd);
+    next.gen = state.gen + 1;
+    nextUnknown = (nextUnknown & uneqStableNbhd) | (unknown & ~uneqStableNbhd);
     newGlancing &= nextUnknown;
     nextUnknown &= ~newGlancing;
 
@@ -1272,7 +1269,8 @@ void SearchState::SetNext(SearchParams &params) {
 
 bool SearchState::RunSearch(SearchParams &params) {
   depth += 1;
-  bool debug = params.debug || depth > 1500;
+  // bool debug = params.debug || depth > 1500;
+  bool debug = false;
 
   if(debug) {
     std::cout << "depth: " << depth << std::endl;
@@ -1318,6 +1316,8 @@ bool SearchState::RunSearch(SearchParams &params) {
     return true;
   }
 
+  LifeState next(false), nextUnknown(false);
+
   if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
     bool consistent = SimplePropagateStable();
 
@@ -1326,7 +1326,7 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
     }
 
-    SetNext(params);
+    SetNext(params, next, nextUnknown);
   }
 
   if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
@@ -1511,8 +1511,6 @@ int main(int argc, char *argv[]) {
   search.state = params.activePattern;
   search.stable = params.startingStable;
   search.unknown = params.searchArea;
-
-  search.SetNext(params);
 
   bool result = search.RunSearch(params);
 

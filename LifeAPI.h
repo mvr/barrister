@@ -179,6 +179,7 @@ public:
   int gen;
 
   LifeState() : state{0}, min(0), max(N - 1), gen(0) {}
+  LifeState(bool dummy) : min(0), max(N - 1), gen(0) {}
 
   void Set(int x, int y) { state[x] |= (1ULL << (y)); }
   void Erase(int x, int y) { state[x] &= ~(1ULL << (y)); }
@@ -412,11 +413,12 @@ public:
   }
 
   bool operator==(const LifeState &b) const {
-    for (int i = 0; i < N; i++)
-      if (state[i] != b.state[i])
-        return false;
+    uint64_t diffs = 0;
 
-    return true;
+    for (int i = 0; i < N; i++)
+      diffs |= state[i] ^ b.state[i];
+
+    return diffs == 0;
   }
 
   bool operator!=(const LifeState &b) const {
