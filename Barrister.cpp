@@ -189,8 +189,11 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   std::string rle = toml::find<std::string>(toml, "pattern");
   ParseTristateWHeader(rle, stateon, statemarked);
 
-  // std::cout << "stateon " << stateon.RLE() << std::endl;
-  // std::cout << "statemarked " << statemarked.RLE() << std::endl;
+  std::vector<int> patternCenter = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
+  stateon.Move(-patternCenter[0], -patternCenter[1]);
+  statemarked.Move(-patternCenter[0], -patternCenter[1]);
+
+  params.forbidBlocks = toml::find_or(toml, "forbid-blocks", false);
 
   params.activePattern = stateon & ~statemarked;
   params.startingStable = stateon & statemarked;
