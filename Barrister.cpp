@@ -1327,6 +1327,22 @@ bool SearchState::RunSearch(SearchParams &params) {
     }
 
     SetNext(params, next, nextUnknown);
+
+    LifeState stableZOI = stable.ZOI() & ~newUnknown;
+
+    if (state.gen - interactionStartTime > params.changesGracePeriod) {
+      LifeState changes = (state ^ next) & stableZOI;
+      if(changes.GetPop() > params.maxChanges) {
+        if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
+        return false;
+      }
+    }
+
+    LifeState actives = (stable ^ next) & stableZOI;
+    if (actives.GetPop() > params.maxActiveCells) {
+      if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
+      return false;
+    }
   }
 
   if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
@@ -1355,34 +1371,17 @@ bool SearchState::RunSearch(SearchParams &params) {
         }
       }
     }
-    LifeState stableZOI = stable.ZOI();
-
-    LifeState changes = (state ^ next) & stableZOI;
-    if (state.gen - interactionStartTime > params.changesGracePeriod && changes.GetPop() > params.maxChanges) {
-      if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
-      return false;
-    }
 
     state = next;
     unknown = nextUnknown & ~newGlancing;
     glanced |= newGlancing;
 
-    // bool consistent = PropagateStable();
-    // if (!consistent) {
-    //   if (debug) std::cout << "failed: inconsistent after stepping" << std::endl;
-    //   return false;
-    // }
-
+    LifeState stableZOI = stable.ZOI();
     LifeState actives = (stable ^ state) & stableZOI;
     if (hasInteracted && actives.IsEmpty()) {
       stabletime += 1;
     } else {
       stabletime = 0;
-    }
-
-    if (actives.GetPop() > params.maxActiveCells) {
-      if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
-      return false;
     }
 
     return RunSearch(params);
