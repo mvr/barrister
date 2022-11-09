@@ -488,11 +488,11 @@ abort |= on1 & (~unk1) & (~unk0) & (((~state0) & (~on2) & on0) | (state0 & (~on0
 std::pair<bool, bool> SearchState::SimplePropagateStableStep() {
   LifeState startUnknown = unknown;
 
-  LifeState oncol0, oncol1, unkcol0, unkcol1;
+  LifeState oncol0(false), oncol1(false), unkcol0(false), unkcol1(false);
   CountRows(stable, oncol0, oncol1);
   CountRows(unknown, unkcol0, unkcol1);
 
-  LifeState new_off, new_on;
+  LifeState new_off(false), new_on(false);
 
   uint64_t has_set_off = 0;
   uint64_t has_set_on = 0;
@@ -613,11 +613,11 @@ bool SearchState::SimplePropagateStable() {
 std::pair<bool, bool> SearchState::PropagateStableStep() {
   LifeState startUnknown = unknown;
 
-  LifeState oncol0, oncol1, unkcol0, unkcol1;
+  LifeState oncol0(false), oncol1(false), unkcol0(false), unkcol1(false);
   CountRows(stable, oncol0, oncol1);
   CountRows(unknown, unkcol0, unkcol1);
 
-  LifeState new_off, new_on, new_signal_off, new_signal_on;
+  LifeState new_off(false), new_on(false), new_signal_off(false), new_signal_on(false);
 
   uint64_t has_set_off = 0;
   uint64_t has_set_on = 0;
@@ -736,8 +736,8 @@ signal_on |= state0 & (~on1) & on0 & (~unk0) ;
     unknown &= ~new_off;
   }
 
-  LifeState off_zoi;
-  LifeState on_zoi;
+  LifeState off_zoi(false);
+  LifeState on_zoi(false);
   if (has_signal_off != 0) {
     off_zoi = new_signal_off.ZOI();
     unknown &= ~off_zoi;
@@ -772,8 +772,6 @@ bool SearchState::PropagateStable() {
 }
 
 void SearchState::UncertainActiveStep(LifeState &next, LifeState &nextUnknown) {
-  LifeState result;
-
   LifeState sta = ~(state ^ stable);
 
   LifeState oncol0, oncol1, unkcol0, unkcol1, stacol0, stacol1;
@@ -886,9 +884,7 @@ unknown |= (~on2) & (~on1) & (~on0) & (~unk0) ;
 }
 
 void SearchState::UncertainStep(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown, LifeState &__restrict__ glancing) {
-  LifeState result;
-
-  LifeState oncol0, oncol1, unkcol0, unkcol1;
+  LifeState oncol0(false), oncol1(false), unkcol0(false), unkcol1(false);
   CountRows(state, oncol0, oncol1);
   CountRows(unknown, unkcol0, unkcol1);
 
