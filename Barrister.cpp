@@ -269,6 +269,7 @@ public:
   LifeState state;
   // Stable background
   LifeState stable;
+  LifeState stableZOI;
   LifeState unknown;
 
   // Cells that can't have > 1 stable neighbour
@@ -287,6 +288,10 @@ public:
   unsigned stabletime;
 
   unsigned depth;
+
+  // These are lower bounds on the current values
+  unsigned activePop;
+  unsigned changePop;
 
   SearchState()
     : glanced(), newUnknown(), newGlancing(), hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
@@ -1280,11 +1285,6 @@ bool SearchState::RunSearch(SearchParams &params) {
   }
 
 
-  if (stablePop > params.maxStablePop) {
-    if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
-    return false;
-  }
-
   if (stabletime > params.minStableInterval) {
     if(state.gen - interactionStartTime < params.minActiveWindowGens + params.minStableInterval)
       return false;
@@ -1324,18 +1324,20 @@ bool SearchState::RunSearch(SearchParams &params) {
 
     SetNext(params, next, nextUnknown);
 
-    LifeState stableZOI = stable.ZOI() & ~newUnknown;
+    stableZOI = stable.ZOI() & ~newUnknown;
 
     if (state.gen - interactionStartTime > params.changesGracePeriod) {
       LifeState changes = (state ^ next) & stableZOI;
-      if(changes.GetPop() > params.maxChanges) {
+      changePop = changes.GetPop();
+      if(changePop > params.maxChanges) {
         if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
         return false;
       }
     }
 
     LifeState actives = (stable ^ next) & stableZOI;
-    if (actives.GetPop() > params.maxActiveCells) {
+    activePop = actives.GetPop();
+    if (activePop > params.maxActiveCells) {
       if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
       return false;
     }
@@ -1372,7 +1374,6 @@ bool SearchState::RunSearch(SearchParams &params) {
     unknown = nextUnknown & ~newGlancing;
     glanced |= newGlancing;
 
-    LifeState stableZOI = stable.ZOI();
     LifeState actives = (stable ^ state) & stableZOI;
     if (hasInteracted && actives.IsEmpty()) {
       stabletime += 1;
@@ -1419,6 +1420,25 @@ bool SearchState::RunSearch(SearchParams &params) {
 
   if (!focusUnknown){
     if (debug) std::cout << "done with this focus, fixed to " << focusNext << std::endl;
+
+    bool focusState   = (state.state[focus.coords.first] & (1ULL << y)) >> y;
+    bool focusStable  = (stable.state[focus.coords.first] & (1ULL << y)) >> y;
+    bool focusStableZOI   = (stableZOI.state[focus.coords.first] & (1ULL << y)) >> y;
+
+    if (focusStableZOI && focusNext != focusState)
+      changePop++;
+    if (focusStableZOI && focusNext != focusStable)
+      activePop++;
+
+    if(changePop > params.maxChanges) {
+      if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
+      return false;
+    }
+    if (activePop > params.maxActiveCells) {
+      if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
+      return false;
+    }
+
     // Done with this focus
     newUnknown.Erase(focus.coords.first, focus.coords.second);
     newGlancing.Erase(focus.coords.first, focus.coords.second);
@@ -1452,6 +1472,11 @@ bool SearchState::RunSearch(SearchParams &params) {
     if(hasInteracted)
       nextState.postInteractionChoices += 1;
 
+    if (stablePop > params.maxStablePop) {
+      if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
+      return false;
+    }
+
     nextState.state.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
     nextState.stable.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
     nextState.unknown.Erase(unknown.first, unknown.second);
@@ -1478,6 +1503,12 @@ bool SearchState::RunSearch(SearchParams &params) {
       nextState.preInteractionChoices += 1;
     if(hasInteracted)
       nextState.postInteractionChoices += 1;
+
+
+    if (stablePop > params.maxStablePop) {
+      if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
+      return false;
+    }
 
     nextState.state.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
     nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
