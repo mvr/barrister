@@ -147,6 +147,7 @@ public:
   int maxActiveCells;
   int maxChanges;
   int changesGracePeriod;
+  int maxActiveSize;
 
   LifeState activePattern;
   LifeState startingStable;
@@ -171,8 +172,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxPreInteractionChoices = toml::find_or(toml, "max-pre-interaction-choices", 3);
   params.maxPostInteractionChoices = toml::find_or(toml, "max-post-interaction-choices", 25);
   params.maxStablePop = toml::find_or(toml, "max-stable-pop", 25);
-  params.maxActiveCells = toml::find_or(toml, "max-active-cells", 15);
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 5);
+
+  params.maxActiveCells = toml::find_or(toml, "max-active-cells", 15);
+  params.maxActiveSize = toml::find_or(toml, "max-active-size", 100);
 
   params.maxChanges = toml::find_or(toml, "max-changed-cells", 100);
   params.changesGracePeriod = toml::find_or(toml, "max-changed-cells-grace-period", 5);
@@ -295,8 +298,9 @@ public:
   unsigned changePop;
 
   SearchState()
-    : glanced(), newUnknown(), newGlancing(), hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
-        postInteractionChoices(0), stablePop(0), stabletime(0), focus(Focus::None()), depth(0) {}
+      : glanced(), newUnknown(), newGlancing(), focus(Focus::None()),
+        hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
+        postInteractionChoices(0), stablePop(0), stabletime(0), depth(0) {}
 
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
@@ -320,10 +324,11 @@ public:
   // void UncertainActiveStep(LifeState &next, LifeState &nextUnknown);
   void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown);
   void UncertainStep(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown, LifeState &__restrict__ glancing);
+  void UncertainStepFor(LifeState &__restrict__ state, LifeState &__restrict__ unknown, LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown, LifeState &__restrict__ glancing);
 
   void FindFocus();
 
-  void SetNext(SearchParams &params, LifeState &next, LifeState &nextUnknown);
+  bool SetNext(SearchParams &params, LifeState &next, LifeState &nextUnknown);
 
   bool RunSearch(SearchParams &params);
 
@@ -777,11 +782,12 @@ bool SearchState::PropagateStable() {
   return true;
 }
 
-void SearchState::UncertainStep(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown, LifeState &__restrict__ glancing) {
+void SearchState::UncertainStepFor(LifeState &__restrict__ state, LifeState &__restrict__ unknown, LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown, LifeState &__restrict__ glancing) {
   LifeState oncol0(false), oncol1(false), unkcol0(false), unkcol1(false);
   CountRows(state, oncol0, oncol1);
   CountRows(unknown, unkcol0, unkcol1);
 
+  #pragma clang loop unroll(full)
   for (int i = 0; i < N; i++) {
     int idxU;
     int idxB;
@@ -858,6 +864,12 @@ next_on |= stateon & (~on1) & (~on0) & (~unk1) & (~unk0) ;
     glancing.state[i] = (~stateon) & (~stateunk) & (~on2) & (~on1) & on0 & (unk0 | unk1);
   }
   next.gen = state.gen + 1;
+}
+
+void SearchState::UncertainStep(LifeState &__restrict__ next,
+                                LifeState &__restrict__ nextUnknown,
+                                LifeState &__restrict__ glancing) {
+  UncertainStepFor(state, unknown, next, nextUnknown, glancing);
 }
 
 void SearchState::UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) {
@@ -1139,22 +1151,87 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
 //     return;
 // }
 
-void SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &nextUnknown) {
-    UncertainStep(next, nextUnknown, newGlancing);
+bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &nextUnknown) {
+  //bool debug = params.debug || depth > 1500;
+  bool debug = false;
 
-    if(!params.skipGlancing)
-      newGlancing.Clear();
+    UncertainStep(next, nextUnknown, newGlancing);
 
     // Prevent the unknown zone from growing, as in Bellman
     LifeState uneqStableNbhd = (state ^ stable).ZOI();
     next = (next & uneqStableNbhd) | (stable & ~uneqStableNbhd);
-    next.gen = state.gen + 1;
     nextUnknown = (nextUnknown & uneqStableNbhd) | (unknown & ~uneqStableNbhd);
-    newGlancing &= nextUnknown;
-    nextUnknown &= ~newGlancing;
+    next.gen = state.gen + 1;
 
-    // Find unknown cells that were known in the previous generation
-    newUnknown = nextUnknown & ~unknown;
+    LifeState stableZOI = stable.ZOI() & ~newUnknown;
+
+    if (state.gen - interactionStartTime > params.changesGracePeriod) {
+      LifeState changes = (state ^ next) & stableZOI;
+      changePop = changes.GetPop();
+      if(changePop > params.maxChanges) {
+        if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
+        return false;
+      }
+    }
+
+    LifeState actives = (stable ^ next) & stableZOI;
+    activePop = actives.GetPop();
+    if (activePop > params.maxActiveCells) {
+      return false;
+    }
+
+    auto activeBounds = actives.XYBounds();
+    int maxDim = std::max(activeBounds[2] - activeBounds[0], activeBounds[3] - activeBounds[1]);
+    if (maxDim > params.maxActiveSize) {
+      if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
+      return false;
+    }
+
+    // Do a further lookahead to see whether we fail a filter no matter what
+    {
+      LifeState lookaheadCurrent = next;
+      LifeState lookaheadUnknown = nextUnknown;
+      LifeState lookaheadGlancing;
+
+      unsigned remainingKnown = (~lookaheadUnknown & stableZOI).GetPop();
+      while (remainingKnown >= params.maxChanges &&
+             remainingKnown >= params.maxActiveCells) {
+        LifeState lookaheadNext(false);
+        LifeState lookaheadNextUnknown(false);
+        UncertainStepFor(lookaheadCurrent, lookaheadUnknown, lookaheadNext, lookaheadNextUnknown, lookaheadGlancing);
+
+        // Prevent the unknown zone from growing, as in Bellman
+        LifeState uneqStableNbhd = ((lookaheadNext ^ stable)|(lookaheadNextUnknown ^ unknown)).ZOI();
+        lookaheadNext = (lookaheadNext & uneqStableNbhd) | (stable & ~uneqStableNbhd);
+        lookaheadNextUnknown = (lookaheadNextUnknown & uneqStableNbhd) | (unknown & ~uneqStableNbhd);
+        lookaheadNext.gen = lookaheadCurrent.gen + 1;
+
+        if (lookaheadNext.gen - interactionStartTime > params.changesGracePeriod) {
+          LifeState changes = (lookaheadCurrent ^ lookaheadNext) & ~lookaheadNextUnknown & stableZOI;
+          unsigned changePop = changes.GetPop();
+          if(changePop > params.maxChanges) {
+            return false;
+          }
+        }
+
+        LifeState actives = (stable ^ lookaheadNext) & ~lookaheadNextUnknown & stableZOI;
+        unsigned activePop = actives.GetPop();
+        if (activePop > params.maxActiveCells) {
+          return false;
+        }
+        auto activeBounds = actives.XYBounds();
+        int maxDim = std::max(activeBounds[2] - activeBounds[0], activeBounds[3] - activeBounds[1]);
+        if (maxDim > params.maxActiveSize) {
+          if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
+          return false;
+        }
+
+        lookaheadCurrent = lookaheadNext;
+        lookaheadUnknown = lookaheadNextUnknown;
+        remainingKnown = (~lookaheadUnknown & stableZOI).GetPop();
+      }
+    }
+    return true;
 }
 
 bool SearchState::RunSearch(SearchParams &params) {
@@ -1211,25 +1288,23 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
     }
 
-    SetNext(params, next, nextUnknown);
+    bool lookahead = SetNext(params, next, nextUnknown);
+    if (!lookahead) {
+      if (debug) std::cout << "failed: lookahead " << stable.RLE() << std::endl;
+      return false;
+    }
+
+    if(!params.skipGlancing)
+      newGlancing.Clear();
+
+    newGlancing &= nextUnknown;
+    nextUnknown &= ~newGlancing;
+
+    // Find unknown cells that were known in the previous generation
+    newUnknown = nextUnknown & ~unknown;
 
     stableZOI = stable.ZOI() & ~newUnknown;
 
-    if (state.gen - interactionStartTime > params.changesGracePeriod) {
-      LifeState changes = (state ^ next) & stableZOI;
-      changePop = changes.GetPop();
-      if(changePop > params.maxChanges) {
-        if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
-        return false;
-      }
-    }
-
-    LifeState actives = (stable ^ next) & stableZOI;
-    activePop = actives.GetPop();
-    if (activePop > params.maxActiveCells) {
-      if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
-      return false;
-    }
   }
 
   if ((focus.type == NONE && newUnknown.IsEmpty()) ||
