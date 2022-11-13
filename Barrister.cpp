@@ -250,7 +250,8 @@ void inline CountRows(LifeState &state, LifeState &__restrict__ bit1, LifeState 
 enum FocusType {
   NONE,
   NORMAL,
-  GLANCING
+  GLANCING,
+  GLANCINGFIRST,
 };
 
 struct Focus {
@@ -1202,7 +1203,7 @@ bool SearchState::RunSearch(SearchParams &params) {
 
   LifeState next(false), nextUnknown(false);
 
-  if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
+  if(focus.type == NONE && newUnknown.IsEmpty()) {
     bool consistent = PropagateStable();
 
     if (!consistent) {
@@ -1231,8 +1232,14 @@ bool SearchState::RunSearch(SearchParams &params) {
     }
   }
 
-  if(newUnknown.IsEmpty() && (newGlancing.IsEmpty() || focus.type == NONE)) {
+  if ((focus.type == NONE && newUnknown.IsEmpty()) ||
+      focus.type == GLANCINGFIRST) {
     // We can safely take a step
+
+
+    if (focus.type == GLANCINGFIRST) {
+      focus = Focus::None();
+    }
 
     if (hasInteracted && state.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval) {
       if (debug) std::cout << "failed: too long " << stable.RLE() << std::endl;
@@ -1282,7 +1289,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     } else {
       coords = newGlancing.FirstOn();
       if (coords != std::make_pair(-1, -1)) {
-        focus = Focus(GLANCING, coords);
+        focus = Focus(GLANCINGFIRST, coords);
         if (debug) std::cout << "glancing focus: " << focus.type << " (" << focus.coords.first << ", " << focus.coords.second << ")" << std::endl;
       } else {
         std::cout << "impossible" << std::endl;
@@ -1344,6 +1351,15 @@ bool SearchState::RunSearch(SearchParams &params) {
   if (postInteractionChoices > params.maxPostInteractionChoices - 1) {
     if (debug) std::cout << "failed: too many post-interaction choices " << stable.RLE() << std::endl;
     return false;
+  }
+
+
+  if (focus.type == GLANCINGFIRST) {
+    SearchState nextState = *this;
+
+    nextState.RunSearch(params);
+
+    focus.type = GLANCING;
   }
 
   // Set an unknown neighbour of the focus
