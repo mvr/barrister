@@ -353,8 +353,8 @@ std::string SearchState::LifeBellmanRLE(SearchParams &params) const {
 std::pair<int, int> SearchState::UnknownNeighbour(std::pair<int, int> cell) {
   const std::vector<std::pair<int, int>> directions = {{-1,0}, {0,-1}, {1,0}, {0,1}, {-1,-1}, {-1, 1}, {1, -1}, {1, 1}};
   for (auto d : directions) {
-    int x = cell.first + d.first;
-    int y = cell.second + d.second;
+    int x = (cell.first + d.first + N) % N;
+    int y = (cell.second + d.second + N) % N;
     if (unknown.GetCell(x, y))
       return std::make_pair(x, y);
   }
@@ -480,7 +480,7 @@ abort |= on1 & (~unk1) & (~unk0) & (((~state0) & (~on2) & on0) | (state0 & (~on0
   for (int i = 1; i < 4; i++) {
     int orig = column + i - 2;
     if(orig < 0) orig += N;
-    if(orig > N) orig -= N;
+    if(orig >= N) orig -= N;
     unknown.state[orig] &= ~new_off[i];
     unknown.state[orig] &= ~new_on[i];
     stable.state[orig] |= new_on[i];
