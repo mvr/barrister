@@ -1,0 +1,29 @@
+min-first-active-gen = 0
+max-first-active-gen = 80
+min-active-window-gens = 5
+max-active-window-gens = 25
+min-stable-interval = 4
+max-pre-interaction-choices = 10
+max-post-interaction-choices = 100
+
+max-active-cells = 12
+max-active-size = 6
+
+# max-changed-cells = 7
+# max-changed-cells-grace-period = 3
+
+stabilise-results = true
+skip-glancing = true
+forbid-blocks = true
+
+pattern-center = [15, 20]
+pattern = '''
+x = 10, y = 12, rule = LifeHistory
+14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B4.A$.13B2.A.A$.13B2.3A$.13B2.A$.13B$.13B$.13B$.13B$.13B$.13B$.13B$.13B$.13B$.13B!
+'''
+
+# pattern-center = [15, 20]
+# pattern = '''
+# x = 24, y = 40, rule = LifeHistory
+# 19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B4.A$19B2.A.A$19B2.3A$19B2.A$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B!
+# '''

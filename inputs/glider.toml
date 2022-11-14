@@ -1,0 +1,27 @@
+min-first-active-gen = 3
+max-first-active-gen = 7
+min-active-window-gens = 5
+max-active-window-gens = 40
+min-stable-interval = 5
+
+max-pre-interaction-choices = 10
+max-post-interaction-choices = 200
+max-stable-pop = 100
+
+max-active-cells = 14
+max-active-size = 7
+
+# max-changed-cells = 8
+# max-changed-cells-grace-period = 4
+
+stabilise-results = true
+skip-glancing = true
+forbid-blocks = true
+
+# debug = true
+
+pattern-center = [15, 10]
+pattern = '''
+x = 29, y = 24, rule = LifeHistory
+11.18B$7.A3.18B$8.A2.18B$6.3A2.18B$11.18B$11.18B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B!
+'''

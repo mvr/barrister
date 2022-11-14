@@ -5,16 +5,18 @@ min-stable-interval = 5
 max-active-window-gens = 20
 
 max-pre-interaction-choices = 4
-max-post-interaction-choices = 25
+max-post-interaction-choices = 40
 max-stable-pop = 100
 
-max-active-cells = 15
+max-active-cells = 8
 
 stabilise-results = true
 skip-glancing = true
+forbid-blocks = true
 
 # debug = true
 
 pattern = '''
-9.10B$9.10B$9.10B$5.A3.10B$6.A2.10B$4.3A2.10B$9.10B$9.10B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B!
+x = 19, y = 15, rule = LifeHistory
+5.A$6.A$4.3A3$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B!
 '''
