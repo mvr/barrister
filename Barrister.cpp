@@ -300,7 +300,8 @@ public:
   SearchState()
       : glanced(), newUnknown(), newGlancing(), focus(Focus::None()),
         hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
-        postInteractionChoices(0), stablePop(0), stabletime(0), depth(0) {}
+        postInteractionChoices(0), stablePop(0), stabletime(0), depth(0),
+        activePop(0), changePop(0) {}
 
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
