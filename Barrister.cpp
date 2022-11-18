@@ -145,6 +145,8 @@ public:
   int changesGracePeriod;
   int maxActiveSize;
 
+  std::pair<unsigned, unsigned> everActiveBounds;
+
   LifeState activePattern;
   LifeState startingStable;
   LifeState searchArea;
@@ -173,6 +175,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxActiveCells = toml::find_or(toml, "max-active-cells", 15);
   params.maxActiveSize = toml::find_or(toml, "max-active-size", 100);
 
+  std::vector<int> activeBounds = toml::find_or<std::vector<int>>(toml, "ever-active-bounds", {0, 0});
+  params.everActiveBounds.first = activeBounds[0];
+  params.everActiveBounds.second = activeBounds[1];
+
   params.maxChanges = toml::find_or(toml, "max-changed-cells", 100);
   params.changesGracePeriod = toml::find_or(toml, "max-changed-cells-grace-period", 5);
 
@@ -191,8 +197,6 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   std::vector<int> patternCenter = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
   stateon.Move(-patternCenter[0], -patternCenter[1]);
   statemarked.Move(-patternCenter[0], -patternCenter[1]);
-
-  params.forbidBlocks = toml::find_or(toml, "forbid-blocks", false);
 
   params.activePattern = stateon & ~statemarked;
   params.startingStable = stateon & statemarked;
@@ -272,6 +276,8 @@ public:
   LifeState stableZOI;
   LifeState unknown;
 
+  LifeState everActive;
+
   // Cells that can't have > 1 stable neighbour
   LifeState glanced;
 
@@ -294,8 +300,9 @@ public:
   unsigned changePop;
 
   SearchState()
-      : glanced(), newUnknown(), newGlancing(), focus(Focus::None()),
-        hasInteracted(false), interactionStartTime(0), preInteractionChoices(0),
+      : state(), stable(), stableZOI(), unknown(), everActive(), glanced(), newUnknown(),
+        newGlancing(), focus(Focus::None()), hasInteracted(false),
+        interactionStartTime(0), preInteractionChoices(0),
         postInteractionChoices(0), stablePop(0), stabletime(0), depth(0),
         activePop(0), changePop(0) {}
 
@@ -1173,6 +1180,7 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
 
     LifeState actives = (stable ^ next) & stableZOI;
     activePop = actives.GetPop();
+    everActive |= actives;
     if (activePop > params.maxActiveCells) {
       return false;
     }
@@ -1181,6 +1189,16 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
     int maxDim = std::max(activeBounds[2] - activeBounds[0], activeBounds[3] - activeBounds[1]);
     if (maxDim > params.maxActiveSize) {
       if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
+      return false;
+    }
+
+    auto everActiveBounds = everActive.XYBounds();
+    if (params.everActiveBounds.first &&
+        (everActiveBounds[2] - everActiveBounds[0] >
+             params.everActiveBounds.first ||
+         everActiveBounds[3] - everActiveBounds[1] >
+             params.everActiveBounds.second)) {
+      if (debug) std::cout << "failed: too many ever-active too large " << stable.RLE() << std::endl;
       return false;
     }
 
