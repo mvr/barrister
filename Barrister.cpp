@@ -1529,7 +1529,7 @@ int main(int argc, char *argv[]) {
   SearchParams params = SearchParams::FromToml(toml);
 
   SearchState search;
-  search.state = params.activePattern;
+  search.state = params.activePattern | params.startingStable;
   search.stable = params.startingStable;
   search.unknown = params.searchArea;
 
