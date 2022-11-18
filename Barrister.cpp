@@ -5,13 +5,11 @@
 #include <chrono>
 
 void ParseTristate(const std::string &rle, LifeState &stateon, LifeState &statemarked) {
-  int cnt, i, j;
+  int cnt;
   int x, y;
   x = 0;
   y = 0;
   cnt = 0;
-
-  i = 0;
 
   for (char const ch : rle) {
 
@@ -35,7 +33,7 @@ void ParseTristate(const std::string &rle, LifeState &stateon, LifeState &statem
       if (cnt == 0)
         cnt = 1;
 
-      for (j = 0; j < cnt; j++) {
+      for (int j = 0; j < cnt; j++) {
         switch(ch) {
         case 'A':
           stateon.Set(x, y);
@@ -53,8 +51,6 @@ void ParseTristate(const std::string &rle, LifeState &stateon, LifeState &statem
 
       cnt = 0;
     }
-
-    i++;
   }
   stateon.RecalculateMinMax();
   statemarked.RecalculateMinMax();
@@ -98,7 +94,7 @@ std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &stat
       if (val != last_val) {
         if (run_count > 1)
           result << run_count;
-          result << table[last_val];
+        result << table[last_val];
         run_count = 0;
       }
 
