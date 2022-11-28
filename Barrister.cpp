@@ -1162,10 +1162,15 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
 
     UncertainStep(next, nextUnknown, newGlancing);
 
+    if(!params.skipGlancing)
+      newGlancing.Clear();
+
     // Prevent the unknown zone from growing, as in Bellman
     LifeState uneqStableNbhd = (state ^ stable).ZOI();
     next = (next & uneqStableNbhd) | (stable & ~uneqStableNbhd);
     nextUnknown = (nextUnknown & uneqStableNbhd) | (unknown & ~uneqStableNbhd);
+    nextUnknown &= ~(glanced & newGlancing);
+    newGlancing &= ~glanced;
     next.gen = state.gen + 1;
 
     LifeState stableZOI = stable.ZOI() & ~newUnknown;
@@ -1315,9 +1320,6 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
     }
 
-    if(!params.skipGlancing)
-      newGlancing.Clear();
-
     newGlancing &= nextUnknown;
     nextUnknown &= ~newGlancing;
 
@@ -1325,17 +1327,10 @@ bool SearchState::RunSearch(SearchParams &params) {
     newUnknown = nextUnknown & ~unknown;
 
     stableZOI = stable.ZOI() & ~newUnknown;
-
   }
 
-  if ((focus.type == NONE && newUnknown.IsEmpty()) ||
-      focus.type == GLANCINGFIRST) {
+  if (focus.type == NONE && newUnknown.IsEmpty() && newGlancing.IsEmpty()) {
     // We can safely take a step
-
-
-    if (focus.type == GLANCINGFIRST) {
-      focus = Focus::None();
-    }
 
     if (hasInteracted && state.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval) {
       if (debug) std::cout << "failed: too long " << stable.RLE() << std::endl;
@@ -1363,7 +1358,6 @@ bool SearchState::RunSearch(SearchParams &params) {
 
     state = next;
     unknown = nextUnknown & ~newGlancing;
-    glanced |= newGlancing;
 
     LifeState actives = (stable ^ state) & stableZOI;
     if (hasInteracted && actives.IsEmpty()) {
@@ -1450,11 +1444,9 @@ bool SearchState::RunSearch(SearchParams &params) {
   }
 
 
+  bool doGlancing = false;
   if (focus.type == GLANCINGFIRST) {
-    SearchState nextState = *this;
-
-    nextState.RunSearch(params);
-
+    doGlancing = true;
     focus.type = GLANCING;
   }
 
@@ -1473,7 +1465,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     if(hasInteracted)
       nextState.postInteractionChoices += 1;
 
-    if (stablePop > params.maxStablePop) {
+    if (nextState.stablePop > params.maxStablePop) {
       if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
       return false;
     }
@@ -1490,13 +1482,9 @@ bool SearchState::RunSearch(SearchParams &params) {
       if (debug) std::cout << "trying on" << std::endl;
       bool result = nextState.RunSearch(params);
     }
-    // if (result) {
-    //   *this = nextState;
-    //   return true;
-    // }
   }
   {
-    SearchState &nextState = *this;
+    SearchState nextState = *this;
 
     if(!whichFirst)
       nextState.stablePop += 1;
@@ -1505,8 +1493,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     if(hasInteracted)
       nextState.postInteractionChoices += 1;
 
-
-    if (stablePop > params.maxStablePop) {
+    if (nextState.stablePop > params.maxStablePop) {
       if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
       return false;
     }
@@ -1523,10 +1510,20 @@ bool SearchState::RunSearch(SearchParams &params) {
       if (debug) std::cout << "trying off" << std::endl;
       bool result = nextState.RunSearch(params);
     }
-    // if (result) {
-    //   *this = nextState;
-    //   return true;
-    // }
+  }
+
+  if(doGlancing) {
+    // This is unnecessary copying but it segfaults with a reference
+    SearchState nextState = *this;
+
+    nextState.focus = Focus::None();
+    nextState.unknown.Erase(focus.coords.first, focus.coords.second);
+    nextState.newUnknown.Erase(focus.coords.first, focus.coords.second);
+    nextState.newGlancing.Erase(focus.coords.first, focus.coords.second);
+    nextState.glanced.Set(focus.coords.first, focus.coords.second);
+
+    if (debug) std::cout << "trying glancing" << std::endl;
+    bool result = nextState.RunSearch(params);
   }
   return true;
 }
@@ -1540,6 +1537,7 @@ int main(int argc, char *argv[]) {
   search.stable = params.startingStable;
   search.unknown = params.searchArea;
 
+  search.PropagateStable();
   bool result = search.RunSearch(params);
 
   // auto rle = argv[1];
