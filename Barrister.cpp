@@ -4,6 +4,8 @@
 #include <limits>
 #include <chrono>
 
+static const bool allowDebug = false;
+
 void ParseTristate(const std::string &rle, LifeState &stateon, LifeState &statemarked) {
   int cnt;
   int x, y;
@@ -1156,8 +1158,7 @@ bool SearchState::CompleteStable(unsigned &maxPop, LifeState &best) {
 // }
 
 bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &nextUnknown) {
-  //bool debug = params.debug || depth > 1500;
-  bool debug = false;
+  const bool debug = params.debug && allowDebug;
 
     UncertainStep(next, nextUnknown, newGlancing);
 
@@ -1173,7 +1174,7 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
       LifeState changes = (state ^ next) & stableZOI;
       changePop = changes.GetPop();
       if(changePop > params.maxChanges) {
-        if (debug) std::cout << "failed: too many changes " << stable.RLE() << std::endl;
+        if (debug) std::cout << "failed: too many changes " << stable.RLE() << " " << next.RLE() << std::endl;
         return false;
       }
     }
@@ -1182,13 +1183,14 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
     activePop = actives.GetPop();
     everActive |= actives;
     if (activePop > params.maxActiveCells) {
+      if (debug) std::cout << "failed: too many active " << stable.RLE() << " " << next.RLE() << std::endl;
       return false;
     }
 
     auto activeBounds = actives.XYBounds();
     int maxDim = std::max(activeBounds[2] - activeBounds[0], activeBounds[3] - activeBounds[1]);
     if (maxDim > params.maxActiveSize) {
-      if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
+      if (debug) std::cout << "failed: too big active " << stable.RLE() << std::endl;
       return false;
     }
 
@@ -1197,12 +1199,15 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
         (everActiveBounds[2] - everActiveBounds[0] >
              params.everActiveBounds.first ||
          everActiveBounds[3] - everActiveBounds[1] >
+
              params.everActiveBounds.second)) {
-      if (debug) std::cout << "failed: too many ever-active too large " << stable.RLE() << std::endl;
+      if (debug) std::cout << "failed: ever-active too large " << stable.RLE() << std::endl;
       return false;
     }
 
+
     // Do a further lookahead to see whether we fail a filter no matter what
+    // if (hasInteracted) {
     {
       LifeState lookaheadCurrent = next;
       LifeState lookaheadUnknown = nextUnknown;
@@ -1225,6 +1230,7 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
           LifeState changes = (lookaheadCurrent ^ lookaheadNext) & ~lookaheadNextUnknown & stableZOI;
           unsigned changePop = changes.GetPop();
           if(changePop > params.maxChanges) {
+            if (debug) std::cout << "failed lookahead: too many changes " << stable.RLE() << std::endl;
             return false;
           }
         }
@@ -1232,12 +1238,13 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
         LifeState actives = (stable ^ lookaheadNext) & ~lookaheadNextUnknown & stableZOI;
         unsigned activePop = actives.GetPop();
         if (activePop > params.maxActiveCells) {
+          if (debug) std::cout << "failed lookahead: too many active " << stable.RLE() << std::endl;
           return false;
         }
         auto activeBounds = actives.XYBounds();
         int maxDim = std::max(activeBounds[2] - activeBounds[0], activeBounds[3] - activeBounds[1]);
         if (maxDim > params.maxActiveSize) {
-          if (debug) std::cout << "failed: too many active " << stable.RLE() << std::endl;
+          if (debug) std::cout << "failed lookahead: too big active " << stable.RLE() << std::endl;
           return false;
         }
 
@@ -1251,8 +1258,7 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
 
 bool SearchState::RunSearch(SearchParams &params) {
   depth += 1;
-  // bool debug = params.debug || depth > 1500;
-  bool debug = false;
+  const bool debug = params.debug && allowDebug;
 
   if(debug) {
     std::cout << "depth: " << depth << std::endl;
@@ -1454,6 +1460,7 @@ bool SearchState::RunSearch(SearchParams &params) {
 
   // Set an unknown neighbour of the focus
   std::pair<int, int> unknown = UnknownNeighbour(focus.coords);
+  if (debug) std::cout << "neighbour: (" << unknown.first << ", " << unknown.second << ")" << std::endl;
 
   bool whichFirst = true;
   {
