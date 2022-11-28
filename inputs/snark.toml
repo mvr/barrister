@@ -1,0 +1,30 @@
+# Snarks are easy to find if you know exactly where to look
+
+min-first-active-gen = 40
+max-first-active-gen = 42
+min-active-window-gens = 0
+max-active-window-gens = 20
+max-pre-interaction-choices = 10
+max-post-interaction-choices = 150
+
+max-active-cells = 10
+max-active-size = 5
+
+stabilise-results = true
+skip-glancing = true
+forbid-blocks = true
+
+pattern-center = [15, 15]
+pattern = '''
+x = 35, y = 28, rule = LifeHistory
+34.B$19.A13.2B$9.A7.3A12.3B$7.A.A6.A14.4B$8.2A6.2A12.5B$29.6B$28.7B$
+27.8B$26.9B$25.10B$24.11B$6.2A15.12B$5.A.A5.2A.19B$5.A7.2A.19B$4.2A
+10.19B$8.27B$8.27B$35B$35B$35B$35B$35B$35B$35B$35B$35B$35B$35B!
+'''
+
+# #F 46 19 10
+# .....
+# .***.
+# ...*.
+# ..*..
+# .....

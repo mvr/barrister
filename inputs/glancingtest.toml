@@ -1,0 +1,29 @@
+# This should find the same catalyst on the other side
+
+min-first-active-gen = 0
+max-first-active-gen = 1
+min-active-window-gens = 5
+max-active-window-gens = 10
+min-stable-interval = 4
+max-pre-interaction-choices = 10
+max-post-interaction-choices = 200
+
+max-active-cells = 12
+max-active-size = 6
+
+# max-changed-cells = 7
+# max-changed-cells-grace-period = 3
+
+stabilise-results = true
+skip-glancing = true
+debug = false
+
+pattern-center = [10, 20]
+pattern = '''
+x = 42, y = 14, rule = LifeHistory
+30.12B$30.12B$5.2A9.2A3.2A7.12B$5.A10.2A3.2A7.12B$6.3A21.12B$2A6.A21.
+12B$.A6.A.A2.A.A7.A.A2.B.12B$.A.A5.2A2.A11.A2.14B$2.2A8.A4.A3.A4.A3.
+12B$6.2A5.2A3.A.A3.2A4.12B$5.A.A5.2A2.A3.A2.2A4.12B$5.2A8.2A5.2A6.12B
+$30.12B$30.12B!
+'''
+
