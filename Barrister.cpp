@@ -1178,13 +1178,12 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
     // Find unknown cells that were known in the previous generation
     newUnknown = nextUnknown & ~unknown;
 
-    // TODO: why do I remove newUnknown here? I don't remember
-    stableZOI = stable.ZOI() & ~newUnknown;
+    stableZOI = stable.ZOI();
 
     next.gen = state.gen + 1;
 
     if (state.gen - interactionStartTime > params.changesGracePeriod) {
-      LifeState changes = (state ^ next) & stableZOI;
+      LifeState changes = (state ^ next) & stableZOI & ~nextUnknown;
       changePop = changes.GetPop();
       if(changePop > params.maxChanges) {
         if (debug) std::cout << "failed: too many changes " << stable.RLE() << " " << next.RLE() << std::endl;
@@ -1192,7 +1191,7 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
       }
     }
 
-    LifeState actives = (stable ^ next) & stableZOI;
+    LifeState actives = (stable ^ next) & stableZOI & ~nextUnknown;
     activePop = actives.GetPop();
     everActive |= actives;
     if (activePop > params.maxActiveCells) {
@@ -1359,7 +1358,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     state = next;
     unknown = nextUnknown;
 
-    LifeState actives = (stable ^ state) & stableZOI;
+    LifeState actives = (stable ^ state) & stableZOI & ~unknown;
     if (hasInteracted && actives.IsEmpty()) {
       stabletime += 1;
     } else {
