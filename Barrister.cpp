@@ -1169,11 +1169,19 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
     LifeState uneqStableNbhd = (state ^ stable).ZOI();
     next = (next & uneqStableNbhd) | (stable & ~uneqStableNbhd);
     nextUnknown = (nextUnknown & uneqStableNbhd) | (unknown & ~uneqStableNbhd);
+
+    newGlancing &= nextUnknown;
+
     nextUnknown &= ~(glanced & newGlancing);
     newGlancing &= ~glanced;
-    next.gen = state.gen + 1;
 
-    LifeState stableZOI = stable.ZOI() & ~newUnknown;
+    // Find unknown cells that were known in the previous generation
+    newUnknown = nextUnknown & ~unknown;
+
+    // TODO: why do I remove newUnknown here? I don't remember
+    stableZOI = stable.ZOI() & ~newUnknown;
+
+    next.gen = state.gen + 1;
 
     if (state.gen - interactionStartTime > params.changesGracePeriod) {
       LifeState changes = (state ^ next) & stableZOI;
@@ -1319,14 +1327,6 @@ bool SearchState::RunSearch(SearchParams &params) {
       if (debug) std::cout << "failed: lookahead " << stable.RLE() << std::endl;
       return false;
     }
-
-    newGlancing &= nextUnknown;
-    nextUnknown &= ~newGlancing;
-
-    // Find unknown cells that were known in the previous generation
-    newUnknown = nextUnknown & ~unknown;
-
-    stableZOI = stable.ZOI() & ~newUnknown;
   }
 
   if (focus.type == NONE && newUnknown.IsEmpty() && newGlancing.IsEmpty()) {
@@ -1357,7 +1357,7 @@ bool SearchState::RunSearch(SearchParams &params) {
     }
 
     state = next;
-    unknown = nextUnknown & ~newGlancing;
+    unknown = nextUnknown;
 
     LifeState actives = (stable ^ state) & stableZOI;
     if (hasInteracted && actives.IsEmpty()) {
@@ -1513,14 +1513,13 @@ bool SearchState::RunSearch(SearchParams &params) {
   }
 
   if(doGlancing) {
-    // This is unnecessary copying but it segfaults with a reference
-    SearchState nextState = *this;
+    SearchState &nextState = *this;
 
-    nextState.focus = Focus::None();
     nextState.unknown.Erase(focus.coords.first, focus.coords.second);
     nextState.newUnknown.Erase(focus.coords.first, focus.coords.second);
     nextState.newGlancing.Erase(focus.coords.first, focus.coords.second);
     nextState.glanced.Set(focus.coords.first, focus.coords.second);
+    nextState.focus = Focus::None();
 
     if (debug) std::cout << "trying glancing" << std::endl;
     bool result = nextState.RunSearch(params);
