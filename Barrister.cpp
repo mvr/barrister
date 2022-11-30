@@ -1170,13 +1170,11 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
     next = (next & uneqStableNbhd) | (stable & ~uneqStableNbhd);
     nextUnknown = (nextUnknown & uneqStableNbhd) | (unknown & ~uneqStableNbhd);
 
-    newGlancing &= nextUnknown;
-
     nextUnknown &= ~(glanced & newGlancing);
-    newGlancing &= ~glanced;
+    newGlancing &= ~glanced & nextUnknown;
 
     // Find unknown cells that were known in the previous generation
-    newUnknown = nextUnknown & ~unknown;
+    newUnknown = nextUnknown & ~newGlancing & ~unknown;
 
     stableZOI = stable.ZOI();
 
@@ -1313,6 +1311,10 @@ bool SearchState::RunSearch(SearchParams &params) {
 
   LifeState next(false), nextUnknown(false);
 
+  // See if there are any remaining unknown cells
+  // We deliberately recalculate this even if newGlancing is not
+  // empty, because setting the previous focus may have made some
+  // nearby cells no longer glancing interactions.
   if(focus.type == NONE && newUnknown.IsEmpty()) {
     bool consistent = PropagateStable();
 
