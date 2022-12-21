@@ -804,11 +804,11 @@ signal_on |= state0 & (~on1) & on0 & (~unk0) ;
     unknown &= ~on_zoi;
   }
 
-  // if (has_signal_on != 0 && has_signal_off != 0) {
-  //   if(!(on_zoi & off_zoi & unknown).IsEmpty()) {
-  //     has_abort = 1;
-  //   }
-  // }
+  if (has_signal_on != 0 && has_signal_off != 0) {
+    if(!(on_zoi & off_zoi & unknown).IsEmpty()) {
+      has_abort = 1;
+    }
+  }
 
   return std::make_pair(has_abort == 0, unknown == startUnknown);
 }
