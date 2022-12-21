@@ -1258,7 +1258,9 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
       LifeState lookaheadGlancing;
 
       unsigned remainingKnown = (~lookaheadUnknown & stableZOI).GetPop();
-      while (remainingKnown >= params.maxChanges && remainingKnown >= params.maxActiveCells && !(hasInteracted && lookaheadCurrent.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval)) {
+      while (remainingKnown >= params.maxChanges &&
+             remainingKnown >= params.maxActiveCells &&
+             !(hasInteracted && lookaheadCurrent.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval)) {
         LifeState lookaheadNext(false);
         LifeState lookaheadNextUnknown(false);
         UncertainStepFor(lookaheadCurrent, lookaheadUnknown, lookaheadNext, lookaheadNextUnknown, lookaheadGlancing);
@@ -1303,6 +1305,14 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
         lookaheadCurrent = lookaheadNext;
         lookaheadUnknown = lookaheadNextUnknown;
         remainingKnown = (~lookaheadUnknown & stableZOI).GetPop();
+      }
+      if(hasInteracted && lookaheadCurrent.gen - interactionStartTime + 1 > params.maxActiveWindowGens + params.minStableInterval) {
+        if(debug) {
+          std::cout << "failed lookahead: too long" << std::endl;
+          std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+          std::cout << LifeBellmanRLE(params) << std::endl << std::flush;
+        }
+        return false;
       }
     }
     return true;
