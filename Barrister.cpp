@@ -1271,7 +1271,8 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
         UncertainStepFor(lookaheadCurrent, lookaheadUnknown, lookaheadNext, lookaheadNextUnknown, lookaheadGlancing);
 
         // Prevent the unknown zone from growing, as in Bellman
-        LifeState uneqStableNbhd = ((lookaheadNext ^ stable)|(lookaheadNextUnknown ^ unknown)).ZOI();
+        // This is sort of busted, we need to distinguish between stable unknown and possibly active unknown
+        LifeState uneqStableNbhd = ((lookaheadCurrent ^ stable) | (lookaheadUnknown & ~unknown)).ZOI();
         lookaheadNext = (lookaheadNext & uneqStableNbhd) | (stable & ~uneqStableNbhd);
         lookaheadNextUnknown = (lookaheadNextUnknown & uneqStableNbhd) | (unknown & ~uneqStableNbhd);
         lookaheadNext.gen = lookaheadCurrent.gen + 1;
