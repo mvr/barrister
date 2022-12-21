@@ -141,6 +141,7 @@ public:
   int maxPreInteractionChoices;
   int maxPostInteractionChoices;
   int maxStablePop;
+  std::pair<unsigned, unsigned> stableBounds;
 
   int maxActiveCells;
   int maxChanges;
@@ -171,7 +172,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxActiveWindowGens = toml::find_or(toml, "max-active-window-gens", 20);
   params.maxPreInteractionChoices = toml::find_or(toml, "max-pre-interaction-choices", 3);
   params.maxPostInteractionChoices = toml::find_or(toml, "max-post-interaction-choices", 25);
-  params.maxStablePop = toml::find_or(toml, "max-stable-pop", 25);
+  params.maxStablePop = toml::find_or(toml, "max-stable-pop", 200);
+  std::vector<int> stableBounds = toml::find_or<std::vector<int>>(toml, "stable-bounds", {100, 100});
+  params.stableBounds.first = stableBounds[0];
+  params.stableBounds.second = stableBounds[1];
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 5);
 
   params.maxActiveCells = toml::find_or(toml, "max-active-cells", 15);
@@ -1375,6 +1379,21 @@ bool SearchState::RunSearch(SearchParams &params) {
 
     if (!consistent) {
       if (debug) std::cout << "failed: inconsistent" << std::endl;
+      return false;
+    }
+
+    stablePop = stable.GetPop();
+    if (stablePop > params.maxStablePop) {
+      if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
+      return false;
+    }
+
+    auto stableBounds = stable.WidthHeight();
+    if (params.stableBounds.first &&
+        (stableBounds.first > params.stableBounds.first ||
+         stableBounds.second > params.stableBounds.second)) {
+      if (debug) std::cout << "failed: stable too large " << stable.RLE() << std::endl;
+
       return false;
     }
 
