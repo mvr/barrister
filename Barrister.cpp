@@ -1283,6 +1283,8 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
 
         LifeState actives = (stable ^ lookaheadNext) & ~lookaheadNextUnknown & stableZOI;
         unsigned activePop = actives.GetPop();
+        if (activePop == 0)
+          return true;
         if (activePop > params.maxActiveCells) {
           if (debug) std::cout << "failed lookahead: too many active " << stable.RLE() << std::endl;
           return false;
