@@ -1058,6 +1058,37 @@ public:
         {minCol, topMargin - 32, maxCol, 31 - bottomMargin});
   }
 
+  std::pair<int, int> WidthHeight() const {
+    int minCol = -32;
+    int maxCol = 31;
+    for (int i = -32; i <= 31; i++) {
+      if (state[(i + 64) % 64] != 0) {
+        minCol = i;
+        break;
+      }
+    }
+
+    for (int i = 31; i >= -32; i--) {
+      if (state[(i + 64) % 64] != 0) {
+        maxCol = i;
+        break;
+      }
+    }
+
+    uint64_t orOfCols(0);
+    for (int i = minCol; i <= maxCol; ++i) {
+      orOfCols = orOfCols | state[(i + 64) % 64];
+    }
+
+    if (orOfCols == 0ULL) {
+      return std::pair<int, int>(0, 0);
+    }
+    orOfCols = __builtin_rotateright64(orOfCols, 32);
+    int topMargin = __builtin_ctzll(orOfCols);
+    int bottomMargin = __builtin_clzll(orOfCols);
+    return std::pair<int, int>(maxCol - minCol + 1, 64 - topMargin - bottomMargin);
+  }
+
   LifeState ComponentContaining(const LifeState &seed, const LifeState &corona) const {
     LifeState result;
     LifeState tocheck = seed;

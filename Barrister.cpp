@@ -1234,20 +1234,17 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
       return false;
     }
 
-    auto activeBounds = actives.XYBounds();
-    int maxDim = std::max(activeBounds[2] - activeBounds[0], activeBounds[3] - activeBounds[1]);
+    auto activeBounds = actives.WidthHeight();
+    int maxDim = std::max(activeBounds.first, activeBounds.second);
     if (maxDim > params.maxActiveSize) {
       if (debug) std::cout << "failed: too big active " << stable.RLE() << std::endl;
       return false;
     }
 
-    auto everActiveBounds = everActive.XYBounds();
+    auto everActiveBounds = everActive.WidthHeight();
     if (params.everActiveBounds.first &&
-        (everActiveBounds[2] - everActiveBounds[0] >
-             params.everActiveBounds.first ||
-         everActiveBounds[3] - everActiveBounds[1] >
-
-             params.everActiveBounds.second)) {
+        (everActiveBounds.first > params.everActiveBounds.first ||
+         everActiveBounds.second > params.everActiveBounds.second)) {
       if (debug) std::cout << "failed: ever-active too large " << stable.RLE() << std::endl;
       return false;
     }
@@ -1287,10 +1284,19 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
           if (debug) std::cout << "failed lookahead: too many active " << stable.RLE() << std::endl;
           return false;
         }
-        auto activeBounds = actives.XYBounds();
-        int maxDim = std::max(activeBounds[2] - activeBounds[0], activeBounds[3] - activeBounds[1]);
+        auto activeBounds = actives.WidthHeight();
+        int maxDim = std::max(activeBounds.first, activeBounds.second);
         if (maxDim > params.maxActiveSize) {
           if (debug) std::cout << "failed lookahead: too big active " << stable.RLE() << std::endl;
+          return false;
+        }
+
+        lookaheadEverActive |= actives;
+        auto everActiveBounds = lookaheadEverActive.WidthHeight();
+        if (params.everActiveBounds.first &&
+            (everActiveBounds.first > params.everActiveBounds.first ||
+             everActiveBounds.second > params.everActiveBounds.second)) {
+          if (debug) std::cout << "failed lookahead: ever-active too large " << std::endl << "x = 0, y = 0, rule = LifeBellman" << std::endl << LifeBellmanRLE(params) << std::endl << std::flush;
           return false;
         }
 
