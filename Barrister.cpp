@@ -1256,6 +1256,7 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
       LifeState lookaheadCurrent = next;
       LifeState lookaheadUnknown = nextUnknown;
       LifeState lookaheadGlancing;
+      LifeState lookaheadEverActive;
 
       unsigned remainingKnown = (~lookaheadUnknown & stableZOI).GetPop();
       while (remainingKnown >= params.maxChanges &&
