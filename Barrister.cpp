@@ -1541,11 +1541,6 @@ bool SearchState::RunSearch(SearchParams &params) {
     if(hasInteracted)
       nextState.postInteractionChoices += 1;
 
-    if (nextState.stablePop > params.maxStablePop) {
-      if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
-      return false;
-    }
-
     nextState.state.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
     nextState.stable.SetCellUnsafe(unknown.first, unknown.second, whichFirst);
     nextState.unknown.Erase(unknown.first, unknown.second);
@@ -1569,11 +1564,6 @@ bool SearchState::RunSearch(SearchParams &params) {
     if(hasInteracted)
       nextState.postInteractionChoices += 1;
 
-    if (nextState.stablePop > params.maxStablePop) {
-      if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
-      return false;
-    }
-
     nextState.state.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
     nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
     nextState.unknown.Erase(unknown.first, unknown.second);
@@ -1595,11 +1585,6 @@ bool SearchState::RunSearch(SearchParams &params) {
       nextState.preInteractionChoices += 1;
     if(hasInteracted)
       nextState.postInteractionChoices += 1;
-
-    if (nextState.stablePop > params.maxStablePop) {
-      if (debug) std::cout << "failed: stable pop too high " << stable.RLE() << std::endl;
-      return false;
-    }
 
     nextState.state.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
     nextState.stable.SetCellUnsafe(unknown.first, unknown.second, !whichFirst);
