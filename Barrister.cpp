@@ -316,6 +316,7 @@ public:
   SearchState &operator= ( const SearchState & ) = default;
 
   std::string UnknownRLE() const;
+  std::string LifeBellmanRLEFor(LifeState &state, LifeState &marked) const;
   std::string LifeBellmanRLE(SearchParams &params) const;
   // static SearchState ParseUnknown(const char *rle);
 
@@ -349,8 +350,14 @@ std::string SearchState::UnknownRLE() const {
   return MultiStateRLE({'.', 'A', 'B', 'Q'}, stable, unknown);
 }
 
+std::string SearchState::LifeBellmanRLEFor(LifeState &state, LifeState &marked) const {
+  return MultiStateRLE({'.', 'A', 'E', 'C'}, state, marked);
+}
+
 std::string SearchState::LifeBellmanRLE(SearchParams &params) const {
-  return MultiStateRLE({'.', 'A', 'E', 'C'}, stable | params.activePattern, unknown | stable);
+  LifeState state = stable | params.activePattern;
+  LifeState marked =  unknown | stable;
+  return LifeBellmanRLEFor(state, marked);
 }
 
 // SearchState SearchState::ParseUnknown(const char *rle) {
