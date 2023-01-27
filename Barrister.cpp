@@ -1241,7 +1241,13 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
     activePop = actives.GetPop();
     everActive |= actives;
     if (activePop > params.maxActiveCells) {
-      if (debug) std::cout << "failed: too many active " << stable.RLE() << " " << next.RLE() << std::endl;
+      if(debug) {
+        std::cout << "failed: too many active " << std::endl;
+        std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+        std::cout << LifeBellmanRLE(params) << std::endl << std::flush;
+        LifeState marked = nextUnknown | (next & stable);
+        std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl << LifeBellmanRLEFor(next, marked) << std::endl;
+      }
       return false;
     }
 
@@ -1288,7 +1294,7 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
           LifeState changes = (lookaheadCurrent ^ lookaheadNext) & ~lookaheadNextUnknown & stableZOI;
           unsigned changePop = changes.GetPop();
           if(changePop > params.maxChanges) {
-            if (debug) std::cout << "failed lookahead: too many changes " << stable.RLE() << std::endl;
+            if (debug) std::cout << "failed lookahead: too many changes " << std::endl << "x = 0, y = 0, rule = LifeBellman" << std::endl << LifeBellmanRLE(params) << std::endl << std::flush;
             return false;
           }
         }
@@ -1298,13 +1304,17 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
         if (activePop == 0)
           return true;
         if (activePop > params.maxActiveCells) {
-          if (debug) std::cout << "failed lookahead: too many active " << stable.RLE() << std::endl;
+          if(debug) {
+            std::cout << "failed lookahead: too many active " << std::endl;
+            std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+            std::cout << LifeBellmanRLE(params) << std::endl << std::flush;
+          }
           return false;
         }
         auto activeBounds = actives.WidthHeight();
         int maxDim = std::max(activeBounds.first, activeBounds.second);
         if (maxDim > params.maxActiveSize) {
-          if (debug) std::cout << "failed lookahead: too big active " << stable.RLE() << std::endl;
+          if (debug) std::cout << "failed lookahead: too big active " << std::endl << "x = 0, y = 0, rule = LifeBellman" << std::endl << LifeBellmanRLE(params) << std::endl << std::flush;
           return false;
         }
 
@@ -1341,7 +1351,9 @@ bool SearchState::RunSearch(SearchParams &params) {
     std::cout << "depth: " << depth << std::endl;
     std::cout << "gen: " << state.gen << std::endl;
     std::cout << "state: " << state.RLE() << std::endl;
-    std::cout << "stable: " << stable.RLE() << std::endl;
+    std::cout << "stable: " << std::endl;
+    std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+    std::cout << LifeBellmanRLE(params) << std::endl << std::flush;
     std::cout << "unk: " << unknown.RLE() << std::endl;
     std::cout << "newunk: " << newUnknown.RLE() << std::endl;
     std::cout << "newglancing: " << newGlancing.RLE() << std::endl;
