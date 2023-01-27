@@ -3,6 +3,8 @@
 // (using C) but still comfortable search utility. Contributor Chris Cain.
 // Written by Michael Simkin 2014
 
+#pragma once
+
 #include <algorithm>
 #include <array>
 #include <stdint.h>
