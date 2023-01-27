@@ -1507,6 +1507,19 @@ bool SearchState::RunSearch(SearchParams &params) {
       return false;
     }
 
+    if (focusStableZOI && focusNext != focusStable) {
+      everActive.Set(focus.coords.first, focus.coords.second);
+
+      // Wasteful, recalculating the bounds again
+      auto everActiveBounds = everActive.WidthHeight();
+      if (params.everActiveBounds.first &&
+          (everActiveBounds.first > params.everActiveBounds.first ||
+           everActiveBounds.second > params.everActiveBounds.second)) {
+        if (debug) std::cout << "failed: ever-active too large " << stable.RLE() << std::endl;
+        return false;
+      }
+    }
+
     // Done with this focus
     newUnknown.Erase(focus.coords.first, focus.coords.second);
     newGlancing.Erase(focus.coords.first, focus.coords.second);
