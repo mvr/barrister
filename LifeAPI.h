@@ -263,6 +263,11 @@ public:
   }
 #endif
 
+  void ResetMinMax() {
+    min = 0;
+    max = N - 1;
+  }
+
 public:
   void Print() const;
 
@@ -387,6 +392,21 @@ public:
 
     return pop;
   }
+
+  std::vector<std::pair<int, int>> OnCells() const;
+
+  unsigned CountNeighbours(std::pair<int, int> cell) const {
+    int result = 0;
+    const std::vector<std::pair<int, int>> directions = {{-1,0}, {0,-1}, {1,0}, {0,1}, {-1,-1}, {-1, 1}, {1, -1}, {1, 1}};
+    for (auto d : directions) {
+      int x = (cell.first + d.first + N) % N;
+      int y = (cell.second + d.second + N) % N;
+      if (GetCell(x, y)) result++;
+    }
+    return result;
+  }
+
+
 
   // bool IsEmpty() const {
   //   for (int i = 0; i < N; i++) {
@@ -635,7 +655,7 @@ public:
 
     boundary.state[N - 1] = temp.state[N - 2] | temp.state[N - 1] | temp.state[0];
 
-    boundary.RecalculateMinMax();
+    boundary.ResetMinMax();
     return boundary;
   }
 
@@ -1445,6 +1465,17 @@ inline bool LifeState::Contains(const LifeTarget &target) const {
 
 inline LifeState LifeState::Match(const LifeTarget &target) const {
   return MatchLiveAndDead(target.wanted, target.unwanted);
+}
+
+std::vector<std::pair<int, int>> LifeState::OnCells() const {
+  LifeState remaining = *this;
+  std::vector<std::pair<int, int>> result;
+  for(int pop = remaining.GetPop(); pop > 0; pop--) {
+    auto cell = remaining.FirstOn();
+    result.push_back(cell);
+    remaining.Erase(cell.first, cell.second);
+  }
+  return result;
 }
 
 // typedef struct {
