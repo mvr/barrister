@@ -332,6 +332,8 @@ public:
   bool CompleteStable(unsigned &maxPop, LifeState &best);
   LifeState CompleteStable();
 
+  std::pair<int, int> ChooseFocus();
+
   // void UncertainActiveStep(LifeState &next, LifeState &nextUnknown);
   void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown);
   void UncertainStep(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown, LifeState &__restrict__ glancing);
@@ -1332,6 +1334,20 @@ bool SearchState::SetNext(SearchParams &params, LifeState &next, LifeState &next
     return true;
 }
 
+std::pair<int, int> SearchState::ChooseFocus() {
+  auto cells = newUnknown.OnCells();
+  std::pair<int, int> best = std::make_pair(-1, -1);
+  int bestCount = 100;
+  for(auto cell : cells) {
+    int count = unknown.CountNeighbours(cell);
+    if(count < bestCount) {
+      best = cell;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 bool SearchState::RunSearch(SearchParams &params) {
   depth += 1;
   const bool debug = params.debug && allowDebug;
@@ -1455,6 +1471,7 @@ bool SearchState::RunSearch(SearchParams &params) {
 
   if(focus.type == NONE) {
     // Find the next unknown cell
+    // auto coords = ChooseFocus();
     auto coords = newUnknown.FirstOn();
     if (coords != std::make_pair(-1, -1)) {
       focus = Focus(NORMAL, coords);
