@@ -170,9 +170,9 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxFirstActiveGen = toml::find_or(toml, "max-first-active-gen", 20);
   params.minActiveWindowGens = toml::find_or(toml, "min-active-window-gens", 0);
   params.maxActiveWindowGens = toml::find_or(toml, "max-active-window-gens", 20);
-  params.maxPreInteractionChoices = toml::find_or(toml, "max-pre-interaction-choices", 3);
-  params.maxPostInteractionChoices = toml::find_or(toml, "max-post-interaction-choices", 25);
-  params.maxStablePop = toml::find_or(toml, "max-stable-pop", 200);
+  params.maxPreInteractionChoices = toml::find_or(toml, "max-pre-interaction-choices", 1000);
+  params.maxPostInteractionChoices = toml::find_or(toml, "max-post-interaction-choices", 1000);
+  params.maxStablePop = toml::find_or(toml, "max-stable-pop", 1000);
   std::vector<int> stableBounds = toml::find_or<std::vector<int>>(toml, "stable-bounds", {100, 100});
   params.stableBounds.first = stableBounds[0];
   params.stableBounds.second = stableBounds[1];
