@@ -387,16 +387,9 @@ std::pair<int, int> SearchState::UnknownNeighbour(std::pair<int, int> cell) {
 bool SearchState::SimplePropagateColumnStep(int column) {
   std::array<uint64_t, 5> nearbyStable;
   std::array<uint64_t, 5> nearbyUnknown;
+
   for (int i = 0; i < 5; i++) {
     int c = (column + i - 2 + N) % N;
-    // if (c == -2)
-    //   c = N-2;
-    // if (c == -1)
-    //   c = N-1;
-    // if (c == N)
-    //   c = 0;
-    // if (c == N+1)
-    //   c = 1;
     nearbyStable[i] = stable.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
@@ -929,13 +922,9 @@ void SearchState::UncertainStep(LifeState &__restrict__ next,
 void SearchState::UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) {
   std::array<uint64_t, 3> nearbyState;
   std::array<uint64_t, 3> nearbyUnknown;
+
   for (int i = 0; i < 3; i++) {
     int c = (column + i - 1 + N) % N;
-    // int c = column + i - 1;
-    // if (c == -1)
-    //   c = N-1;
-    // if (c == N)
-    //   c = 0;
     nearbyState[i] = state.state[c];
     nearbyUnknown[i] = unknown.state[c];
   }
@@ -1586,6 +1575,7 @@ bool SearchState::RunSearch(SearchParams &params) {
       bool result = nextState.RunSearch(params);
     }
   }
+  // The OFF case is duplicated so we can avoid a copy if doGlancing is false
   if(!doGlancing){
     SearchState &nextState = *this;
 
@@ -1673,3 +1663,14 @@ int main(int argc, char *argv[]) {
   // LifeState completed = search.CompleteStable();
   // std::cout << completed.RLE() << std::endl;
 }
+
+
+// Idea:
+
+// Grow a catalyst from the first interaction location, setting all other disconnected interactions to glancing.
+// We could also have a short window where all the first-time interactions have to happen.
+
+// Restructure:
+// We will need to store the state/unknown for multiple generations.
+// Stable/stableUnknown are fixed through all generations,
+// Induct on all unknown cells close to an active cell, rather than all active cells
