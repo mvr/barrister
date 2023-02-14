@@ -176,12 +176,8 @@ class LifeState {
 public:
   uint64_t state[N];
 
-  int min;
-  int max;
-  int gen;
-
-  LifeState() : state{0}, min(0), max(N - 1), gen(0) {}
-  LifeState(bool dummy) : min(0), max(N - 1), gen(0) {}
+  LifeState() : state{0} {}
+  LifeState(bool dummy) {}
 
   void Set(int x, int y) { state[x] |= (1ULL << (y)); }
   void Erase(int x, int y) { state[x] &= ~(1ULL << (y)); }
@@ -212,64 +208,6 @@ public:
     return result;
   }
 
-#ifdef __AVX2__
-  void RecalculateMinMax() {
-    min = 0;
-    max = N - 1;
-
-    const char *p = (const char *)state;
-    size_t len = 8*N;
-    const char *p_init = p;
-    const char *endp = p + len;
-    do {
-      __m256i v1 = _mm256_loadu_si256((const __m256i*)p);
-      __m256i v2 = _mm256_loadu_si256((const __m256i*)(p+32));
-      __m256i vor = _mm256_or_si256(v1,v2);
-      if (!_mm256_testz_si256(vor, vor)) {
-        min = (p-p_init)/8;
-        break;
-      }
-      p += 64;
-    } while(p < endp);
-
-    p = endp-64;
-    do {
-      __m256i v1 = _mm256_loadu_si256((const __m256i*)p);
-      __m256i v2 = _mm256_loadu_si256((const __m256i*)(p+32));
-      __m256i vor = _mm256_or_si256(v1,v2);
-      if (!_mm256_testz_si256(vor, vor)) {
-        max = (p-p_init)/8 + 7;
-        break;
-      }
-      p -= 64;
-    } while(p >= p_init);
-  }
-#else
-  void RecalculateMinMax() {
-    min = 0;
-    max = N - 1;
-
-    for (int i = 0; i < N; i++) {
-      if (state[i] != 0) {
-        min = i;
-        break;
-      }
-    }
-
-    for (int i = N - 1; i >= 0; i--) {
-      if (state[i] != 0) {
-        max = i;
-        break;
-      }
-    }
-  }
-#endif
-
-  void ResetMinMax() {
-    min = 0;
-    max = N - 1;
-  }
-
 public:
   void Print() const;
 
@@ -277,17 +215,11 @@ public:
     if (op == COPY) {
       for (int i = 0; i < N; i++)
         state[i] = delta.state[i];
-
-      min = delta.min;
-      max = delta.max;
-      gen = delta.gen;
       return;
     }
     if (op == OR) {
       for (int i = 0; i < N; i++)
         state[i] |= delta.state[i];
-      min = std::min(min, delta.min);
-      max = std::max(max, delta.max);
       return;
     }
     if (op == AND) {
@@ -301,12 +233,10 @@ public:
     if (op == ORNOT) {
       for (int i = 0; i < N; i++)
         state[i] |= ~delta.state[i];
-      RecalculateMinMax();
     }
     if (op == XOR) {
       for (int i = 0; i < N; i++)
         state[i] ^= delta.state[i];
-      RecalculateMinMax();
     }
   }
 
@@ -320,14 +250,12 @@ public:
     if (y < 0)
       y += 64;
 
-    for (int i = delta.min; i <= delta.max; i++)
+    for (int i = 0; i < N; i++)
       temp1[i] = RotateLeft(delta.state[i], y);
 
     memmove(state, temp1 + (N - x), x * sizeof(uint64_t));
     memmove(state + x, temp1, (N - x) * sizeof(uint64_t));
 
-    min = 0;
-    max = N - 1;
   }
 
   void Join(const LifeState &delta) { Copy(delta, OR); }
@@ -349,9 +277,6 @@ public:
     for (int i = 0; i < N; i++) {
       state[i] |= temp[i+shift];
     }
-
-    min = 0;
-    max = N - 1;
   }
 
   void JoinWSymChain(const LifeState &state, int x, int y,
@@ -529,12 +454,9 @@ public:
   }
 
   bool Contains(const LifeState &pat, int targetDx, int targetDy) const {
-    int min = pat.min;
-    int max = pat.max;
-
     int dy = (targetDy + 64) % 64;
 
-    for (int i = min; i <= max; i++) {
+    for (int i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
       if ((RotateRight(state[curX], dy) & pat.state[i]) != (pat.state[i]))
@@ -544,11 +466,9 @@ public:
   }
 
   bool AreDisjoint(const LifeState &pat, int targetDx, int targetDy) const {
-    int min = pat.min;
-    int max = pat.max;
     int dy = (targetDy + 64) % 64;
 
-    for (int i = min; i <= max; i++) {
+    for (int i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
       if (((~RotateRight(state[curX], dy)) & pat.state[i]) != pat.state[i])
@@ -589,14 +509,6 @@ public:
     for (int i = 0; i < N; i++) {
       state[i] = temp[i+shift];
     }
-
-    if ((min + x) % N < (max + x) % N) {
-      min = (min + x) % N;
-      max = (max + x) % N;
-    } else {
-      min = 0;
-      max = N - 1;
-    }
   }
 
   void BitReverse() {
@@ -626,8 +538,6 @@ public:
         }
       }
     }
-    min = 0;
-    max = N - 1;
   }
 
   void Transpose() { Transpose(true); }
@@ -657,7 +567,6 @@ public:
 
     boundary.state[N - 1] = temp.state[N - 2] | temp.state[N - 1] | temp.state[0];
 
-    boundary.ResetMinMax();
     return boundary;
   }
 
@@ -676,7 +585,6 @@ public:
 
     boundary.state[N - 1] = state[N - 2] | temp.state[N - 1] | state[0];
 
-    boundary.RecalculateMinMax();
     return boundary;
   }
 
@@ -715,7 +623,6 @@ public:
     zoi.state[N - 1] = c.state[N - 1] | RotateLeft(c.state[N - 1]) |
       RotateRight(c.state[N - 1]);
 
-    zoi.RecalculateMinMax();
     return zoi;
   }
 
@@ -800,19 +707,12 @@ public:
     }
     }
 
-    result.min = 0;
-    result.max = N - 1;
-
     return result;
   }
 
   void Clear() {
     for (int i = 0; i < N; i++)
       state[i] = 0;
-
-    min = 0;
-    max = 0;
-    gen = 0;
   }
 
   LifeState MatchLive(const LifeState &live) const {
@@ -924,7 +824,6 @@ public:
     LifeState result;
     Parse(result, rle);
     result.Transform(dx, dy, trans);
-    result.RecalculateMinMax();
 
     return result;
   }
@@ -944,8 +843,6 @@ public:
     LifeState result;
     for (int i = 0; i < N; i++)
       result.state[i] = PRNG::dist(PRNG::e2);
-
-    result.RecalculateMinMax();
 
     return result;
   }
@@ -1182,11 +1079,6 @@ void LifeState::Step() {
   //   state[i] = tempState[i];
   // }
   //
-
-  // RecalculateMinMax();
-  min = 0;
-  max = N - 1;
-  gen++;
 }
 
 void LifeState::Transform(SymmetryTransform transf) {
@@ -1255,8 +1147,6 @@ void LifeState::Transform(SymmetryTransform transf) {
     Move(0, 1);
     break;
   }
-  min = 0;
-  max = N - 1;
 }
 
 void LifeState::Print() const {
@@ -1340,8 +1230,6 @@ int LifeState::Parse(LifeState &state, const char *rle, int starti) {
 
     i++;
   }
-
-  state.RecalculateMinMax();
 
   return -1;
 }
