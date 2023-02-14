@@ -198,6 +198,14 @@ public:
   int GetCell(int x, int y) const {
     return Get((x + 64) % N, (y + 64) % 64);
   }
+
+  void Set(std::pair<int, int> xy) { Set(xy.first, xy.second); };
+  void Erase(std::pair<int, int> xy) { Erase(xy.first, xy.second); };
+  int Get(std::pair<int, int> xy) const { return Get(xy.first, xy.second); };
+  void SetCell(std::pair<int, int> xy, int val) { SetCell(xy.first, xy.second, val); };
+  void SetCellUnsafe(std::pair<int, int> xy, int val) { SetCellUnsafe(xy.first, xy.second, val); };
+  int GetCell(std::pair<int, int> xy) const { return GetCell(xy.first, xy.second); };
+
   uint64_t GetHash() const {
     uint64_t result = 0;
 
