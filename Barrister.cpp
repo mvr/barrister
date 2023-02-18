@@ -6,7 +6,8 @@
 #include "LifeStableState.hpp"
 #include "LifeUnknownState.hpp"
 
-const unsigned lookaheadGens = 10;
+const unsigned maxLookaheadGens = 10;
+const unsigned maxLocalGens = 3;
 const unsigned maxActive = 5;
 const unsigned maxEverActive = 10;
 const unsigned maxInteractionWindow = 6;
@@ -60,7 +61,6 @@ public:
 // }
 
 SearchState::SearchState() : gen {0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
-  lookahead = std::vector<LifeUnknownState>(lookaheadGens);
 }
 
 void SearchState::TransferStableToCurrent() {
@@ -85,6 +85,8 @@ bool SearchState::TryAdvance() {
       LifeState state = starting | stable.state;
       LifeState marked = stable.unknownStable | stable.state;
       std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
+
+      return false;
     }
 
   } while (didAdvance);
@@ -127,14 +129,20 @@ bool SearchState::TryAdvanceOne() {
 }
 
 void SearchState::PopulateLookahead() {
+  lookahead = std::vector<LifeUnknownState>();
   LifeUnknownState gen = current;
-  for (int i = 0; i < lookaheadGens; i++) {
+  lookahead.push_back(gen);
+  for (int i = 0; i < maxLookaheadGens; i++) {
     // std::cout << "Gen " << i  << std::endl;
     // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
     // std::cout << LifeBellmanRLEFor(gen.state, gen.unknown) << std::endl;
 
-    lookahead[i] = gen;
     gen = gen.UncertainStepMaintaining(stable);
+    lookahead.push_back(gen);
+
+    LifeState active = gen.ActiveComparedTo(stable);
+    if(active.IsEmpty())
+      break;
   }
 }
 
@@ -185,7 +193,7 @@ std::pair<int, int> SearchState::ChooseFocus() {
   // unknown neighbours are unknownStable, that will stop us from
   // wasting time on an expanding unknown region
 
-  for (int i = 3; i >= 1; i--) {
+  for (int i = std::min((unsigned)maxLocalGens, (unsigned)lookahead.size())-1; i >= 1; i--) {
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
 
