@@ -15,6 +15,7 @@ public:
   void UncertainStepSelf();
   // LifeUnknownState UncertainStep();
   LifeUnknownState UncertainStepMaintaining(LifeStableState &stable);
+  LifeState ActiveComparedTo(LifeStableState &stable);
 
   void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown);
 };
@@ -278,4 +279,8 @@ next_on |= stateon & (~on1) & (~on0) & (~unk1) & (~unk0) ;
     next = next_on;
     nextUnknown = unknown;
   }
+}
+
+LifeState LifeUnknownState::ActiveComparedTo(LifeStableState &stable) {
+  return ~unknown & ~stable.unknownStable & stable.stateZOI & (stable.state ^ state);
 }

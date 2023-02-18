@@ -6,6 +6,7 @@
 class LifeStableState {
 public:
   LifeState state;
+  LifeState stateZOI;
   LifeState unknownStable;
 
   // Neighbour counts in binary
@@ -574,5 +575,7 @@ bool LifeStableState::PropagateStable() {
     }
     done = result.second;
   }
+
+  stateZOI = state.ZOI();
   return true;
 }

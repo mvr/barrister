@@ -237,9 +237,8 @@ std::pair<int, int> SearchState::ChooseFocus() {
 }
 
 bool SearchState::CheckConditions() {
-  LifeState stableZOI = stable.state.ZOI();
   for (auto gen : lookahead) {
-    LifeState active = ~gen.unknown & ~stable.unknownStable & stableZOI & (stable.state ^ gen.state);
+    LifeState active = gen.ActiveComparedTo(stable);
 
     if (active.GetPop() > maxActive)
       return false;
