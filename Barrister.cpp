@@ -8,6 +8,7 @@
 
 const unsigned lookaheadGens = 10;
 const unsigned maxActive = 5;
+const unsigned maxEverActive = 10;
 const unsigned maxInteractionWindow = 6;
 const unsigned stableTime = 2;
 
@@ -237,10 +238,15 @@ std::pair<int, int> SearchState::ChooseFocus() {
 }
 
 bool SearchState::CheckConditions() {
+  LifeState everActive;
   for (auto gen : lookahead) {
     LifeState active = gen.ActiveComparedTo(stable);
 
     if (active.GetPop() > maxActive)
+      return false;
+
+    everActive |= active;
+    if (everActive.GetPop() > maxEverActive)
       return false;
   }
 
