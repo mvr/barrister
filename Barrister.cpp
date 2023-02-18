@@ -321,7 +321,10 @@ void SearchState::SearchStep() {
     nextState.stable.state.SetCellUnsafe(focus, which);
     nextState.stable.unknownStable.Erase(focus);
 
-    nextState.SearchStep();
+    // Quick check
+    bool consistent = nextState.stable.SimplePropagateColumnStep(focus.first);
+    if(consistent)
+      nextState.SearchStep();
   }
   {
     bool which = false;
@@ -330,7 +333,9 @@ void SearchState::SearchStep() {
     nextState.stable.state.SetCellUnsafe(focus, which);
     nextState.stable.unknownStable.Erase(focus);
 
-    nextState.SearchStep();
+    bool consistent = nextState.stable.SimplePropagateColumnStep(focus.first);
+    if(consistent)
+      nextState.SearchStep();
   }
 }
 
