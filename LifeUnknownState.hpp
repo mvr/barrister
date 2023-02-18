@@ -121,6 +121,7 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(LifeStableState &sta
   CountNeighbourhood(unknownStable, unknownStable3, unknownStable2, unknownStable1, unknownStable0);
 
   LifeState unequal_stable =
+        (state ^ stable.state) | (unknownStable ^ stable.unknownStable) |
         (state3 ^ stable.state3) | (state2 ^ stable.state2) |
         (state1 ^ stable.state1) | (state0 ^ stable.state0) |
         (unknownStable3 ^ stable.unknown3) | (unknownStable2 ^ stable.unknown2) |
