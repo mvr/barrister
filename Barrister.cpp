@@ -19,7 +19,7 @@ public:
   LifeState starting;
   LifeStableState stable;
   LifeUnknownState current;
-  std::vector<LifeUnknownState> lookahead;
+  // std::vector<LifeUnknownState> lookahead;
 
   unsigned gen;
   bool hasInteracted;
@@ -38,15 +38,14 @@ public:
   void TransferStableToCurrent();
   bool TryAdvance();
   bool TryAdvanceOne();
-  void PopulateLookahead();
+  std::vector<LifeUnknownState> PopulateLookahead();
 
   // std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
-
-  std::pair<int, int> ChooseFocus();
   bool CheckAdvance();
-  bool CheckConditions();
 
   void FindFocus();
+  std::pair<int, int> ChooseFocus(std::vector<LifeUnknownState> &lookahead);
+  bool CheckConditions(std::vector<LifeUnknownState> &lookahead);
 
   void Search();
   void SearchStep();
@@ -128,8 +127,9 @@ bool SearchState::TryAdvanceOne() {
   return true;
 }
 
-void SearchState::PopulateLookahead() {
-  lookahead = std::vector<LifeUnknownState>();
+std::vector<LifeUnknownState> SearchState::PopulateLookahead() {
+  auto lookahead = std::vector<LifeUnknownState>();
+  lookahead.reserve(maxLookaheadGens);
   LifeUnknownState gen = current;
   lookahead.push_back(gen);
   for (int i = 0; i < maxLookaheadGens; i++) {
@@ -144,6 +144,7 @@ void SearchState::PopulateLookahead() {
     if(active.IsEmpty())
       break;
   }
+  return lookahead;
 }
 
 // std::pair<int, int> SearchState::ChooseFocus() {
@@ -168,7 +169,7 @@ void SearchState::PopulateLookahead() {
 //   return std::make_pair(-1,-1);
 // }
 
-std::pair<int, int> SearchState::ChooseFocus() {
+std::pair<int, int> SearchState::ChooseFocus(std::vector<LifeUnknownState> &lookahead) {
   LifeState stableZOI = stable.state.ZOI();
 
   // // XXX: TODO: this should try the latest generation instead of the earliest?
@@ -245,7 +246,7 @@ std::pair<int, int> SearchState::ChooseFocus() {
   return std::make_pair(-1,-1);
 }
 
-bool SearchState::CheckConditions() {
+bool SearchState::CheckConditions(std::vector<LifeUnknownState> &lookahead) {
   LifeState everActive;
   for (auto gen : lookahead) {
     LifeState active = gen.ActiveComparedTo(stable);
@@ -289,11 +290,12 @@ void SearchState::SearchStep() {
     return;
   }
 
-  PopulateLookahead();
+
+  std::vector<LifeUnknownState> lookahead = PopulateLookahead();
 
   SanityCheck();
 
-  if (!CheckConditions()) {
+  if (!CheckConditions(lookahead)) {
     //std::cout << "conditions failed" << std::endl;
     return;
   }
@@ -307,7 +309,7 @@ void SearchState::SearchStep() {
   // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
   // std::cout << LifeBellmanRLEFor(current.state, current.unknown) << std::endl;
 
-  auto focus = ChooseFocus();
+  auto focus = ChooseFocus(lookahead);
   if (focus == std::make_pair(-1, -1)) {
     std::cout << "no focus" << std::endl;
 
