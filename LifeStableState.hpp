@@ -27,9 +27,15 @@ public:
   std::pair<bool, bool> PropagateStableStep();
   bool PropagateStable();
 
-  void SetCell(std::pair<int, int> cell, bool value) {
-    // TODO, probably just need to re-count.
-  }
+  std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
+
+  // void SetCell(std::pair<int, int> cell, bool value) {
+  //   // TODO, probably just need to re-count.
+  // }
+
+  bool TestUnknowns();
+  bool CompleteStableStep(unsigned &maxPop, LifeState &best);
+  LifeState CompleteStable();
 };
 
 bool LifeStableState::SimplePropagateColumnStep(int column) {
@@ -578,4 +584,160 @@ bool LifeStableState::PropagateStable() {
 
   stateZOI = state.ZOI();
   return true;
+}
+
+std::pair<int, int> LifeStableState::UnknownNeighbour(std::pair<int, int> cell) {
+  // This could obviously be done faster by extracting the result
+  // directly from the columns, but this is probably good enough for now
+  const std::array<std::pair<int, int>, 8> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
+  for (auto d : directions) {
+    int x = (cell.first + d.first + N) % N;
+    int y = (cell.second + d.second + 64) % 64;
+    if (unknownStable.Get(x, y))
+      return std::make_pair(x, y);
+  }
+  return std::make_pair(-1, -1);
+}
+
+bool LifeStableState::TestUnknowns() {
+  LifeState next = state;
+  next.Step();
+
+  LifeState changes = state ^ next;
+  if (changes.IsEmpty()) {
+    // We win
+    return true;
+  }
+
+  // Try all the nearby changes to see if any are forced
+  LifeState newPlacements = changes.ZOI() & unknownStable;
+  while (!newPlacements.IsEmpty()) {
+    auto newPlacement = newPlacements.FirstOn();
+    newPlacements.Erase(newPlacement.first, newPlacement.second);
+
+    LifeStableState onSearch;
+    LifeStableState offSearch;
+    bool onConsistent;
+    bool offConsistent;
+
+    // Try on
+    {
+      onSearch = *this;
+      onSearch.state.Set(newPlacement.first, newPlacement.second);
+      onSearch.unknownStable.Erase(newPlacement.first, newPlacement.second);
+      onConsistent = onSearch.PropagateStable();
+    }
+
+    // Try off
+    {
+      offSearch = *this;
+      offSearch.state.Erase(newPlacement.first, newPlacement.second);
+      offSearch.unknownStable.Erase(newPlacement.first, newPlacement.second);
+      offConsistent = offSearch.PropagateStable();
+    }
+
+    if(!onConsistent && !offConsistent) {
+      return false;
+    }
+
+    if(onConsistent && !offConsistent) {
+      *this = onSearch;
+    }
+
+    if (!onConsistent && offConsistent) {
+      *this = offSearch;
+    }
+
+    newPlacements &= unknownStable;
+  }
+  return true;
+}
+
+bool LifeStableState::CompleteStableStep(unsigned &maxPop, LifeState &best) {
+  // std::cout << stable.RLE() << std::endl;
+  if (state.GetPop() >= maxPop) {
+    return false;
+  }
+
+  bool consistent = PropagateStable();
+  if (!consistent)
+    return false;
+
+  if (state.GetPop() >= maxPop) {
+    return false;
+  }
+
+  bool result = TestUnknowns();
+  if (!result)
+    return false;
+
+  if (state.GetPop() >= maxPop) {
+    return false;
+  }
+
+  LifeState next = state;
+  next.Step();
+
+  LifeState changes = state ^ next;
+  if (changes.IsEmpty()) {
+    // We win
+    best = state;
+    maxPop = state.GetPop();
+    // std::cout << maxPop << std::endl;
+    // std::cout << best.RLE() << std::endl;
+
+    return true;
+  }
+
+  // Now make a guess
+  LifeState newPlacements = changes.ZOI() & unknownStable;
+  if(newPlacements.IsEmpty())
+    return false;
+
+  // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
+  // std::cout << UnknownRLE() << std::endl;
+  // std::cout << newPlacements.RLE() << std::endl;
+  // std::cin.get();
+  auto newPlacement = newPlacements.FirstOn();
+  bool onresult = false;
+  bool offresult = false;
+
+  // Try off
+  {
+    LifeStableState nextState = *this;
+    nextState.state.Erase(newPlacement.first, newPlacement.second);
+    nextState.unknownStable.Erase(newPlacement.first, newPlacement.second);
+    onresult = nextState.CompleteStableStep(maxPop, best);
+  }
+  // Then must be on
+  {
+    LifeStableState nextState = *this;
+    nextState.state.Set(newPlacement.first, newPlacement.second);
+    nextState.unknownStable.Erase(newPlacement.first, newPlacement.second);
+    offresult = nextState.CompleteStableStep(maxPop, best);
+  }
+
+  return onresult || offresult;
+}
+
+LifeState LifeStableState::CompleteStable() {
+  LifeState best;
+  unsigned maxPop = std::numeric_limits<int>::max();
+  LifeState searchArea = state;
+
+  auto startTime = std::chrono::system_clock::now();
+
+  while(!(unknownStable & ~searchArea).IsEmpty()) {
+    searchArea = searchArea.ZOI();
+    LifeStableState copy = *this;
+    copy.unknownStable &= searchArea;
+    copy.CompleteStableStep(maxPop, best);
+
+    auto currentTime = std::chrono::system_clock::now();
+    int seconds = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime).count();
+
+    if (best.GetPop() > 0 || seconds > 10)
+      break;
+  }
+  return best;
 }

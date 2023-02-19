@@ -21,6 +21,7 @@ public:
   LifeUnknownState current;
   // std::vector<LifeUnknownState> lookahead;
 
+  LifeState pendingFocuses;
   unsigned gen;
   bool hasInteracted;
   unsigned interactionStart;
@@ -43,8 +44,9 @@ public:
   // std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
   bool CheckAdvance();
 
-  void FindFocus();
-  std::pair<int, int> ChooseFocus(std::vector<LifeUnknownState> &lookahead);
+  LifeState FindFocuses(std::vector<LifeUnknownState> &lookahead);
+  std::pair<int, int> ChooseFocus();
+
   bool CheckConditions(std::vector<LifeUnknownState> &lookahead);
 
   void Search();
@@ -60,6 +62,7 @@ public:
 // }
 
 SearchState::SearchState() : gen {0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
+  pendingFocuses = LifeState();
 }
 
 void SearchState::TransferStableToCurrent() {
@@ -68,29 +71,6 @@ void SearchState::TransferStableToCurrent() {
   current.state |= stable.state & updated;
   current.unknown &= ~updated;
   current.unknownStable &= ~updated;
-}
-
-bool SearchState::TryAdvance() {
-  bool didAdvance;
-  do {
-    didAdvance = TryAdvanceOne();
-
-    if (hasInteracted && gen - interactionStart > maxInteractionWindow)
-      return false;
-
-    if (hasInteracted && recoveredTime > stableTime) {
-      std::cout << "Winner" << std::endl;
-      std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-      LifeState state = starting | stable.state;
-      LifeState marked = stable.unknownStable | stable.state;
-      std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
-
-      return false;
-    }
-
-  } while (didAdvance);
-
-  return true;
 }
 
 bool SearchState::TryAdvanceOne() {
@@ -123,6 +103,33 @@ bool SearchState::TryAdvanceOne() {
     else
       recoveredTime = 0;
   }
+
+  return true;
+}
+
+bool SearchState::TryAdvance() {
+  bool didAdvance;
+  do {
+    didAdvance = TryAdvanceOne();
+
+    if (hasInteracted && gen - interactionStart > maxInteractionWindow)
+      return false;
+
+    if (hasInteracted && recoveredTime > stableTime) {
+      LifeState completed = stable.CompleteStable();
+
+      std::cout << "Winner:" << std::endl;
+      std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+      LifeState state = starting | stable.state;
+      LifeState marked = stable.unknownStable | stable.state;
+      std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
+      std::cout << "Completed:" << std::endl;
+      std::cout << (completed | starting).RLE() << std::endl;
+
+      return false;
+    }
+
+  } while (didAdvance);
 
   return true;
 }
@@ -169,7 +176,7 @@ std::vector<LifeUnknownState> SearchState::PopulateLookahead() {
 //   return std::make_pair(-1,-1);
 // }
 
-std::pair<int, int> SearchState::ChooseFocus(std::vector<LifeUnknownState> &lookahead) {
+LifeState SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) {
   LifeState stableZOI = stable.state.ZOI();
 
   // // XXX: TODO: this should try the latest generation instead of the earliest?
@@ -206,9 +213,7 @@ std::pair<int, int> SearchState::ChooseFocus(std::vector<LifeUnknownState> &look
     LifeState focusable = becomeUnknown & stableZOI & ~nearActiveUnknown;
 
     if (!focusable.IsEmpty()) {
-      auto result = (focusable.ZOI() & stable.unknownStable).FirstOn();
-      if (result != std::make_pair(-1, -1))
-        return result;
+      return focusable;
     }
 
     // focusable = becomeUnknown & ~nearActiveUnknown;
@@ -229,21 +234,17 @@ std::pair<int, int> SearchState::ChooseFocus(std::vector<LifeUnknownState> &look
     LifeState focusable = becomeUnknown & stableZOI;
 
     if (!focusable.IsEmpty()) {
-      auto result = (focusable.ZOI() & stable.unknownStable).FirstOn();
-      if (result != std::make_pair(-1, -1))
-        return result;
+      return focusable;
     }
 
     focusable = becomeUnknown;
 
     if (!focusable.IsEmpty()) {
-      auto result = (focusable.ZOI() & stable.unknownStable).FirstOn();
-      if (result != std::make_pair(-1, -1))
-        return result;
+      return focusable;
     }
   }
 
-  return std::make_pair(-1,-1);
+  return LifeState();
 }
 
 bool SearchState::CheckConditions(std::vector<LifeUnknownState> &lookahead) {
@@ -277,42 +278,58 @@ void SearchState::Search() {
 }
 
 void SearchState::SearchStep() {
-  bool consistent = stable.PropagateStable();
-  if (!consistent) {
-    //    std::cout << "not consistent" << std::endl;
-    return;
+  if(pendingFocuses.IsEmpty()) {
+    bool consistent = stable.PropagateStable();
+    if (!consistent) {
+      //    std::cout << "not consistent" << std::endl;
+      return;
+    }
+
+    TransferStableToCurrent();
+
+    if (!TryAdvance()) {
+      //std::cout << "advance failed" << std::endl;
+      return;
+    }
+
+    if(!hasInteracted && gen > maxStartTime)
+      return;
+
+    // std::cout << "Stable" << std::endl;
+    // LifeState state = starting | stable.state;
+    // LifeState marked = stable.unknownStable | stable.state;
+    // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+    // std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
+    // std::cout << "Current" << std::endl;
+    // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+    // std::cout << LifeBellmanRLEFor(current.state, current.unknown) << std::endl;
+
+    std::vector<LifeUnknownState> lookahead = PopulateLookahead();
+
+    if (!CheckConditions(lookahead)) {
+      //std::cout << "conditions failed" << std::endl;
+      return;
+    }
+
+    pendingFocuses = FindFocuses(lookahead);
+
+    SanityCheck();
   }
 
-  TransferStableToCurrent();
-
-  if (!TryAdvance()) {
-    //std::cout << "advance failed" << std::endl;
-    return;
-  }
-
-
-  std::vector<LifeUnknownState> lookahead = PopulateLookahead();
-
-  SanityCheck();
-
-  if (!CheckConditions(lookahead)) {
-    //std::cout << "conditions failed" << std::endl;
-    return;
-  }
-
-  // std::cout << "Stable" << std::endl;
-  // LifeState state = starting | stable.state;
-  // LifeState marked = stable.unknownStable | stable.state;
-  // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-  // std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
-  // std::cout << "Current" << std::endl;
-  // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-  // std::cout << LifeBellmanRLEFor(current.state, current.unknown) << std::endl;
-
-  auto focus = ChooseFocus(lookahead);
+  auto focus = pendingFocuses.FirstOn();
   if (focus == std::make_pair(-1, -1)) {
+    // Shouldn't be possible
     std::cout << "no focus" << std::endl;
+    exit(1);
+  }
 
+  // TODO: we want to know whether our choices have fixed the focus, without setting the entire neighbourhood
+  // bool focusIsDetermined = ?.KnownNext(focus);
+
+  auto cell = stable.UnknownNeighbour(focus);
+  if(cell == std::make_pair(-1, -1)) {
+    pendingFocuses.Erase(focus);
+    SearchStep();
     return;
   }
 
@@ -320,11 +337,10 @@ void SearchState::SearchStep() {
     bool which = true;
     SearchState nextState = *this;
 
-    nextState.stable.state.SetCellUnsafe(focus, which);
-    nextState.stable.unknownStable.Erase(focus);
+    nextState.stable.state.SetCellUnsafe(cell, which);
+    nextState.stable.unknownStable.Erase(cell);
 
-    // Quick check
-    bool consistent = nextState.stable.SimplePropagateColumnStep(focus.first);
+    bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent)
       nextState.SearchStep();
   }
@@ -332,10 +348,10 @@ void SearchState::SearchStep() {
     bool which = false;
     SearchState &nextState = *this;
 
-    nextState.stable.state.SetCellUnsafe(focus, which);
-    nextState.stable.unknownStable.Erase(focus);
+    nextState.stable.state.SetCellUnsafe(cell, which);
+    nextState.stable.unknownStable.Erase(cell);
 
-    bool consistent = nextState.stable.SimplePropagateColumnStep(focus.first);
+    bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent)
       nextState.SearchStep();
   }

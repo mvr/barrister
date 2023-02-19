@@ -986,6 +986,15 @@ public:
   }
 
   std::pair<int, int> WidthHeight() const {
+    uint64_t orOfCols(0);
+    for (int i = 0; i < N; ++i) {
+      orOfCols |= state[i];
+    }
+
+    if (orOfCols == 0ULL) {
+      return std::pair<int, int>(0, 0);
+    }
+
     int minCol = -32;
     int maxCol = 31;
     for (int i = -32; i <= 31; i++) {
@@ -1002,14 +1011,6 @@ public:
       }
     }
 
-    uint64_t orOfCols(0);
-    for (int i = minCol; i <= maxCol; ++i) {
-      orOfCols = orOfCols | state[(i + 64) % 64];
-    }
-
-    if (orOfCols == 0ULL) {
-      return std::pair<int, int>(0, 0);
-    }
     orOfCols = __builtin_rotateright64(orOfCols, 32);
     int topMargin = __builtin_ctzll(orOfCols);
     int bottomMargin = __builtin_clzll(orOfCols);

@@ -18,6 +18,7 @@ public:
   LifeState ActiveComparedTo(LifeStableState &stable);
 
   void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown);
+  bool KnownNext(std::pair<int, int> cell);
 };
 
 void LifeUnknownState::UncertainStepInto(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown) {
@@ -280,6 +281,19 @@ next_on |= stateon & (~on1) & (~on0) & (~unk1) & (~unk0) ;
     nextUnknown = unknown;
   }
 }
+
+bool LifeUnknownState::KnownNext(std::pair<int, int> cell) {
+  uint64_t nextColumn;
+  uint64_t nextUnknownColumn;
+
+  UncertainStepColumn(cell.first, nextColumn, nextUnknownColumn);
+
+  int y = cell.second;
+  // bool focusNext    = (nextColumn & (1ULL << y)) >> y;
+  bool focusUnknown = (nextUnknownColumn & (1ULL << y)) >> y;
+  return !focusUnknown;
+}
+
 
 LifeState LifeUnknownState::ActiveComparedTo(LifeStableState &stable) {
   return ~unknown & ~stable.unknownStable & stable.stateZOI & (stable.state ^ state);
