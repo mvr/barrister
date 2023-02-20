@@ -22,7 +22,9 @@ public:
   // std::vector<LifeUnknownState> lookahead;
 
   LifeState pendingFocuses;
+  LifeUnknownState focusGeneration;
   LifeState everActive;
+
   unsigned gen;
   bool hasInteracted;
   unsigned interactionStart;
@@ -42,7 +44,7 @@ public:
   bool TryAdvanceOne();
   std::vector<LifeUnknownState> PopulateLookahead() const;
 
-  LifeState FindFocuses(std::vector<LifeUnknownState> &lookahead) const;
+  std::pair<LifeState, LifeUnknownState> FindFocuses(std::vector<LifeUnknownState> &lookahead) const;
 
   bool CheckConditionsOn(LifeState &active, LifeState &everActive) const;
   bool CheckConditions(std::vector<LifeUnknownState> &lookahead) const;
@@ -160,97 +162,74 @@ std::vector<LifeUnknownState> SearchState::PopulateLookahead() const {
   return lookahead;
 }
 
-// std::pair<int, int> SearchState::ChooseFocus() {
-//   // Idea is: look at the fringe of unknown cells, and choose a useful
-//   // cell in the latest generation possible.
-//   LifeState fringe = (~stable.unknownStable).ZOI() & stable.unknownStable;
-//   LifeState nearFringe = stable.unknownStable.ZOI();
+std::pair<LifeState, LifeUnknownState> SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) const {
+  // XXX: TODO: calculate a 'priority' area, for example cells outside
+  // the permitted 'everActive' area
 
-//   for (int i = gens.size() - 1; i >= 1; i--) {
-//     LifeUnknownState &gen = gens[i];
-//     LifeUnknownState &prev = gens[i-1];
+  // IDEA: look for focuasble cells where all the unknown neighbours
+  // are unknownStable, that will stop us from wasting time on an
+  // expanding unknown region
 
-//     LifeState becomeUnknown =
-//         (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
-
-//     LifeState focusable = becomeUnknown & nearFringe;
-
-//     if (!focusable.IsEmpty()) {
-//       return (focusable.ZOI() & stable.unknownStable).FirstOn();
-//     }
-//   }
-//   return std::make_pair(-1,-1);
-// }
-
-LifeState SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) const {
-  LifeState stableZOI = stable.state.ZOI();
-
-  // // XXX: TODO: this should try the latest generation instead of the earliest?
-  // // Try near existing catalyst
-  // for (int i = 1; i < lookahead.size(); i++) {
+  // for (int i = std::min((unsigned)maxLocalGens, (unsigned)lookahead.size())-1; i >= 1; i--) {
   //   LifeUnknownState &gen = lookahead[i];
   //   LifeUnknownState &prev = lookahead[i-1];
 
-  //   LifeState becomeUnknown =
-  //       (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
+  //   LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
 
-  //   LifeState focusable = becomeUnknown & stableZOI;
+  //   LifeState nearActiveUnknown = (prev.unknown & ~prev.unknownStable).ZOI();
+
+  //   LifeState oneStableUnknownNeighbour  =  stable.unknown0 & ~stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
+  //   LifeState twoStableUnknownNeighbours = ~stable.unknown0 & stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
+
+  //   // LifeState focusable = becomeUnknown & stable.stateZOI & ~nearActiveUnknown & oneStableUnknownNeighbour;
+  //   // LifeState focusable = becomeUnknown & stable.stateZOI & ~nearActiveUnknown & (oneStableUnknownNeighbour | twoStableUnknownNeighbours);
+  //   LifeState focusable = becomeUnknown & stable.stateZOI & ~nearActiveUnknown;
+
+  //   // LifeState focusable = becomeUnknown & ~nearActiveUnknown;
 
   //   if (!focusable.IsEmpty()) {
-  //     auto result = (focusable.ZOI() & stable.unknownStable).FirstOn();
-  //     if (result != std::make_pair(-1, -1))
-  //       return result;
+  //     return focusable;
   //   }
   // }
 
-  // XXX: TODO: better idea, look for focuasble cells where all the
-  // unknown neighbours are unknownStable, that will stop us from
-  // wasting time on an expanding unknown region
-
-  for (int i = std::min((unsigned)maxLocalGens, (unsigned)lookahead.size())-1; i >= 1; i--) {
-    LifeUnknownState &gen = lookahead[i];
-    LifeUnknownState &prev = lookahead[i-1];
-
-    LifeState becomeUnknown =
-        (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
-
-    LifeState nearActiveUnknown = (prev.unknown & ~prev.unknownStable).ZOI();
-
-    LifeState focusable = becomeUnknown & stableZOI & ~nearActiveUnknown;
-
-    if (!focusable.IsEmpty()) {
-      return focusable;
-    }
-
-    // focusable = becomeUnknown & ~nearActiveUnknown;
-
-    // if (!focusable.IsEmpty()) {
-    //   return (focusable.ZOI() & stable.unknownStable).FirstOn();
-    // }
-  }
+  // LifeState hasUnknownNeighbour = stable.unknown0 | stable.unknown1 | stable.unknown2 | stable.unknown3;
 
   // Try anything
   for (int i = 1; i < lookahead.size(); i++) {
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
 
-    LifeState becomeUnknown =
-        (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
+    LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
 
-    LifeState focusable = becomeUnknown & stableZOI;
+    //    LifeState focusable = becomeUnknown & hasUnknownNeighbour & stable.stateZOI;
+    // LifeState focusable = becomeUnknown & stable.stateZOI;
+
+    // if (!focusable.IsEmpty()) {
+    //   return focusable;
+    // }
+
+    //focusable = becomeUnknown & hasUnknownNeighbour;
+    LifeState focusable = becomeUnknown;
 
     if (!focusable.IsEmpty()) {
-      return focusable;
-    }
-
-    focusable = becomeUnknown;
-
-    if (!focusable.IsEmpty()) {
-      return focusable;
+      return {focusable, prev};
     }
   }
 
-  return LifeState();
+  // for (int i = 1; i < lookahead.size(); i++) {
+  //   LifeUnknownState &gen = lookahead[i];
+  //   LifeUnknownState &prev = lookahead[i-1];
+
+  //   LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
+
+  //   LifeState focusable = becomeUnknown & hasUnknownNeighbour;
+
+  //   if (!focusable.IsEmpty()) {
+  //     return focusable;
+  //   }
+  // }
+
+  return {LifeState(), LifeUnknownState()};
 }
 
 bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) const {
@@ -336,23 +315,22 @@ void SearchState::SearchStep() {
       return;
     }
 
-    pendingFocuses = FindFocuses(lookahead);
+    std::tie(pendingFocuses, focusGeneration) = FindFocuses(lookahead); // C++ wtf
 
     SanityCheck();
   }
 
   auto focus = pendingFocuses.FirstOn();
-  if (focus == std::make_pair(-1, -1)) {
+  if (focus == std::pair(-1, -1)) {
     // Shouldn't be possible
     std::cout << "no focus" << std::endl;
     exit(1);
   }
 
-  // TODO: we want to know whether our choices have fixed the focus, without setting the entire neighbourhood
-  // bool focusIsDetermined = ?.KnownNext(focus);
+  bool focusIsDetermined = focusGeneration.KnownNext(focus);
 
   auto cell = stable.UnknownNeighbour(focus);
-  if(cell == std::make_pair(-1, -1)) {
+  if(focusIsDetermined || cell == std::pair(-1, -1)) {
     pendingFocuses.Erase(focus);
     SearchStep();
     return;
@@ -365,6 +343,10 @@ void SearchState::SearchStep() {
     nextState.stable.state.SetCellUnsafe(cell, which);
     nextState.stable.unknownStable.Erase(cell);
 
+    nextState.focusGeneration.state.SetCellUnsafe(cell, which);
+    nextState.focusGeneration.unknown.Erase(cell);
+    nextState.focusGeneration.unknownStable.Erase(cell);
+
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent)
       nextState.SearchStep();
@@ -375,6 +357,10 @@ void SearchState::SearchStep() {
 
     nextState.stable.state.SetCellUnsafe(cell, which);
     nextState.stable.unknownStable.Erase(cell);
+
+    nextState.focusGeneration.state.SetCellUnsafe(cell, which);
+    nextState.focusGeneration.unknown.Erase(cell);
+    nextState.focusGeneration.unknownStable.Erase(cell);
 
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent)
