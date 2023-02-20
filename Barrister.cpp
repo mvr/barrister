@@ -42,12 +42,12 @@ public:
   void TransferStableToCurrent();
   bool TryAdvance();
   bool TryAdvanceOne();
-  std::vector<LifeUnknownState> PopulateLookahead() const;
+  std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead() const;
 
-  std::pair<LifeState, LifeUnknownState> FindFocuses(std::vector<LifeUnknownState> &lookahead) const;
+  std::pair<LifeState, LifeUnknownState> FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
 
   bool CheckConditionsOn(LifeState &active, LifeState &everActive) const;
-  bool CheckConditions(std::vector<LifeUnknownState> &lookahead) const;
+  bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
 
   void Search();
   void SearchStep();
@@ -110,9 +110,7 @@ bool SearchState::TryAdvanceOne() {
 
 bool SearchState::TryAdvance() {
   bool didAdvance;
-  do {
-    didAdvance = TryAdvanceOne();
-
+  while (didAdvance = TryAdvanceOne(), didAdvance) {
     LifeState active = current.ActiveComparedTo(stable);
     everActive |= active;
 
@@ -136,33 +134,26 @@ bool SearchState::TryAdvance() {
 
       return false;
     }
-
-  } while (didAdvance);
+  }
 
   return true;
 }
 
-std::vector<LifeUnknownState> SearchState::PopulateLookahead() const {
-  auto lookahead = std::vector<LifeUnknownState>();
-  lookahead.reserve(maxLookaheadGens);
-  LifeUnknownState gen = current;
-  lookahead.push_back(gen);
-  for (int i = 0; i < maxLookaheadGens; i++) {
-    // std::cout << "Gen " << i  << std::endl;
-    // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-    // std::cout << LifeBellmanRLEFor(gen.state, gen.unknown) << std::endl;
+std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::PopulateLookahead() const {
+  auto lookahead = std::array<LifeUnknownState, maxLookaheadGens>();
+  lookahead[0] = current;
+  int i;
+  for (i = 0; i < maxLookaheadGens-1; i++) {
+    lookahead[i+1] = lookahead[i].UncertainStepMaintaining(stable);
 
-    gen = gen.UncertainStepMaintaining(stable);
-    lookahead.push_back(gen);
-
-    LifeState active = gen.ActiveComparedTo(stable);
+    LifeState active = lookahead[i+1].ActiveComparedTo(stable);
     if(active.IsEmpty())
       break;
   }
-  return lookahead;
+  return {lookahead, i+2};
 }
 
-std::pair<LifeState, LifeUnknownState> SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) const {
+std::pair<LifeState, LifeUnknownState> SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
   // XXX: TODO: calculate a 'priority' area, for example cells outside
   // the permitted 'everActive' area
 
@@ -195,7 +186,7 @@ std::pair<LifeState, LifeUnknownState> SearchState::FindFocuses(std::vector<Life
   // LifeState hasUnknownNeighbour = stable.unknown0 | stable.unknown1 | stable.unknown2 | stable.unknown3;
 
   // Try anything
-  for (int i = 1; i < lookahead.size(); i++) {
+  for (int i = 1; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
 
@@ -253,9 +244,10 @@ bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) co
   return true;
 }
 
-bool SearchState::CheckConditions(std::vector<LifeUnknownState> &lookahead) const {
+bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
   LifeState newEverActive = everActive;
-  for (auto gen : lookahead) {
+  for (int i = 0; i < lookaheadSize; i++) {
+    LifeUnknownState &gen = lookahead[i];
     LifeState active = gen.ActiveComparedTo(stable);
 
     newEverActive |= active;
@@ -308,14 +300,14 @@ void SearchState::SearchStep() {
     // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
     // std::cout << LifeBellmanRLEFor(current.state, current.unknown) << std::endl;
 
-    std::vector<LifeUnknownState> lookahead = PopulateLookahead();
+    auto [lookahead, lookaheadSize] = PopulateLookahead();
 
-    if (!CheckConditions(lookahead)) {
+    if (!CheckConditions(lookahead, lookaheadSize)) {
       //std::cout << "conditions failed" << std::endl;
       return;
     }
 
-    std::tie(pendingFocuses, focusGeneration) = FindFocuses(lookahead); // C++ wtf
+    std::tie(pendingFocuses, focusGeneration) = FindFocuses(lookahead, lookaheadSize); // C++ wtf
 
     SanityCheck();
   }
