@@ -22,6 +22,7 @@ public:
   // std::vector<LifeUnknownState> lookahead;
 
   LifeState pendingFocuses;
+  LifeState everActive;
   unsigned gen;
   bool hasInteracted;
   unsigned interactionStart;
@@ -47,6 +48,7 @@ public:
   LifeState FindFocuses(std::vector<LifeUnknownState> &lookahead);
   std::pair<int, int> ChooseFocus();
 
+  bool CheckConditionsOn(LifeState &active, LifeState &everActive);
   bool CheckConditions(std::vector<LifeUnknownState> &lookahead);
 
   void Search();
@@ -62,6 +64,7 @@ public:
 // }
 
 SearchState::SearchState() : gen {0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
+  everActive = LifeState();
   pendingFocuses = LifeState();
 }
 
@@ -111,6 +114,13 @@ bool SearchState::TryAdvance() {
   bool didAdvance;
   do {
     didAdvance = TryAdvanceOne();
+
+    LifeState active = current.ActiveComparedTo(stable);
+    everActive |= active;
+
+    if (!CheckConditionsOn(active, everActive)) {
+      return false;
+    }
 
     if (hasInteracted && gen - interactionStart > maxInteractionWindow)
       return false;
@@ -247,16 +257,35 @@ LifeState SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) {
   return LifeState();
 }
 
+bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) {
+  if (active.GetPop() > maxActive)
+    return false;
+
+  auto wh = active.WidthHeight();
+  // std::cout << wh.first << ", " << wh.second << std::endl;
+  int maxDim = std::max(wh.first, wh.second);
+  if (maxDim > maxActiveSize)
+    return false;
+
+  if (everActive.GetPop() > maxEverActive)
+    return false;
+
+  wh = everActive.WidthHeight();
+  maxDim = std::max(wh.first, wh.second);
+  if (maxDim > maxEverActiveSize)
+    return false;
+
+  return true;
+}
+
 bool SearchState::CheckConditions(std::vector<LifeUnknownState> &lookahead) {
-  LifeState everActive;
+  LifeState newEverActive = everActive;
   for (auto gen : lookahead) {
     LifeState active = gen.ActiveComparedTo(stable);
 
-    if (active.GetPop() > maxActive)
-      return false;
-
-    everActive |= active;
-    if (everActive.GetPop() > maxEverActive)
+    newEverActive |= active;
+    bool genResult = CheckConditionsOn(active, newEverActive);
+    if (!genResult)
       return false;
   }
 
