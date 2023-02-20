@@ -17,7 +17,7 @@ void inline FullAdd(uint64_t &out0, uint64_t &out1, const uint64_t ina, const ui
   out1 = halfcarry1 | halfcarry2;
 }
 
-void inline CountRows(LifeState &state, LifeState &__restrict__ bit1, LifeState &__restrict__ bit0) {
+void inline CountRows(const LifeState &state, LifeState &__restrict__ bit1, LifeState &__restrict__ bit0) {
   for (int i = 0; i < N; i++) {
     uint64_t a = state.state[i];
     uint64_t l = RotateLeft(a);
@@ -28,7 +28,7 @@ void inline CountRows(LifeState &state, LifeState &__restrict__ bit1, LifeState 
   }
 }
 
-void inline CountNeighbourhood(LifeState &state, LifeState &__restrict__ bit3, LifeState &__restrict__ bit2, LifeState &__restrict__ bit1, LifeState &__restrict__ bit0) {
+void inline CountNeighbourhood(const LifeState &state, LifeState &__restrict__ bit3, LifeState &__restrict__ bit2, LifeState &__restrict__ bit1, LifeState &__restrict__ bit0) {
   LifeState col0(false), col1(false);
   CountRows(state, col0, col1);
 

@@ -40,16 +40,12 @@ public:
   void TransferStableToCurrent();
   bool TryAdvance();
   bool TryAdvanceOne();
-  std::vector<LifeUnknownState> PopulateLookahead();
+  std::vector<LifeUnknownState> PopulateLookahead() const;
 
-  // std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
-  bool CheckAdvance();
+  LifeState FindFocuses(std::vector<LifeUnknownState> &lookahead) const;
 
-  LifeState FindFocuses(std::vector<LifeUnknownState> &lookahead);
-  std::pair<int, int> ChooseFocus();
-
-  bool CheckConditionsOn(LifeState &active, LifeState &everActive);
-  bool CheckConditions(std::vector<LifeUnknownState> &lookahead);
+  bool CheckConditionsOn(LifeState &active, LifeState &everActive) const;
+  bool CheckConditions(std::vector<LifeUnknownState> &lookahead) const;
 
   void Search();
   void SearchStep();
@@ -144,7 +140,7 @@ bool SearchState::TryAdvance() {
   return true;
 }
 
-std::vector<LifeUnknownState> SearchState::PopulateLookahead() {
+std::vector<LifeUnknownState> SearchState::PopulateLookahead() const {
   auto lookahead = std::vector<LifeUnknownState>();
   lookahead.reserve(maxLookaheadGens);
   LifeUnknownState gen = current;
@@ -186,7 +182,7 @@ std::vector<LifeUnknownState> SearchState::PopulateLookahead() {
 //   return std::make_pair(-1,-1);
 // }
 
-LifeState SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) {
+LifeState SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) const {
   LifeState stableZOI = stable.state.ZOI();
 
   // // XXX: TODO: this should try the latest generation instead of the earliest?
@@ -257,7 +253,7 @@ LifeState SearchState::FindFocuses(std::vector<LifeUnknownState> &lookahead) {
   return LifeState();
 }
 
-bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) {
+bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) const {
   if (active.GetPop() > maxActive)
     return false;
 
@@ -278,7 +274,7 @@ bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) {
   return true;
 }
 
-bool SearchState::CheckConditions(std::vector<LifeUnknownState> &lookahead) {
+bool SearchState::CheckConditions(std::vector<LifeUnknownState> &lookahead) const {
   LifeState newEverActive = everActive;
   for (auto gen : lookahead) {
     LifeState active = gen.ActiveComparedTo(stable);

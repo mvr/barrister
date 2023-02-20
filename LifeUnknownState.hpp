@@ -11,17 +11,17 @@ public:
   LifeState unknownStable;
 
   void UncertainStepInto(LifeState &__restrict__ next,
-                         LifeState &__restrict__ nextUnknown);
+                         LifeState &__restrict__ nextUnknown) const;
   void UncertainStepSelf();
   // LifeUnknownState UncertainStep();
-  LifeUnknownState UncertainStepMaintaining(LifeStableState &stable);
-  LifeState ActiveComparedTo(LifeStableState &stable);
+  LifeUnknownState UncertainStepMaintaining(const LifeStableState &stable) const;
+  LifeState ActiveComparedTo(const LifeStableState &stable) const;
 
-  void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown);
-  bool KnownNext(std::pair<int, int> cell);
+  void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) const;
+  bool KnownNext(std::pair<int, int> cell) const;
 };
 
-void LifeUnknownState::UncertainStepInto(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown) {
+void LifeUnknownState::UncertainStepInto(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown) const {
   LifeState oncol0(false), oncol1(false), unkcol0(false), unkcol1(false);
   CountRows(state, oncol0, oncol1);
   CountRows(unknown, unkcol0, unkcol1);
@@ -111,7 +111,7 @@ void LifeUnknownState::UncertainStepSelf() {
   unknown = nextUnknown;
 }
 
-LifeUnknownState LifeUnknownState::UncertainStepMaintaining(LifeStableState &stable) {
+LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableState &stable) const {
   LifeUnknownState result;
 
   LifeState state3(false), state2(false), state1(false), state0(false);
@@ -181,7 +181,7 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(LifeStableState &sta
   return result;
 }
 
-void LifeUnknownState::UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) {
+void LifeUnknownState::UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) const {
   std::array<uint64_t, 3> nearbyState;
   std::array<uint64_t, 3> nearbyUnknown;
 
@@ -282,7 +282,7 @@ next_on |= stateon & (~on1) & (~on0) & (~unk1) & (~unk0) ;
   }
 }
 
-bool LifeUnknownState::KnownNext(std::pair<int, int> cell) {
+bool LifeUnknownState::KnownNext(std::pair<int, int> cell) const {
   uint64_t nextColumn;
   uint64_t nextUnknownColumn;
 
@@ -295,6 +295,6 @@ bool LifeUnknownState::KnownNext(std::pair<int, int> cell) {
 }
 
 
-LifeState LifeUnknownState::ActiveComparedTo(LifeStableState &stable) {
+LifeState LifeUnknownState::ActiveComparedTo(const LifeStableState &stable) const {
   return ~unknown & ~stable.unknownStable & stable.stateZOI & (stable.state ^ state);
 }

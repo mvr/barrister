@@ -27,7 +27,7 @@ public:
   std::pair<bool, bool> PropagateStableStep();
   bool PropagateStable();
 
-  std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell);
+  std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell) const;
 
   // void SetCell(std::pair<int, int> cell, bool value) {
   //   // TODO, probably just need to re-count.
@@ -586,7 +586,7 @@ bool LifeStableState::PropagateStable() {
   return true;
 }
 
-std::pair<int, int> LifeStableState::UnknownNeighbour(std::pair<int, int> cell) {
+std::pair<int, int> LifeStableState::UnknownNeighbour(std::pair<int, int> cell) const {
   // This could obviously be done faster by extracting the result
   // directly from the columns, but this is probably good enough for now
   const std::array<std::pair<int, int>, 8> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
