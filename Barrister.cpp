@@ -25,7 +25,7 @@ public:
   LifeUnknownState focusGeneration;
   LifeState everActive;
 
-  unsigned gen;
+  unsigned currentGen;
   bool hasInteracted;
   unsigned interactionStart;
   unsigned recoveredTime;
@@ -61,7 +61,7 @@ public:
 //   return LifeBellmanRLEFor(state, marked);
 // }
 
-SearchState::SearchState() : gen {0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
+SearchState::SearchState() : currentGen {0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
   everActive = LifeState();
   pendingFocuses = LifeState();
 }
@@ -89,12 +89,12 @@ bool SearchState::TryAdvanceOne() {
 
     if (isDifferent) {
       hasInteracted = true;
-      interactionStart = gen;
+      interactionStart = currentGen;
     }
   }
 
   current = next;
-  gen++;
+  currentGen++;
 
   if (hasInteracted) {
     LifeState stableZOI = stable.state.ZOI();
@@ -120,7 +120,7 @@ bool SearchState::TryAdvance() {
       return false;
     }
 
-    if (hasInteracted && gen - interactionStart > maxInteractionWindow)
+    if (hasInteracted && currentGen - interactionStart > maxInteractionWindow)
       return false;
 
     if (hasInteracted && recoveredTime > stableTime) {
@@ -296,7 +296,7 @@ void SearchState::SearchStep() {
       return;
     }
 
-    if(!hasInteracted && gen > maxStartTime)
+    if(!hasInteracted && currentGen > maxStartTime)
       return;
 
     // std::cout << "Stable" << std::endl;
