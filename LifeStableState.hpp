@@ -589,7 +589,7 @@ bool LifeStableState::PropagateStable() {
 std::pair<int, int> LifeStableState::UnknownNeighbour(std::pair<int, int> cell) const {
   // This could obviously be done faster by extracting the result
   // directly from the columns, but this is probably good enough for now
-  const std::array<std::pair<int, int>, 8> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
+  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0, 0}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
   for (auto d : directions) {
     int x = (cell.first + d.first + N) % N;
     int y = (cell.second + d.second + 64) % 64;
