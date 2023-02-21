@@ -7,10 +7,20 @@
 #include "LifeUnknownState.hpp"
 
 const unsigned maxLookaheadGens = 10;
-const unsigned maxLocalGens = 3;
-const unsigned maxActive = 5;
-const unsigned maxEverActive = 10;
-const unsigned maxInteractionWindow = 6;
+const unsigned maxLocalGens = 7;
+
+const unsigned maxEverActive = 100;
+const unsigned maxStartTime = 10;
+
+const unsigned maxActive = 100;
+const unsigned maxActiveSize = 5;
+const unsigned maxEverActiveSize = 5;
+
+// const unsigned maxActive = 15;
+// const unsigned maxActiveSize = 7;
+// const unsigned maxEverActiveSize = 7;
+
+const unsigned maxInteractionWindow = 30;
 const unsigned stableTime = 2;
 
 class SearchState {
