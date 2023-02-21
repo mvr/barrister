@@ -7,5 +7,5 @@ LDFLAGS =
 
 all: Barrister
 
-Barrister: Barrister.cpp LifeAPI.h
+Barrister: Barrister.cpp LifeAPI.h *.hpp
 	$(CC) $(CFLAGS) -o Barrister Barrister.cpp $(LDFLAGS)
