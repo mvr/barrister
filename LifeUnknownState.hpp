@@ -122,16 +122,19 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
   CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
   CountNeighbourhood(unknownStable, unknownStable3, unknownStable2, unknownStable1, unknownStable0);
 
-  LifeState unequal_stable =
-        (state ^ stable.state) | (unknownStable ^ stable.unknownStable) |
-        (state3 ^ stable.state3) | (state2 ^ stable.state2) |
-        (state1 ^ stable.state1) | (state0 ^ stable.state0) |
-        (unknownStable3 ^ stable.unknown3) | (unknownStable2 ^ stable.unknown2) |
-        (unknownStable1 ^ stable.unknown1) | (unknownStable0 ^ stable.unknown0) |
+  LifeState unequal_stable(false);
+  for(int i = 0; i < N; i++) {
+    unequal_stable.state[i] =
+        (state.state[i] ^ stable.state.state[i]) | (unknownStable.state[i] ^ stable.unknownStable.state[i]) |
+        (state3.state[i] ^ stable.state3.state[i]) | (state2.state[i] ^ stable.state2.state[i]) |
+        (state1.state[i] ^ stable.state1.state[i]) | (state0.state[i] ^ stable.state0.state[i]) |
+        (unknownStable3.state[i] ^ stable.unknown3.state[i]) | (unknownStable2.state[i] ^ stable.unknown2.state[i]) |
+        (unknownStable1.state[i] ^ stable.unknown1.state[i]) | (unknownStable0.state[i] ^ stable.unknown0.state[i]) |
         // If any of the unknown are not stable
         // unknown, we can't use this trick.
-        (unknownStable3 ^ unknown3) | (unknownStable2 ^ unknown2) |
-        (unknownStable1 ^ unknown1) | (unknownStable0 ^ unknown0);
+        (unknownStable3.state[i] ^ unknown3.state[i]) | (unknownStable2.state[i] ^ unknown2.state[i]) |
+        (unknownStable1.state[i] ^ unknown1.state[i]) | (unknownStable0.state[i] ^ unknown0.state[i]);
+  }
 
   LifeState equal_stable = ~unequal_stable;
 
