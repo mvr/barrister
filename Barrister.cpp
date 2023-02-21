@@ -20,7 +20,7 @@ const unsigned maxEverActiveSize = 5;
 // const unsigned maxActiveSize = 7;
 // const unsigned maxEverActiveSize = 7;
 
-const unsigned maxInteractionWindow = 30;
+const unsigned maxInteractionWindow = 15;
 const unsigned stableTime = 2;
 
 class SearchState {
@@ -51,7 +51,7 @@ public:
 
   std::pair<LifeState, LifeUnknownState> FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
 
-  bool CheckConditionsOn(LifeState &active, LifeState &everActive) const;
+  bool CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const;
   bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize);
 
   void Search();
@@ -119,7 +119,7 @@ bool SearchState::TryAdvance() {
     LifeState active = current.ActiveComparedTo(stable);
     everActive |= active;
 
-    if (!CheckConditionsOn(active, everActive)) {
+    if (!CheckConditionsOn(currentGen, current, active, everActive)) {
       return false;
     }
 
@@ -260,7 +260,7 @@ std::pair<LifeState, LifeUnknownState> SearchState::FindFocuses(std::array<LifeU
   return {LifeState(), LifeUnknownState()};
 }
 
-bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) const {
+bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
   if (active.GetPop() > maxActive)
     return false;
 
@@ -277,6 +277,9 @@ bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) co
   if (maxDim > maxEverActiveSize)
     return false;
 
+  if(hasInteracted && gen > interactionStart + maxInteractionWindow && !state.CompatibleWith(stable))
+    return false;
+
   return true;
 }
 
@@ -287,7 +290,7 @@ bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens>
     LifeState active = gen.ActiveComparedTo(stable);
 
     everActive |= active;
-    bool genResult = CheckConditionsOn(active, everActive);
+    bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive);
 
     if (!genResult)
       return false;
