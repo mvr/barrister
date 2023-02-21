@@ -148,9 +148,9 @@ std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::Popu
 
     LifeState active = lookahead[i+1].ActiveComparedTo(stable);
     if(active.IsEmpty())
-      break;
+      return {lookahead, i+2};
   }
-  return {lookahead, i+2};
+  return {lookahead, maxLookaheadGens};
 }
 
 std::pair<LifeState, LifeUnknownState> SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
