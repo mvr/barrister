@@ -40,11 +40,6 @@ public:
   unsigned interactionStart;
   unsigned recoveredTime;
 
-  // // Cells in this generation that need to be determined
-  // LifeState newUnknown;
-  // LifeState newGlancing;
-  // Focus focus;
-
   SearchState();
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
@@ -270,7 +265,6 @@ bool SearchState::CheckConditionsOn(LifeState &active, LifeState &everActive) co
     return false;
 
   auto wh = active.WidthHeight();
-  // std::cout << wh.first << ", " << wh.second << std::endl;
   int maxDim = std::max(wh.first, wh.second);
   if (maxDim > maxActiveSize)
     return false;
@@ -404,11 +398,10 @@ void SearchState::SearchStep() {
 }
 
 int main(int argc, char *argv[]) {
-
-  std::string rle = "x = 29, y = 30, rule = LifeHistory\n\
-8.21B$8.21B$8.21B$8.21B$8.21B$8.21B$8.21B$8.21B$8.21B$8.21B$8.21B$8.\n\
-21B$3.2A3.21B$2.A2.A2.21B$3.3A2.21B$8.21B$8.21B$29B$29B$29B$29B$29B$\n\
-29B$29B$29B$29B$29B$29B$29B$29B!\n";
+  std::string rle = "x = 27, y = 30, rule = LifeHistory\n\
+6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.\n\
+21B$.2A3.21B$A2.A2.21B$.3A2.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$\n\
+6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B!\n";
 
   LifeState on;
   LifeState marked;

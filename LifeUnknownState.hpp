@@ -13,7 +13,6 @@ public:
   void UncertainStepInto(LifeState &__restrict__ next,
                          LifeState &__restrict__ nextUnknown) const;
   void UncertainStepSelf();
-  // LifeUnknownState UncertainStep();
   LifeUnknownState UncertainStepMaintaining(const LifeStableState &stable) const;
   LifeState ActiveComparedTo(const LifeStableState &stable) const;
 
