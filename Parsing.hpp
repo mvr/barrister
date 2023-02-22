@@ -122,10 +122,10 @@ std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &stat
   return result.str();
 }
 
-std::string UnknownRLEFor(LifeState &stable, LifeState &unknown) {
+std::string UnknownRLEFor(const LifeState &stable, const LifeState &unknown) {
   return MultiStateRLE({'.', 'A', 'B', 'Q'}, stable, unknown);
 }
 
-std::string LifeBellmanRLEFor(LifeState &state, LifeState &marked) {
+std::string LifeBellmanRLEFor(const LifeState &state, const LifeState &marked) {
   return MultiStateRLE({'.', 'A', 'E', 'C'}, state, marked);
 }
