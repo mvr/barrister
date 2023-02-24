@@ -15,6 +15,7 @@ public:
   void UncertainStepSelf();
   LifeUnknownState UncertainStepMaintaining(const LifeStableState &stable) const;
   LifeState ActiveComparedTo(const LifeStableState &stable) const;
+  bool CompatibleWith(const LifeStableState &stable) const;
 
   void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) const;
   bool KnownNext(std::pair<int, int> cell) const;
@@ -299,4 +300,8 @@ bool LifeUnknownState::KnownNext(std::pair<int, int> cell) const {
 
 LifeState LifeUnknownState::ActiveComparedTo(const LifeStableState &stable) const {
   return ~unknown & ~stable.unknownStable & stable.stateZOI & (stable.state ^ state);
+}
+
+bool LifeUnknownState::CompatibleWith(const LifeStableState &stable) const {
+  return ActiveComparedTo(stable).IsEmpty();
 }
