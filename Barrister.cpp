@@ -278,6 +278,18 @@ bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens>
     if (!genResult)
       return false;
   }
+  // This could miss a catalyst recovering then failing
+  if (hasInteracted) {
+    LifeUnknownState gen = lookahead[lookaheadSize - 1];
+    for(int i = lookaheadSize; currentGen + i < interactionStart + maxInteractionWindow; i++) {
+      gen = gen.UncertainStepMaintaining(stable);
+      LifeState active = gen.ActiveComparedTo(stable);
+      everActive |= active;
+      bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive);
+      if (!genResult)
+        return false;
+    }
+  }
 
   return true;
 }
