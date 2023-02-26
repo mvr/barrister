@@ -67,12 +67,12 @@ std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &stat
 
   unsigned eol_count = 0;
 
-  for (unsigned j = 0; j < N; j++) {
-    unsigned last_val = (state.GetCell(0 - 32, j - 32) == 1) + ((marked.GetCell(0 - 32, j - 32) == 1) << 1);
+  for (unsigned j = 0; j < 64; j++) {
+    unsigned last_val = (state.GetCell(0 - (N/2), j - 32) == 1) + ((marked.GetCell(0 - (N/2), j - 32) == 1) << 1);
     unsigned run_count = 0;
 
     for (unsigned i = 0; i < N; i++) {
-      unsigned val = (state.GetCell(i - 32, j - 32) == 1) + ((marked.GetCell(i - 32, j - 32) == 1) << 1);
+      unsigned val = (state.GetCell(i - (N/2), j - 32) == 1) + ((marked.GetCell(i - (N/2), j - 32) == 1) << 1);
 
       // Flush linefeeds if we find a live cell
       if (val && eol_count > 0) {

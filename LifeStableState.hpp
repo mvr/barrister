@@ -177,14 +177,14 @@ signal_on |= state0 & (~on1) & on0 & (~unk0) ;
     return false;
 
   for (int i = 1; i < 4; i++) {
-    int orig = (column + i - 2 + 64) % 64;
+    int orig = (column + i - 2 + N) % N;
     state.state[orig]  |= new_on[i];
     unknownStable.state[orig] &= ~new_off[i];
     unknownStable.state[orig] &= ~new_on[i];
   }
 
   for (int i = 0; i < 5; i++) {
-    int orig = (column + i - 2 + 64) % 64;
+    int orig = (column + i - 2 + N) % N;
     state.state[orig]  |= signalled_on[i] & nearbyUnknown[i];
     unknownStable.state[orig] &= ~signalled_on[i];
     unknownStable.state[orig] &= ~signalled_off[i];

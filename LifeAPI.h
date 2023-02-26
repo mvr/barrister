@@ -184,10 +184,10 @@ public:
   int Get(int x, int y) const { return (state[x] & (1ULL << y)) >> y; }
   void SetCell(int x, int y, int val) {
     if (val == 1) {
-      Set((x + 64) % N, (y + 64) % 64);
+      Set((x + N) % N, (y + 64) % 64);
     }
     if (val == 0)
-      Erase((x + 64) % N, (y + 64) % 64);
+      Erase((x + N) % N, (y + 64) % 64);
   }
   void SetCellUnsafe(int x, int y, int val) {
     if (val == 1)
@@ -196,7 +196,7 @@ public:
       Erase(x, y);
   }
   int GetCell(int x, int y) const {
-    return Get((x + 64) % N, (y + 64) % 64);
+    return Get((x + N) % N, (y + 64) % 64);
   }
 
   void Set(std::pair<int, int> xy) { Set(xy.first, xy.second); };
@@ -649,7 +649,7 @@ public:
     memcpy(doubledother + N, other.state, N * sizeof(uint64_t));
 
     for (unsigned j = 0; j < N; j++) {
-      unsigned k = 64-j;
+      unsigned k = N-j;
       uint64_t x = state[j];
 
       // Annoying special case
@@ -892,7 +892,7 @@ public:
   }
 #else
   std::pair<int, int> FirstOn() const {
-    int foundq = 64;
+    int foundq = N;
     for (int x = 0; x < N; x+=4) {
       if (state[x] != 0ULL ||
           state[x+1] != 0ULL ||
@@ -901,7 +901,7 @@ public:
         foundq = x;
       }
     }
-    if (foundq == 64) {
+    if (foundq == N) {
       return std::make_pair(-1, -1);
     }
 
@@ -956,18 +956,18 @@ public:
   }
 
   std::array<int, 4> XYBounds() const {
-    int minCol = -32;
-    int maxCol = 31;
+    int minCol = -(N/2);
+    int maxCol = (N/2)-1;
 
-    for (int i = -32; i <= 31; i++) {
-      if (state[(i + 64) % 64] != 0) {
+    for (int i = -(N/2); i <= (N/2)-1; i++) {
+      if (state[(i + N) % N] != 0) {
         minCol = i;
         break;
       }
     }
 
-    for (int i = 31; i >= -32; i--) {
-      if (state[(i + 64) % 64] != 0) {
+    for (int i = (N/2)-1; i >= -(N/2); i--) {
+      if (state[(i + N) % N] != 0) {
         maxCol = i;
         break;
       }
@@ -975,7 +975,7 @@ public:
 
     uint64_t orOfCols(0);
     for (int i = minCol; i <= maxCol; ++i) {
-      orOfCols = orOfCols | state[(i + 64) % 64];
+      orOfCols = orOfCols | state[(i + N) % N];
     }
     if (orOfCols == 0ULL) {
       return std::array<int, 4>({0, 0, 0, 0});
@@ -997,17 +997,17 @@ public:
       return std::pair<int, int>(0, 0);
     }
 
-    int minCol = -32;
-    int maxCol = 31;
-    for (int i = -32; i <= 31; i++) {
-      if (state[(i + 64) % 64] != 0) {
+    int minCol = -(N/2);
+    int maxCol = (N/2)-1;
+    for (int i = -(N/2); i <= (N/2)-1; i++) {
+      if (state[(i + N) % N] != 0) {
         minCol = i;
         break;
       }
     }
 
-    for (int i = 31; i >= -32; i--) {
-      if (state[(i + 64) % 64] != 0) {
+    for (int i = (N/2)-1; i >= -(N/2); i--) {
+      if (state[(i + N) % N] != 0) {
         maxCol = i;
         break;
       }
@@ -1163,14 +1163,14 @@ void LifeState::Transform(SymmetryTransform transf) {
 void LifeState::Print() const {
   for (int j = 0; j < 64; j++) {
     for (int i = 0; i < N; i++) {
-      if (GetCell(i - 32, j - 32) == 0) {
+      if (GetCell(i - (N/2), j - 32) == 0) {
         int hor = 0;
         int ver = 0;
 
         if ((j - 32) % 10 == 0)
           hor = 1;
 
-        if ((i - 32) % 10 == 0)
+        if ((i - (N/2)) % 10 == 0)
           ver = 1;
 
         if (hor == 1 && ver == 1)
@@ -1250,12 +1250,12 @@ std::string LifeState::RLE() const {
 
   unsigned eol_count = 0;
 
-  for (unsigned j = 0; j < N; j++) {
-    bool last_val = GetCell(0 - 32, j - 32) == 1;
+  for (unsigned j = 0; j < 64; j++) {
+    bool last_val = GetCell(0 - (N/2), j - 32) == 1;
     unsigned run_count = 0;
 
     for (unsigned i = 0; i < N; i++) {
-      bool val = GetCell(i - 32, j - 32) == 1;
+      bool val = GetCell(i - (N/2), j - 32) == 1;
 
       // Flush linefeeds if we find a live cell
       if (val && eol_count > 0) {
