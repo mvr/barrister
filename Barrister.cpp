@@ -204,28 +204,19 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
   LifeState twoStableUnknownNeighbours = ~stable.unknown0 &  stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
   // LifeState fewStableUnknownNeighbours = ~stable.unknown2 & ~stable.unknown3;
 
-  for (int i = 1; i < lookaheadSize; i++) {
-    LifeState focusable = allFocusable[i];
-    focusable &= priority & stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours);
-    if (!focusable.IsEmpty())
-      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
+#define TRY_CHOOSE(exp) \
+  for (int i = 1; i < lookaheadSize; i++) { \
+    LifeState focusable = allFocusable[i]; \
+    focusable &= exp; \
+    if (!focusable.IsEmpty()) \
+      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1}; \
   }
 
-  // for (int i = lookaheadSize-1; i >= 1; i--) {
-  for (int i = 1; i < lookaheadSize; i++) {
-    LifeState focusable = allFocusable[i];
-    focusable &= stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours);
-    if (!focusable.IsEmpty())
-      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
-  }
+  TRY_CHOOSE(priority & stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
+  TRY_CHOOSE(stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
+  TRY_CHOOSE(priority)
 
-  // for (int i = lookaheadSize-1; i >= 1; i--) {
-  for (int i = 1; i < lookaheadSize; i++) {
-    LifeState focusable = allFocusable[i];
-    focusable &= priority;
-    if (!focusable.IsEmpty())
-      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
-  }
+#undef TRY_CHOOSE
 
   // Try anything at all
   for (int i = 1; i < lookaheadSize; i++) {
