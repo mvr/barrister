@@ -335,11 +335,14 @@ void SearchState::SearchStep() {
     SanityCheck();
   }
 
-  auto focus = pendingFocuses.FirstOn();
+  auto focus = (pendingFocuses & ~pendingGlanceable).FirstOn();
   if (focus == std::pair(-1, -1)) {
+    focus = pendingFocuses.FirstOn();
     // Shouldn't be possible
-    std::cout << "no focus" << std::endl;
-    exit(1);
+    if (focus == std::pair(-1, -1)) {
+      std::cout << "no focus" << std::endl;
+      exit(1);
+    }
   }
 
   bool focusIsGlancing = pendingGlanceable.Get(focus);
