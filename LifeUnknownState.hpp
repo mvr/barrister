@@ -21,6 +21,8 @@ public:
   void UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) const;
   std::pair<bool, bool> NextForCell(std::pair<int, int> cell) const;
   bool KnownNext(std::pair<int, int> cell) const;
+
+  bool StillGlancingFor(std::pair<int, int> cell, const LifeStableState &stable) const;
 };
 
 void LifeUnknownState::UncertainStepInto(LifeState &__restrict__ next, LifeState &__restrict__ nextUnknown) const {
@@ -317,4 +319,9 @@ LifeState LifeUnknownState::ActiveComparedTo(const LifeStableState &stable) cons
 
 bool LifeUnknownState::CompatibleWith(const LifeStableState &stable) const {
   return ActiveComparedTo(stable).IsEmpty();
+}
+
+bool LifeUnknownState::StillGlancingFor(std::pair<int, int> cell, const LifeStableState &stable) const {
+  return !stable.state2.Get(cell) && !stable.state1.Get(cell) &&
+    (stable.unknown3.Get(cell) || stable.unknown2.Get(cell) || stable.unknown1.Get(cell) || stable.unknown0.Get(cell));
 }

@@ -345,7 +345,7 @@ void SearchState::SearchStep() {
     }
   }
 
-  bool focusIsGlancing = pendingGlanceable.Get(focus);
+  bool focusIsGlancing = pendingGlanceable.Get(focus) && focusCurrent.StillGlancingFor(focus, stable);
   if(focusIsGlancing) {
     pendingGlanceable.Erase(focus);
 
