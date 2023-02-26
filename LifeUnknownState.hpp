@@ -177,13 +177,6 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
 
     uint64_t equal_stable = ~unequal_stable;
 
-    uint64_t glanceableUnknown = (~stateon) & (~stateunk)
-      & unknown
-      & (~on2) & (~on1) & on0
-      & (unk2 | unk1 | unk0)
-      & ~(stable.state2.state[i] | stable.state1.state[i] | stable.state0.state[i])
-      & ~any_unstable_unknown;
-
     result.state.state[i] = next_on;
     result.unknown.state[i] = unknown;
 
@@ -192,9 +185,23 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
     result.unknown.state[i] = (result.unknown.state[i] & unequal_stable) | (stable.unknownStable.state[i] & equal_stable);
     result.unknownStable.state[i] = stable.unknownStable.state[i] & equal_stable;
 
+    uint64_t glanceable = (~stateon) & (~stateunk)
+      & unknown
+      & (~on2) & (~on1) & on0
+      & (unk2 | unk1 | unk0)
+      & ~(stable.state2.state[i] | stable.state1.state[i] | stable.state0.state[i])
+      & ~any_unstable_unknown;
+    result.glanceableUnknown.state[i] = glanceable;
+
     // Remove unknown cells that we have decided were glancing
-    result.glanceableUnknown.state[i] = glanceableUnknown;
-    result.unknown.state[i] &= ~(glanceableUnknown & stable.glanced.state[i]);
+    uint64_t glanceSafe = (~stateon) & (~stateunk)
+      & unknown
+      & ( (~stable.state2.state[i] & ~stable.state1.state[i] & ~stable.state0.state[i] & (~on2) & (~on1) & on0)
+          | (~stable.state2.state[i] & ~stable.state1.state[i] &  stable.state0.state[i] & ((~on2) & (~on1) & on0))
+          | (~stable.state2.state[i] & ~stable.state1.state[i] &  stable.state0.state[i] & ((~on2) & on1 & (~on0)))
+        )
+      & ~any_unstable_unknown;
+    result.unknown.state[i] &= ~(glanceSafe & stable.glanced.state[i]);
   }
 
   return result;
