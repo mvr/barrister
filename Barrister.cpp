@@ -194,7 +194,7 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
   // the permitted 'everActive' area
 
   const LifeState rect = LifeState::SolidRect(- maxEverActiveSize+1, - maxEverActiveSize+1, 2 * maxEverActiveSize - 1, 2 * maxEverActiveSize - 1);
-  const LifeState priority = (~rect).Convolve(everActive);
+  const LifeState priority = everActive.Convolve(~rect);
 
   // IDEA: look for focusable cells where all the unknown neighbours
   // are unknownStable, that will stop us from wasting time on an
