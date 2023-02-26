@@ -177,7 +177,12 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
 
     uint64_t equal_stable = ~unequal_stable;
 
-    uint64_t glanceableUnknown = (~stateon) & (~stateunk) & (~on2) & (~on1) & on0 & (unk2 | unk1 | unk0) & ~any_unstable_unknown;
+    uint64_t glanceableUnknown = (~stateon) & (~stateunk)
+      & unknown
+      & (~on2) & (~on1) & on0
+      & (unk2 | unk1 | unk0)
+      & ~(stable.state2.state[i] | stable.state1.state[i] | stable.state0.state[i])
+      & ~any_unstable_unknown;
 
     result.state.state[i] = next_on;
     result.unknown.state[i] = unknown;
