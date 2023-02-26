@@ -347,11 +347,11 @@ void SearchState::SearchStep() {
     pendingGlanceable.Erase(focus);
 
     SearchState nextState = *this;
-    nextState.pendingFocuses.Erase(focus);
-    nextState.stable.glanced.Set(focus);
+    nextState.stable.glancedON.Set(focus);
     nextState.SearchStep();
 
-    stable.glancedON.Set(focus);
+    pendingFocuses.Erase(focus);
+    stable.glanced.Set(focus);
     SearchStep();
     return;
   }
