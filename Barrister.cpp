@@ -31,6 +31,7 @@ public:
   LifeUnknownState current;
 
   LifeState pendingFocuses;
+  LifeState pendingGlanceable;
 
   LifeUnknownState focusCurrent;
 
@@ -54,7 +55,7 @@ public:
   std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead() const;
 
   //std::pair<LifeState, LifeUnknownState> FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
-  std::tuple<LifeState, LifeUnknownState, unsigned> FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
+  std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
 
   bool CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const;
   bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize);
@@ -173,8 +174,7 @@ std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::Popu
   return {lookahead, maxLookaheadGens};
 }
 
-std::tuple<LifeState, LifeUnknownState, unsigned> SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
-//std::pair<LifeState, LifeUnknownState> SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
+std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
   std::array<LifeState, maxLookaheadGens> allFocusable;
   for (int i = 1; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
@@ -208,8 +208,7 @@ std::tuple<LifeState, LifeUnknownState, unsigned> SearchState::FindFocuses(std::
     LifeState focusable = allFocusable[i];
     focusable &= priority & stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours);
     if (!focusable.IsEmpty())
-      return {focusable, lookahead[i-1], i-1};
-      // return {focusable, lookahead[i-1]};
+      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
   }
 
   // for (int i = lookaheadSize-1; i >= 1; i--) {
@@ -217,8 +216,7 @@ std::tuple<LifeState, LifeUnknownState, unsigned> SearchState::FindFocuses(std::
     LifeState focusable = allFocusable[i];
     focusable &= stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours);
     if (!focusable.IsEmpty())
-      return {focusable, lookahead[i-1], i-1};
-      // return {focusable, lookahead[i-1]};
+      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
   }
 
   // for (int i = lookaheadSize-1; i >= 1; i--) {
@@ -226,8 +224,7 @@ std::tuple<LifeState, LifeUnknownState, unsigned> SearchState::FindFocuses(std::
     LifeState focusable = allFocusable[i];
     focusable &= priority;
     if (!focusable.IsEmpty())
-      return {focusable, lookahead[i-1], i-1};
-      // return {focusable, lookahead[i-1]};
+      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
   }
 
   // Try anything at all
@@ -239,13 +236,11 @@ std::tuple<LifeState, LifeUnknownState, unsigned> SearchState::FindFocuses(std::
     // LifeState focusable = allFocusable[i];
 
     if (!focusable.IsEmpty())
-      return {focusable, lookahead[i-1], i-1};
-      //return {focusable, lookahead[i-1]};
+      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
   }
 
   // This shouldn't be reached
-  return {LifeState(), LifeUnknownState(), 0};
-  // return {LifeState(), LifeUnknownState()};
+  return {LifeState(), LifeState(), LifeUnknownState(), 0};
 }
 
 bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
@@ -335,8 +330,7 @@ void SearchState::SearchStep() {
       return;
     }
 
-    std::tie(pendingFocuses, focusCurrent, focusCurrentGen) = FindFocuses(lookahead, lookaheadSize); // C++ wtf
-    //std::tie(pendingFocuses, focusCurrent) = FindFocuses(lookahead, lookaheadSize); // C++ wtf
+    std::tie(pendingFocuses, pendingGlanceable, focusCurrent, focusCurrentGen) = FindFocuses(lookahead, lookaheadSize); // C++ wtf
 
     SanityCheck();
   }
@@ -346,6 +340,20 @@ void SearchState::SearchStep() {
     // Shouldn't be possible
     std::cout << "no focus" << std::endl;
     exit(1);
+  }
+
+  bool focusIsGlancing = pendingGlanceable.Get(focus);
+  if(focusIsGlancing) {
+    pendingGlanceable.Erase(focus);
+
+    SearchState nextState = *this;
+    nextState.pendingFocuses.Erase(focus);
+    nextState.stable.glanced.Set(focus);
+    nextState.SearchStep();
+
+    stable.glancedON.Set(focus);
+    SearchStep();
+    return;
   }
 
   bool focusIsDetermined = focusCurrent.KnownNext(focus);
