@@ -212,9 +212,14 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
       return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1}; \
   }
 
-  TRY_CHOOSE(priority & stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
-  TRY_CHOOSE(stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
+  TRY_CHOOSE(stable.stateZOI & priority & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
+  TRY_CHOOSE(priority & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
+  TRY_CHOOSE(stable.stateZOI & priority)
   TRY_CHOOSE(priority)
+
+  TRY_CHOOSE(stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
+  TRY_CHOOSE(oneStableUnknownNeighbour | twoStableUnknownNeighbours);
+  TRY_CHOOSE(stable.stateZOI);
 
 #undef TRY_CHOOSE
 
