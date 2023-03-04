@@ -8,6 +8,7 @@
 
 const unsigned maxLookaheadGens = 6;
 
+const unsigned minStartTime = 1;
 const unsigned maxStartTime = 50;
 const unsigned maxInteractionWindow = 15;
 const unsigned maxActive = 14;
@@ -137,6 +138,9 @@ bool SearchState::TryAdvance() {
     }
 
     if (hasInteracted && currentGen - interactionStart > maxInteractionWindow)
+      return false;
+
+    if (hasInteracted && currentGen < minStartTime)
       return false;
 
     if (hasInteracted && recoveredTime > stableTime) {
