@@ -6,21 +6,15 @@
 #include "LifeStableState.hpp"
 #include "LifeUnknownState.hpp"
 
-const unsigned maxLookaheadGens = 10;
-const unsigned maxLocalGens = 7;
+const unsigned maxLookaheadGens = 6;
 
-const unsigned maxEverActive = 100;
-const unsigned maxStartTime = 10;
-
-const unsigned maxActive = 100;
-const unsigned maxActiveSize = 5;
-const unsigned maxEverActiveSize = 5;
-
-// const unsigned maxActive = 15;
-// const unsigned maxActiveSize = 7;
-// const unsigned maxEverActiveSize = 7;
-
+const unsigned maxStartTime = 50;
 const unsigned maxInteractionWindow = 15;
+const unsigned maxActive = 14;
+const unsigned maxEverActive = 100;
+const std::pair<unsigned, unsigned> maxActiveBounds = {5, 5};
+const std::pair<unsigned, unsigned> maxEverActiveBounds = {5, 5};
+
 const unsigned stableTime = 2;
 
 class SearchState {
@@ -187,7 +181,9 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
   // IDEA: calculate a 'priority' area, for example cells outside
   // the permitted 'everActive' area
 
-  const LifeState rect = LifeState::SolidRect(- maxEverActiveSize+1, - maxEverActiveSize+1, 2 * maxEverActiveSize - 1, 2 * maxEverActiveSize - 1);
+  const LifeState rect = LifeState::SolidRect(
+      -maxEverActiveBounds.first + 1, -maxEverActiveBounds.second + 1,
+      2 * maxEverActiveBounds.first - 1, 2 * maxEverActiveBounds.second - 1);
   const LifeState priority = everActive.Convolve(~rect);
 
   // IDEA: look for focusable cells where all the unknown neighbours
@@ -238,16 +234,14 @@ bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState 
     return false;
 
   auto wh = active.WidthHeight();
-  int maxDim = std::max(wh.first, wh.second);
-  if (maxDim > maxActiveSize)
+  if (wh.first > maxActiveBounds.first || wh.second > maxActiveBounds.second)
     return false;
 
   if (everActive.GetPop() > maxEverActive)
     return false;
 
   wh = everActive.WidthHeight();
-  maxDim = std::max(wh.first, wh.second);
-  if (maxDim > maxEverActiveSize)
+  if (wh.first > maxEverActiveBounds.first || wh.second > maxEverActiveBounds.second)
     return false;
 
   if(hasInteracted && gen > interactionStart + maxInteractionWindow && !active.IsEmpty())
