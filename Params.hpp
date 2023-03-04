@@ -44,13 +44,13 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   // params.stableBounds.second = stableBounds[1];
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 4);
 
-  params.maxActiveCells = toml::find_or(toml, "max-active-cells", 15);
+  params.maxActiveCells = toml::find_or(toml, "max-active-cells", 20);
 
   std::vector<int> activeBounds = toml::find_or<std::vector<int>>(toml, "active-bounds", {100, 100});
   params.activeBounds.first = activeBounds[0];
   params.activeBounds.second = activeBounds[1];
 
-  params.maxEverActiveCells = toml::find_or(toml, "max-ever-active-cells", 15);
+  params.maxEverActiveCells = toml::find_or(toml, "max-ever-active-cells", 20);
 
   std::vector<int> everActiveBounds = toml::find_or<std::vector<int>>(toml, "ever-active-bounds", {100, 100});
   params.everActiveBounds.first = everActiveBounds[0];

@@ -136,11 +136,11 @@ bool SearchState::TryAdvance() {
     LifeState active = current.ActiveComparedTo(stable);
     everActive |= active;
 
-
-
-    if (!CheckConditionsOn(currentGen, current, active, everActive)) {
+    if (!CheckConditionsOn(currentGen, current, active, everActive))
       return false;
-    }
+
+    if(!hasInteracted && currentGen > params->maxFirstActiveGen)
+      return false;
 
     if (hasInteracted && currentGen - interactionStart > params->maxActiveWindowGens)
       return false;
@@ -246,7 +246,7 @@ bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState 
   if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
     return false;
 
-  if (everActive.GetPop() > params->maxActiveCells)
+  if (everActive.GetPop() > params->maxEverActiveCells)
     return false;
 
   wh = everActive.WidthHeight();
@@ -315,9 +315,6 @@ void SearchState::SearchStep() {
       //std::cout << "advance failed" << std::endl;
       return;
     }
-
-    if(!hasInteracted && currentGen > params->maxFirstActiveGen)
-      return;
 
     // std::cout << "Stable" << std::endl;
     // LifeState state = starting | stable.state;
