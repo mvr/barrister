@@ -12,14 +12,14 @@ public:
   LifeState glancedON;  // GlancedON cells are OFF cells have at least two ON neighbours
 
   // Neighbour counts in binary
-  LifeState state0;
-  LifeState state1;
   LifeState state2;
+  LifeState state1;
+  LifeState state0;
 
-  LifeState unknown0;
-  LifeState unknown1;
-  LifeState unknown2;
   LifeState unknown3;
+  LifeState unknown2;
+  LifeState unknown1;
+  LifeState unknown0;
 
   bool SimplePropagateColumnStep(int column); // NOTE: doesn't update the counts
 
@@ -169,6 +169,9 @@ signal_on |= state0 & (~on1) & on0 & (~unk0) ;
    abort |= dr & (~unk3) & (~unk2) & (~unk1) & (~on2) & (~on1) & (((~unk0) & (~on0)) | (unk0 & (~on0)) | ((~unk0) & on0));
    // A glancedON cell that is ON
    abort |= dr & state0;
+
+   signal_off &= unk0 | unk1;
+   signal_on  &= unk0 | unk1;
 
    new_off[i] = set_off & state1;
    new_on[i]  = set_on  & state1;
@@ -562,6 +565,9 @@ signal_on |= state0 & (~on1) & on0 & (~unk0) ;
    // A glancedON cell that is ON
    abort |= dr & state0;
 
+   signal_off &= unk0 | unk1;
+   signal_on  &= unk0 | unk1;
+
    new_off.state[i] = set_off & state1;
    new_on.state[i] = set_on & state1;
    new_signal_off.state[i] = signal_off;
@@ -623,16 +629,7 @@ bool LifeStableState::PropagateStable() {
 }
 
 std::pair<int, int> LifeStableState::UnknownNeighbour(std::pair<int, int> cell) const {
-  // This could obviously be done faster by extracting the result
-  // directly from the columns, but this is probably good enough for now
-  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0, 0}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
-  for (auto d : directions) {
-    int x = (cell.first + d.first + N) % N;
-    int y = (cell.second + d.second + 64) % 64;
-    if (unknownStable.Get(x, y))
-      return std::make_pair(x, y);
-  }
-  return std::make_pair(-1, -1);
+  return unknownStable.FindSetNeighbour(cell);
 }
 
 bool LifeStableState::TestUnknowns() {

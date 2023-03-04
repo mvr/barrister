@@ -180,7 +180,7 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
 
-    LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~prev.unknown;
+    LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~(prev.unknown & ~prev.unknownStable);
     LifeState nearActiveUnknown = (prev.unknown & ~prev.unknownStable).ZOI();
 
     // LifeState prevActive = prev.unknown & ~prev.unknownStable;

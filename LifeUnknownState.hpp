@@ -196,9 +196,10 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
     // Remove unknown cells that we have decided were glancing
     uint64_t glanceSafe = (~stateon) & (~stateunk)
       & unknown
-      & ( (~stable.state2.state[i] & ~stable.state1.state[i] & ~stable.state0.state[i] & (~on2) & (~on1) & on0)
-          | (~stable.state2.state[i] & ~stable.state1.state[i] &  stable.state0.state[i] & ((~on2) & (~on1) & on0))
-          | (~stable.state2.state[i] & ~stable.state1.state[i] &  stable.state0.state[i] & ((~on2) & on1 & (~on0)))
+      & (~stable.state2.state[i] & ~stable.state1.state[i] & (~on2)) &
+        (  (~stable.state0.state[i]  & (~on1) &   on0)
+         | ( stable.state0.state[i]  & (~on1) &   on0)
+         | ( stable.state0.state[i]  &   on1  & (~on0))
         )
       & ~any_unstable_unknown;
     result.unknown.state[i] &= ~(glanceSafe & stable.glanced.state[i]);

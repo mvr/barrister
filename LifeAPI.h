@@ -747,6 +747,9 @@ public:
 
   LifeState Match(const LifeTarget &target) const;
 
+  std::pair<int, int> FindSetNeighbour(std::pair<int, int> cell) const;
+  unsigned NeighbourhoodCount(std::pair<int, int> cell) const;
+
 private:
   void inline Add(uint64_t &b1, uint64_t &b0, const uint64_t &val) {
     b1 |= b0 & val;
@@ -1308,6 +1311,32 @@ std::string LifeState::RLE() const {
   }
 
   return result.str();
+}
+
+std::pair<int, int> LifeState::FindSetNeighbour(std::pair<int, int> cell) const {
+  // This could obviously be done faster by extracting the result
+  // directly from the columns, but this is probably good enough for now
+  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0, 0}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
+  for (auto d : directions) {
+    int x = (cell.first + d.first + N) % N;
+    int y = (cell.second + d.second + 64) % 64;
+    if (Get(x, y))
+      return std::make_pair(x, y);
+  }
+  return std::make_pair(-1, -1);
+}
+
+unsigned LifeState::NeighbourhoodCount(std::pair<int, int> cell) const {
+  unsigned result = 0;
+  // ditto
+  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0, 0}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
+  for (auto d : directions) {
+    int x = (cell.first + d.first + N) % N;
+    int y = (cell.second + d.second + 64) % 64;
+    if (Get(x, y))
+      result++;
+  }
+  return result;
 }
 
 class LifeTarget {
