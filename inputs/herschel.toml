@@ -1,29 +1,23 @@
 min-first-active-gen = 0
 max-first-active-gen = 80
-min-active-window-gens = 5
-max-active-window-gens = 25
+min-active-window-gens = 4
+max-active-window-gens = 30
 min-stable-interval = 4
-max-pre-interaction-choices = 10
-max-post-interaction-choices = 100
 
-max-active-cells = 12
-max-active-size = 6
+max-active-cells = 16
+ever-active-bounds = [6, 6]
 
 # max-changed-cells = 7
 # max-changed-cells-grace-period = 3
 
 stabilise-results = true
 skip-glancing = true
-forbid-blocks = true
+forbid-eater2 = true
 
-pattern-center = [15, 20]
+pattern-center = [10, 20]
 pattern = '''
-x = 10, y = 12, rule = LifeHistory
-14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B$14B4.A$.13B2.A.A$.13B2.3A$.13B2.A$.13B$.13B$.13B$.13B$.13B$.13B$.13B$.13B$.13B$.13B!
+x = 27, y = 42, rule = LifeHistory
+22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$
+22B$22B$22B$22B$22B$22B4.A$22B2.A.A$22B2.3A$22B2.A$22B$22B$22B$22B$
+22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B$22B!
 '''
-
-# pattern-center = [15, 20]
-# pattern = '''
-# x = 24, y = 40, rule = LifeHistory
-# 19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B4.A$19B2.A.A$19B2.3A$19B2.A$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B$19B!
-# '''

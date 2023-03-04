@@ -4,15 +4,13 @@ min-first-active-gen = 40
 max-first-active-gen = 42
 min-active-window-gens = 0
 max-active-window-gens = 20
-max-pre-interaction-choices = 10
-max-post-interaction-choices = 150
 
 max-active-cells = 10
-max-active-size = 5
+ever-active-bounds = [6, 6]
 
 stabilise-results = true
 skip-glancing = true
-forbid-blocks = true
+forbid-eater2 = true
 
 pattern-center = [15, 15]
 pattern = '''

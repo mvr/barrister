@@ -1,22 +1,15 @@
 #include <cassert>
 
+#include "toml/toml.hpp"
+
 #include "LifeAPI.h"
 #include "Parsing.hpp"
 #include "Bits.hpp"
 #include "LifeStableState.hpp"
 #include "LifeUnknownState.hpp"
+#include "Params.hpp"
 
 const unsigned maxLookaheadGens = 6;
-
-const unsigned minStartTime = 1;
-const unsigned maxStartTime = 50;
-const unsigned maxInteractionWindow = 15;
-const unsigned maxActive = 14;
-const unsigned maxEverActive = 100;
-const std::pair<unsigned, unsigned> maxActiveBounds = {5, 5};
-const std::pair<unsigned, unsigned> maxEverActiveBounds = {5, 5};
-
-const unsigned stableTime = 2;
 
 class SearchState {
 public:
@@ -39,7 +32,9 @@ public:
   unsigned interactionStart;
   unsigned recoveredTime;
 
-  SearchState();
+  SearchParams *params;
+
+  SearchState(SearchParams &inparams);
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
 
@@ -70,7 +65,15 @@ public:
 //   return LifeBellmanRLEFor(state, marked);
 // }
 
-SearchState::SearchState() : currentGen {0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
+SearchState::SearchState(SearchParams &inparams)
+  : currentGen{0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
+
+  params = &inparams;
+
+  starting = inparams.activePattern | inparams.startingStable;
+  stable.state = inparams.startingStable;
+  stable.unknownStable = inparams.searchArea;
+
   everActive = LifeState();
   pendingFocuses = LifeState();
 }
@@ -133,17 +136,19 @@ bool SearchState::TryAdvance() {
     LifeState active = current.ActiveComparedTo(stable);
     everActive |= active;
 
+
+
     if (!CheckConditionsOn(currentGen, current, active, everActive)) {
       return false;
     }
 
-    if (hasInteracted && currentGen - interactionStart > maxInteractionWindow)
+    if (hasInteracted && currentGen - interactionStart > params->maxActiveWindowGens)
       return false;
 
-    if (hasInteracted && currentGen < minStartTime)
+    if (hasInteracted && currentGen < params->minFirstActiveGen)
       return false;
 
-    if (hasInteracted && recoveredTime > stableTime) {
+    if (hasInteracted && recoveredTime > params->minStableInterval) {
       ReportSolution();
       return false;
     }
@@ -186,8 +191,8 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
   // the permitted 'everActive' area
 
   const LifeState rect = LifeState::SolidRect(
-      -maxEverActiveBounds.first + 1, -maxEverActiveBounds.second + 1,
-      2 * maxEverActiveBounds.first - 1, 2 * maxEverActiveBounds.second - 1);
+      -params->everActiveBounds.first + 1, -params->everActiveBounds.second + 1,
+      2 * params->everActiveBounds.first - 1, 2 * params->everActiveBounds.second - 1);
   const LifeState priority = everActive.Convolve(~rect);
 
   // IDEA: look for focusable cells where all the unknown neighbours
@@ -234,21 +239,21 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
 }
 
 bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
-  if (active.GetPop() > maxActive)
+  if (active.GetPop() > params->maxActiveCells)
     return false;
 
   auto wh = active.WidthHeight();
-  if (wh.first > maxActiveBounds.first || wh.second > maxActiveBounds.second)
+  if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
     return false;
 
-  if (everActive.GetPop() > maxEverActive)
+  if (everActive.GetPop() > params->maxActiveCells)
     return false;
 
   wh = everActive.WidthHeight();
-  if (wh.first > maxEverActiveBounds.first || wh.second > maxEverActiveBounds.second)
+  if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
     return false;
 
-  if(hasInteracted && gen > interactionStart + maxInteractionWindow && !active.IsEmpty())
+  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && !active.IsEmpty())
     return false;
 
   return true;
@@ -269,7 +274,7 @@ bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens>
   // This could miss a catalyst recovering then failing
   if (hasInteracted) {
     LifeUnknownState gen = lookahead[lookaheadSize - 1];
-    for(int i = lookaheadSize; currentGen + i < interactionStart + maxInteractionWindow; i++) {
+    for(int i = lookaheadSize; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
       gen = gen.UncertainStepMaintaining(stable);
       LifeState active = gen.ActiveComparedTo(stable);
       everActive |= active;
@@ -311,7 +316,7 @@ void SearchState::SearchStep() {
       return;
     }
 
-    if(!hasInteracted && currentGen > maxStartTime)
+    if(!hasInteracted && currentGen > params->maxFirstActiveGen)
       return;
 
     // std::cout << "Stable" << std::endl;
@@ -345,7 +350,7 @@ void SearchState::SearchStep() {
     }
   }
 
-  bool focusIsGlancing = pendingGlanceable.Get(focus) && focusCurrent.StillGlancingFor(focus, stable);
+  bool focusIsGlancing = params->skipGlancing && pendingGlanceable.Get(focus) && focusCurrent.StillGlancingFor(focus, stable);
   if(focusIsGlancing) {
     pendingGlanceable.Erase(focus);
 
@@ -454,10 +459,8 @@ bool SearchState::ContainsEater2(LifeState &stable, LifeState &everActive) const
 }
 
 void SearchState::ReportSolution() {
-  if (ContainsEater2(stable.state, everActive))
+  if (params->forbidEater2 && ContainsEater2(stable.state, everActive))
     return;
-
-  LifeState completed = stable.CompleteStable();
 
   std::cout << "Winner:" << std::endl;
   std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
@@ -468,24 +471,19 @@ void SearchState::ReportSolution() {
   // std::cout << LifeBellmanRLEFor(state, stable.glanced) << std::endl;
   // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
   // std::cout << LifeBellmanRLEFor(state, stable.glancedON) << std::endl;m
-  std::cout << "Completed:" << std::endl;
-  std::cout << (completed | starting).RLE() << std::endl;
+  if(params->stabiliseResults) {
+    LifeState completed = stable.CompleteStable();
+    std::cout << "Completed:" << std::endl;
+    std::cout << (completed | starting).RLE() << std::endl;
+  }
 }
 
 int main(int argc, char *argv[]) {
-  std::string rle = "x = 27, y = 30, rule = LifeHistory\n\
-6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.\n\
-21B$.2A3.21B$A2.A2.21B$.3A2.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$\n\
-6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B$6.21B!\n";
 
-  LifeState on;
-  LifeState marked;
-  ParseTristateWHeader(rle, on, marked);
 
-  SearchState search;
-  search.starting = on;
-  search.stable.state = LifeState();
-  search.stable.unknownStable = marked;
+  auto toml = toml::parse(argv[1]);
+  SearchParams params = SearchParams::FromToml(toml);
 
+  SearchState search(params);
   search.Search();
 }

@@ -1,16 +1,16 @@
 min-first-active-gen = 0
-max-first-active-gen = 20
+max-first-active-gen = 10
 min-stable-interval = 5
 
 max-active-window-gens = 20
 
-max-pre-interaction-choices = 4
-max-post-interaction-choices = 40
+max-pre-interaction-choices = 100
+max-post-interaction-choices = 300
 max-stable-pop = 100
 
 max-active-cells = 8
 
-stabilise-results = true
+stabilise-results = false
 skip-glancing = true
 forbid-blocks = true
 
