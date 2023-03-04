@@ -518,6 +518,9 @@ public:
       state[i] = temp[i+shift];
     }
   }
+  void Move(std::pair<int, int> vec) {
+    Move(vec.first, vec.second);
+  }
 
   void BitReverse() {
     for (int i = 0; i < N; i++) {

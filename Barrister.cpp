@@ -63,6 +63,9 @@ public:
   void Search();
   void SearchStep();
 
+  bool ContainsEater2(LifeState &stable, LifeState &everActive) const;
+  void ReportSolution();
+
   void SanityCheck();
 };
 
@@ -143,16 +146,7 @@ bool SearchState::TryAdvance() {
       return false;
 
     if (hasInteracted && recoveredTime > stableTime) {
-      LifeState completed = stable.CompleteStable();
-
-      std::cout << "Winner:" << std::endl;
-      std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-      LifeState state = starting | stable.state;
-      LifeState marked = stable.unknownStable | stable.state;
-      std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
-      std::cout << "Completed:" << std::endl;
-      std::cout << (completed | starting).RLE() << std::endl;
-
+      ReportSolution();
       return false;
     }
   }
@@ -420,6 +414,64 @@ void SearchState::SearchStep() {
         nextState.SearchStep();
     }
   }
+}
+
+bool SearchState::ContainsEater2(LifeState &stable, LifeState &everActive) const {
+  LifeState blockMatch;
+  for(unsigned i = 0; i < N-1; ++i)
+    blockMatch.state[i] = stable.state[i] & RotateRight(stable.state[i]) &
+      stable.state[i+1] & RotateRight(stable.state[i+1]);
+  blockMatch.state[N-1] = stable.state[N-1] & RotateRight(stable.state[N-1]) &
+    stable.state[0] & RotateRight(stable.state[0]);
+
+  std::vector<LifeState> shouldBeActive = {
+      LifeState::Parse("bo$o!", 1, 1),
+      LifeState::Parse("o$bo!", -1, 1),
+      LifeState::Parse("bo$o!", -1, -1),
+      LifeState::Parse("o$bo!", 1, -1),
+  };
+  std::vector<LifeState> shouldNotBeActive = {
+    LifeState::Parse("2bo2$obo!", 0, 0),
+    LifeState::Parse("o2$obo!", -1, 0),
+    LifeState::Parse("obo2$o!", -1, -1),
+    LifeState::Parse("obo2$2bo!", 0, -1),
+  };
+
+  while (!blockMatch.IsEmpty()) {
+    auto corner = blockMatch.FirstOn();
+    blockMatch.Erase(corner);
+    for(unsigned i = 0; i < 4; ++i){
+      LifeState shouldBeActiveCopy = shouldBeActive[i];
+      LifeState shouldNotBeActiveCopy = shouldNotBeActive[i];
+      shouldBeActiveCopy.Move(corner);
+      shouldNotBeActiveCopy.Move(corner);
+
+      if(everActive.Contains(shouldBeActiveCopy)
+         && everActive.AreDisjoint(shouldNotBeActiveCopy)){
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void SearchState::ReportSolution() {
+  if (ContainsEater2(stable.state, everActive))
+    return;
+
+  LifeState completed = stable.CompleteStable();
+
+  std::cout << "Winner:" << std::endl;
+  std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  LifeState state = starting | stable.state;
+  LifeState marked = stable.unknownStable | stable.state;
+  std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
+  // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  // std::cout << LifeBellmanRLEFor(state, stable.glanced) << std::endl;
+  // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  // std::cout << LifeBellmanRLEFor(state, stable.glancedON) << std::endl;m
+  std::cout << "Completed:" << std::endl;
+  std::cout << (completed | starting).RLE() << std::endl;
 }
 
 int main(int argc, char *argv[]) {
