@@ -208,7 +208,7 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
     LifeState focusable = allFocusable[i]; \
     focusable &= exp; \
     if (!focusable.IsEmpty()) \
-      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1}; \
+      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], currentGen + i - 1}; \
   }
 
   TRY_CHOOSE(stable.stateZOI & priority & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
@@ -239,7 +239,12 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
 }
 
 bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
-  if (active.GetPop() > params->maxActiveCells)
+  auto activePop = active.GetPop();
+
+  if (gen < params->minFirstActiveGen && activePop > 0)
+    return false;
+
+  if (activePop > params->maxActiveCells)
     return false;
 
   auto wh = active.WidthHeight();
