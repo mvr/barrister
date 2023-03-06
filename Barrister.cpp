@@ -362,8 +362,9 @@ void SearchState::SearchStep() {
 
     pendingFocuses.Erase(focus);
     stable.glanced.Set(focus);
-    SearchStep();
-    return;
+
+    [[clang::musttail]]
+    return SearchStep();
   }
 
   bool focusIsDetermined = focusCurrent.KnownNext(focus);
@@ -371,8 +372,9 @@ void SearchState::SearchStep() {
   auto cell = stable.UnknownNeighbour(focus);
   if(focusIsDetermined || cell == std::pair(-1, -1)) {
     pendingFocuses.Erase(focus);
-    SearchStep();
-    return;
+
+    [[clang::musttail]]
+    return SearchStep();
   }
 
   {
@@ -416,7 +418,8 @@ void SearchState::SearchStep() {
       LifeState quickeveractive = everActive | quickactive;
       bool conditionsPassed = CheckConditionsOn(focusCurrentGen+1, quicklook, quickactive, quickeveractive);
       if(conditionsPassed)
-        nextState.SearchStep();
+        [[clang::musttail]]
+        return nextState.SearchStep();
     }
   }
 }
