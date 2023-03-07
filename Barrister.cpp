@@ -142,7 +142,7 @@ bool SearchState::TryAdvance() {
     if(!hasInteracted && currentGen > params->maxFirstActiveGen)
       return false;
 
-    if (hasInteracted && currentGen - interactionStart > params->maxActiveWindowGens)
+    if (hasInteracted && currentGen > interactionStart + params->maxActiveWindowGens && recoveredTime == 0)
       return false;
 
     if (hasInteracted && currentGen < params->minFirstActiveGen)
@@ -283,6 +283,10 @@ bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens>
       gen = gen.UncertainStepMaintaining(stable);
       LifeState active = gen.ActiveComparedTo(stable);
       everActive |= active;
+
+      if(active.IsEmpty())
+        break;
+
       bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive);
       if (!genResult)
         return false;
