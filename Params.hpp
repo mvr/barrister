@@ -34,14 +34,14 @@ public:
 SearchParams SearchParams::FromToml(toml::value &toml) {
   SearchParams params;
 
-  params.minFirstActiveGen = toml::find_or(toml, "min-first-active-gen", 0);
-  params.maxFirstActiveGen = toml::find_or(toml, "max-first-active-gen", 100);
-  // params.minActiveWindowGens = toml::find_or(toml, "min-active-window-gens", 0);
-  params.maxActiveWindowGens = toml::find_or(toml, "max-active-window-gens", 100);
-  // params.maxStablePop = toml::find_or(toml, "max-stable-pop", 1000);
-  // std::vector<int> stableBounds = toml::find_or<std::vector<int>>(toml, "stable-bounds", {100, 100});
-  // params.stableBounds.first = stableBounds[0];
-  // params.stableBounds.second = stableBounds[1];
+  std::vector<int> firstRange = toml::find_or<std::vector<int>>(toml, "first-active-range", {0, 100});
+  params.minFirstActiveGen = firstRange[0];
+  params.maxFirstActiveGen = firstRange[1];
+
+  std::vector<int> windowRange = toml::find_or<std::vector<int>>(toml, "active-window-range", {0, 100});
+  // params.minActiveWindowGens = windowRange[0];
+  params.maxActiveWindowGens = windowRange[1];
+
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 4);
 
   params.maxActiveCells = toml::find_or(toml, "max-active-cells", 20);

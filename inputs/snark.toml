@@ -1,9 +1,7 @@
 # Snarks are easy to find if you know exactly where to look
 
-min-first-active-gen = 40
-max-first-active-gen = 42
-min-active-window-gens = 0
-max-active-window-gens = 20
+first-active-range = [40, 42]
+active-window-range = [0, 20]
 
 max-active-cells = 15
 ever-active-bounds = [6, 4]
@@ -19,6 +17,8 @@ x = 32, y = 27, rule = LifeHistory
 $24.8B$6.2A15.9B$5.A.A5.2A.16B$5.A7.2A.16B$4.2A10.16B$8.24B$8.24B$32B
 $32B$32B$32B$32B$32B$32B$32B$32B$32B$32B!
 '''
+
+# Filters not yet implemented
 
 # #F 46 19 10
 # .....

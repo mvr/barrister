@@ -1,22 +1,15 @@
 # This should find the same catalyst on the other side
 
-min-first-active-gen = 0
-max-first-active-gen = 1
-min-active-window-gens = 5
-max-active-window-gens = 10
+first-active-range = [0, 1]
+active-window-range = [5, 10]
 min-stable-interval = 4
-max-pre-interaction-choices = 10
-max-post-interaction-choices = 200
 
 max-active-cells = 12
-max-active-size = 6
-
-# max-changed-cells = 7
-# max-changed-cells-grace-period = 3
+active-bounds = [7, 5]
 
 stabilise-results = true
 skip-glancing = true
-debug = false
+forbid-eater2 = false
 
 pattern-center = [10, 20]
 pattern = '''

@@ -1,21 +1,12 @@
-min-first-active-gen = 3
-max-first-active-gen = 7
-min-active-window-gens = 3
-max-active-window-gens = 40
+first-active-range = [3, 7]
+active-window-range = [3, 40]
 min-stable-interval = 5
 
-# max-stable-pop = 100
-
-max-active-cells = 100
-ever-active-bounds = [7, 7]
-
-# max-changed-cells = 8
+ever-active-bounds = [5, 5]
 
 stabilise-results = true
 skip-glancing = true
 forbid-eater2 = false
-
-# debug = true
 
 pattern-center = [15, 10]
 pattern = '''

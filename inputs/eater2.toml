@@ -1,7 +1,5 @@
-min-first-active-gen = 0
-max-first-active-gen = 70
-min-active-window-gens = 0
-max-active-window-gens = 70
+first-active-range = [0, 70]
+active-window-range = [0, 20]
 min-stable-interval = 15
 
 max-stable-pop = 100
