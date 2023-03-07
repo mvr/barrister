@@ -258,7 +258,7 @@ bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState 
   if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
     return false;
 
-  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && !active.IsEmpty())
+  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
     return false;
 
   return true;
