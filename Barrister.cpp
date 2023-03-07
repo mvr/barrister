@@ -293,9 +293,20 @@ bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens>
 }
 
 void SearchState::SanityCheck() {
+  assert((stable.unknownStable & stable.glanced).IsEmpty());
+  assert((stable.unknownStable & stable.glancedON).IsEmpty());
+  assert((stable.state & stable.glanced).IsEmpty());
+  assert((stable.state & stable.glancedON).IsEmpty());
+  assert((stable.unknownStable & stable.glanced).IsEmpty());
+  assert((stable.unknownStable & stable.glancedON).IsEmpty());
+  assert((stable.glanced & stable.glancedON).IsEmpty());
+
   assert((current.unknownStable & ~current.unknown).IsEmpty());
   assert((stable.state & stable.unknownStable).IsEmpty());
   assert((current.unknownStable & ~stable.unknownStable).IsEmpty());
+
+  //assert((~pendingFocuses & pendingGlanceable).IsEmpty());
+
 }
 
 void SearchState::Search() {
