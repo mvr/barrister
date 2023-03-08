@@ -119,8 +119,7 @@ bool SearchState::TryAdvanceOne() {
   currentGen++;
 
   if (hasInteracted) {
-    LifeState stableZOI = stable.state.ZOI();
-    bool isRecovered = ((stable.state ^ current.state) & stableZOI).IsEmpty();
+    bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
     if (isRecovered)
       recoveredTime++;
     else
@@ -199,8 +198,9 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
   // are unknownStable, that will stop us from wasting time on an
   // expanding unknown region
 
-  LifeState oneStableUnknownNeighbour  =  stable.unknown0 & ~stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
-  LifeState twoStableUnknownNeighbours = ~stable.unknown0 &  stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
+  // LifeState oneStableUnknownNeighbour  =  stable.unknown0 & ~stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
+  // LifeState twoStableUnknownNeighbours = ~stable.unknown0 &  stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
+  LifeState oneOrTwoUnknownNeighbours  = (stable.unknown0 ^ stable.unknown1) & ~stable.unknown2 & ~stable.unknown3;
   // LifeState fewStableUnknownNeighbours = ~stable.unknown2 & ~stable.unknown3;
 
 #define TRY_CHOOSE(exp) \
@@ -211,28 +211,19 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
       return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], currentGen + i - 1}; \
   }
 
-  TRY_CHOOSE(stable.stateZOI & priority & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
-  TRY_CHOOSE(priority & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
+  TRY_CHOOSE(stable.stateZOI & priority & oneOrTwoUnknownNeighbours);
+  TRY_CHOOSE(priority & oneOrTwoUnknownNeighbours);
   TRY_CHOOSE(stable.stateZOI & priority)
   TRY_CHOOSE(priority)
 
-  TRY_CHOOSE(stable.stateZOI & (oneStableUnknownNeighbour | twoStableUnknownNeighbours));
-  TRY_CHOOSE(oneStableUnknownNeighbour | twoStableUnknownNeighbours);
+  TRY_CHOOSE(stable.stateZOI & oneOrTwoUnknownNeighbours);
+  TRY_CHOOSE(oneOrTwoUnknownNeighbours);
   TRY_CHOOSE(stable.stateZOI);
 
-#undef TRY_CHOOSE
-
   // Try anything at all
-  for (int i = 1; i < lookaheadSize; i++) {
-    LifeUnknownState &gen = lookahead[i];
-    LifeUnknownState &prev = lookahead[i-1];
-    LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~(prev.unknown & ~prev.unknownStable);
-    LifeState focusable = becomeUnknown;
-    // LifeState focusable = allFocusable[i];
+  TRY_CHOOSE(~LifeState());
 
-    if (!focusable.IsEmpty())
-      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], i-1};
-  }
+#undef TRY_CHOOSE
 
   // This shouldn't be reached
   return {LifeState(), LifeState(), LifeUnknownState(), 0};
