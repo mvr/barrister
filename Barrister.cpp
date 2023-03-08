@@ -366,7 +366,8 @@ void SearchState::SearchStep() {
   if(focusIsGlancing) {
     pendingFocuses.glanceable.Erase(focus);
 
-    if(!pendingFocuses.priority.Get(focus)) {
+    if (!pendingFocuses.priority.Get(focus) || stable.unknown2.Get(focus) ||
+        stable.unknown3.Get(focus)) { // TODO: handle overpopulation better
       SearchState nextState = *this;
       nextState.stable.glancedON.Set(focus);
       nextState.SearchStep();
