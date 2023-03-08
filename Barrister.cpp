@@ -11,6 +11,16 @@
 
 const unsigned maxLookaheadGens = 6;
 
+struct FocusSet {
+  LifeState focuses;
+  LifeState glanceable;
+  LifeState priority;
+
+  LifeUnknownState currentState;
+  unsigned currentGen;
+};
+
+
 class SearchState {
 public:
 
@@ -18,14 +28,9 @@ public:
   LifeStableState stable;
   LifeUnknownState current;
 
-  LifeState pendingFocuses;
-  LifeState pendingGlanceable;
-
-  LifeUnknownState focusCurrent;
-
   LifeState everActive;
 
-  unsigned focusCurrentGen;
+  FocusSet pendingFocuses;
 
   unsigned currentGen;
   bool hasInteracted;
@@ -44,8 +49,7 @@ public:
   bool TryAdvanceOne();
   std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead() const;
 
-  //std::pair<LifeState, LifeUnknownState> FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
-  std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
+  FocusSet FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
 
   bool CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const;
   bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize);
@@ -75,7 +79,7 @@ SearchState::SearchState(SearchParams &inparams)
   stable.unknownStable = inparams.searchArea;
 
   everActive = LifeState();
-  pendingFocuses = LifeState();
+  pendingFocuses.focuses = LifeState();
 }
 
 void SearchState::TransferStableToCurrent() {
@@ -170,7 +174,7 @@ std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::Popu
   return {lookahead, maxLookaheadGens};
 }
 
-std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
+FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
   std::array<LifeState, maxLookaheadGens> allFocusable;
   for (int i = 1; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
@@ -208,7 +212,7 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
     LifeState focusable = allFocusable[i]; \
     focusable &= exp; \
     if (!focusable.IsEmpty()) \
-      return {focusable, lookahead[i].glanceableUnknown, lookahead[i-1], currentGen + i - 1}; \
+      return {focusable, lookahead[i].glanceableUnknown, priority, lookahead[i-1], currentGen + i - 1}; \
   }
 
   TRY_CHOOSE(stable.stateZOI & priority & oneOrTwoUnknownNeighbours);
@@ -226,7 +230,7 @@ std::tuple<LifeState, LifeState, LifeUnknownState, unsigned> SearchState::FindFo
 #undef TRY_CHOOSE
 
   // This shouldn't be reached
-  return {LifeState(), LifeState(), LifeUnknownState(), 0};
+  return {LifeState(), LifeState(), LifeState(), LifeUnknownState(), 0};
 }
 
 bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
@@ -313,7 +317,7 @@ void SearchState::Search() {
 }
 
 void SearchState::SearchStep() {
-  if(pendingFocuses.IsEmpty()) {
+  if(pendingFocuses.focuses.IsEmpty()) {
     bool consistent = stable.PropagateStable();
     if (!consistent) {
       //    std::cout << "not consistent" << std::endl;
@@ -343,14 +347,14 @@ void SearchState::SearchStep() {
       return;
     }
 
-    std::tie(pendingFocuses, pendingGlanceable, focusCurrent, focusCurrentGen) = FindFocuses(lookahead, lookaheadSize); // C++ wtf
+    pendingFocuses = FindFocuses(lookahead, lookaheadSize);
 
     SanityCheck();
   }
 
-  auto focus = (pendingFocuses & ~pendingGlanceable).FirstOn();
+  auto focus = (pendingFocuses.focuses & ~pendingFocuses.glanceable).FirstOn();
   if (focus == std::pair(-1, -1)) {
-    focus = pendingFocuses.FirstOn();
+    focus = pendingFocuses.focuses.FirstOn();
     // Shouldn't be possible
     if (focus == std::pair(-1, -1)) {
       std::cout << "no focus" << std::endl;
@@ -358,26 +362,28 @@ void SearchState::SearchStep() {
     }
   }
 
-  bool focusIsGlancing = params->skipGlancing && pendingGlanceable.Get(focus) && focusCurrent.StillGlancingFor(focus, stable);
+  bool focusIsGlancing = params->skipGlancing && pendingFocuses.glanceable.Get(focus) && pendingFocuses.currentState.StillGlancingFor(focus, stable);
   if(focusIsGlancing) {
-    pendingGlanceable.Erase(focus);
+    pendingFocuses.glanceable.Erase(focus);
 
-    SearchState nextState = *this;
-    nextState.stable.glancedON.Set(focus);
-    nextState.SearchStep();
+    if(!pendingFocuses.priority.Get(focus)) {
+      SearchState nextState = *this;
+      nextState.stable.glancedON.Set(focus);
+      nextState.SearchStep();
+    }
 
-    pendingFocuses.Erase(focus);
+    pendingFocuses.focuses.Erase(focus);
     stable.glanced.Set(focus);
 
     [[clang::musttail]]
     return SearchStep();
   }
 
-  bool focusIsDetermined = focusCurrent.KnownNext(focus);
+  bool focusIsDetermined = pendingFocuses.currentState.KnownNext(focus);
 
   auto cell = stable.UnknownNeighbour(focus);
   if(focusIsDetermined || cell == std::pair(-1, -1)) {
-    pendingFocuses.Erase(focus);
+    pendingFocuses.focuses.Erase(focus);
 
     [[clang::musttail]]
     return SearchStep();
@@ -390,17 +396,17 @@ void SearchState::SearchStep() {
     nextState.stable.state.SetCellUnsafe(cell, which);
     nextState.stable.unknownStable.Erase(cell);
 
-    nextState.focusCurrent.state.SetCellUnsafe(cell, which);
-    nextState.focusCurrent.unknown.Erase(cell);
-    nextState.focusCurrent.unknownStable.Erase(cell);
+    nextState.pendingFocuses.currentState.state.SetCellUnsafe(cell, which);
+    nextState.pendingFocuses.currentState.unknown.Erase(cell);
+    nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
-      LifeUnknownState quicklook = nextState.focusCurrent.UncertainStepMaintaining(nextState.stable);
+      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepMaintaining(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
-      bool conditionsPassed = CheckConditionsOn(focusCurrentGen+1, quicklook, quickactive, quickeveractive);
+      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive);
       if(conditionsPassed)
         nextState.SearchStep();
     }
@@ -412,17 +418,17 @@ void SearchState::SearchStep() {
     nextState.stable.state.SetCellUnsafe(cell, which);
     nextState.stable.unknownStable.Erase(cell);
 
-    nextState.focusCurrent.state.SetCellUnsafe(cell, which);
-    nextState.focusCurrent.unknown.Erase(cell);
-    nextState.focusCurrent.unknownStable.Erase(cell);
+    nextState.pendingFocuses.currentState.state.SetCellUnsafe(cell, which);
+    nextState.pendingFocuses.currentState.unknown.Erase(cell);
+    nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
-      LifeUnknownState quicklook = nextState.focusCurrent.UncertainStepMaintaining(nextState.stable);
+      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepMaintaining(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
-      bool conditionsPassed = CheckConditionsOn(focusCurrentGen+1, quicklook, quickactive, quickeveractive);
+      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive);
       if(conditionsPassed)
         [[clang::musttail]]
         return nextState.SearchStep();
