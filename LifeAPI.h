@@ -206,6 +206,9 @@ public:
   void SetCellUnsafe(std::pair<int, int> xy, int val) { SetCellUnsafe(xy.first, xy.second, val); };
   int GetCell(std::pair<int, int> xy) const { return GetCell(xy.first, xy.second); };
 
+  uint64_t& operator[](unsigned i) { return state[i]; }
+  const uint64_t& operator[](unsigned i) const { return state[i]; }
+
   uint64_t GetHash() const {
     uint64_t result = 0;
 
@@ -222,29 +225,29 @@ public:
   void Copy(const LifeState &delta, CopyType op) {
     if (op == COPY) {
       for (int i = 0; i < N; i++)
-        state[i] = delta.state[i];
+        state[i] = delta[i];
       return;
     }
     if (op == OR) {
       for (int i = 0; i < N; i++)
-        state[i] |= delta.state[i];
+        state[i] |= delta[i];
       return;
     }
     if (op == AND) {
       for (int i = 0; i < N; i++)
-        state[i] &= delta.state[i];
+        state[i] &= delta[i];
     }
     if (op == ANDNOT) {
       for (int i = 0; i < N; i++)
-        state[i] &= ~delta.state[i];
+        state[i] &= ~delta[i];
     }
     if (op == ORNOT) {
       for (int i = 0; i < N; i++)
-        state[i] |= ~delta.state[i];
+        state[i] |= ~delta[i];
     }
     if (op == XOR) {
       for (int i = 0; i < N; i++)
-        state[i] ^= delta.state[i];
+        state[i] ^= delta[i];
     }
   }
 
@@ -259,7 +262,7 @@ public:
       y += 64;
 
     for (int i = 0; i < N; i++)
-      temp1[i] = RotateLeft(delta.state[i], y);
+      temp1[i] = RotateLeft(delta[i], y);
 
     memmove(state, temp1 + (N - x), x * sizeof(uint64_t));
     memmove(state + x, temp1, (N - x) * sizeof(uint64_t));
@@ -277,8 +280,8 @@ public:
       y += 64;
 
     for (int i = 0; i < N; i++) {
-      temp[i]   = RotateLeft(delta.state[i], y);
-      temp[i+N] = RotateLeft(delta.state[i], y);
+      temp[i]   = RotateLeft(delta[i], y);
+      temp[i+N] = RotateLeft(delta[i], y);
     }
 
     const int shift = N - x;
@@ -371,7 +374,7 @@ public:
     uint64_t diffs = 0;
 
     for (int i = 0; i < N; i++)
-      diffs |= state[i] ^ b.state[i];
+      diffs |= state[i] ^ b[i];
 
     return diffs == 0;
   }
@@ -383,7 +386,7 @@ public:
   LifeState operator~() const {
     LifeState result(false);
     for (int i = 0; i < N; i++) {
-      result.state[i] = ~state[i];
+      result[i] = ~state[i];
     }
     return result;
   }
@@ -391,14 +394,14 @@ public:
   LifeState operator&(const LifeState &other) const {
     LifeState result(false);
     for (int i = 0; i < N; i++) {
-      result.state[i] = state[i] & other.state[i];
+      result[i] = state[i] & other[i];
     }
     return result;
   }
 
   LifeState& operator&=(const LifeState &other) {
     for (int i = 0; i < N; i++) {
-      state[i] = state[i] & other.state[i];
+      state[i] = state[i] & other[i];
     }
     return *this;
   }
@@ -406,14 +409,14 @@ public:
   LifeState operator|(const LifeState &other) const {
     LifeState result(false);
     for (int i = 0; i < N; i++) {
-      result.state[i] = state[i] | other.state[i];
+      result[i] = state[i] | other[i];
     }
     return result;
   }
 
   LifeState& operator|=(const LifeState &other) {
     for (int i = 0; i < N; i++) {
-      state[i] = state[i] | other.state[i];
+      state[i] = state[i] | other[i];
     }
     return *this;
   }
@@ -421,14 +424,14 @@ public:
   LifeState operator^(const LifeState &other) const {
     LifeState result(false);
     for (int i = 0; i < N; i++) {
-      result.state[i] = state[i] ^ other.state[i];
+      result[i] = state[i] ^ other[i];
     }
     return result;
   }
 
   LifeState& operator^=(const LifeState &other) {
     for (int i = 0; i < N; i++) {
-      state[i] = state[i] ^ other.state[i];
+      state[i] = state[i] ^ other[i];
     }
     return *this;
   }
@@ -440,7 +443,7 @@ public:
     uint64_t differences = 0;
     #pragma clang loop vectorize(enable)
     for (int i = min; i <= max; i++) {
-      uint64_t difference = (~state[i] & pat.state[i]) ^ (pat.state[i]);
+      uint64_t difference = (~state[i] & pat[i]) ^ (pat[i]);
       differences |= difference;
     }
 
@@ -454,7 +457,7 @@ public:
     uint64_t differences = 0;
     #pragma clang loop vectorize(enable)
     for (int i = min; i <= max; i++) {
-      uint64_t difference = (state[i] & pat.state[i]) ^ (pat.state[i]);
+      uint64_t difference = (state[i] & pat[i]) ^ (pat[i]);
       differences |= difference;
     }
 
@@ -467,7 +470,7 @@ public:
     for (int i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
-      if ((RotateRight(state[curX], dy) & pat.state[i]) != (pat.state[i]))
+      if ((RotateRight(state[curX], dy) & pat[i]) != (pat[i]))
         return false;
     }
     return true;
@@ -479,7 +482,7 @@ public:
     for (int i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
-      if (((~RotateRight(state[curX], dy)) & pat.state[i]) != pat.state[i])
+      if (((~RotateRight(state[curX], dy)) & pat[i]) != pat[i])
         return false;
     }
 
@@ -567,18 +570,18 @@ public:
     LifeState temp(false);
     for (int i = 0; i < N; i++) {
       uint64_t col = state[i];
-      temp.state[i] = col | RotateLeft(col) | RotateRight(col);
+      temp[i] = col | RotateLeft(col) | RotateRight(col);
     }
 
     LifeState boundary = temp;
 
-    boundary.state[0] |= temp.state[N-1];
+    boundary[0] |= temp[N-1];
     for(int i = 1; i < N; i++)
-        boundary.state[i] |= temp.state[i-1];
+        boundary[i] |= temp[i-1];
 
     for(int i = 0; i < N-1; i++)
-        boundary.state[i] |= temp.state[i+1];
-    boundary.state[N-1] |= temp.state[0];
+        boundary[i] |= temp[i+1];
+    boundary[N-1] |= temp[0];
 
     return boundary;
   }
@@ -588,15 +591,15 @@ public:
     LifeState boundary(false);
     for (int i = 0; i < N; i++) {
       uint64_t col = state[i];
-      temp.state[i] = col | RotateLeft(col) | RotateRight(col);
+      temp[i] = col | RotateLeft(col) | RotateRight(col);
     }
 
-    boundary.state[0] = state[N - 1] | temp.state[0] | state[1];
+    boundary[0] = state[N - 1] | temp[0] | state[1];
 
     for (int i = 1; i < N - 1; i++)
-      boundary.state[i] = state[i - 1] | temp.state[i] | state[i + 1];
+      boundary[i] = state[i - 1] | temp[i] | state[i + 1];
 
-    boundary.state[N - 1] = state[N - 2] | temp.state[N - 1] | state[0];
+    boundary[N - 1] = state[N - 2] | temp[N - 1] | state[0];
 
     return boundary;
   }
@@ -610,38 +613,38 @@ public:
 
   LifeState BigZOI() const {
     LifeState b(false);
-    b.state[0] = state[0] | RotateLeft(state[0]) | RotateRight(state[0]) |
+    b[0] = state[0] | RotateLeft(state[0]) | RotateRight(state[0]) |
                  state[N - 1] | state[0 + 1];
     for (int i = 1; i < N-1; i++) {
-      b.state[i] = state[i] | RotateLeft(state[i]) | RotateRight(state[i]) | state[i-1] | state[i+1];
+      b[i] = state[i] | RotateLeft(state[i]) | RotateRight(state[i]) | state[i-1] | state[i+1];
     }
-    b.state[N-1] = state[N-1] | RotateLeft(state[N-1]) | RotateRight(state[N-1]) |
+    b[N-1] = state[N-1] | RotateLeft(state[N-1]) | RotateRight(state[N-1]) |
                  state[N-1 - 1] | state[0];
 
     LifeState c(false);
-    c.state[0] = b.state[0] | b.state[N - 1] | b.state[0 + 1];
+    c[0] = b[0] | b[N - 1] | b[0 + 1];
     for (int i = 1; i < N - 1; i++) {
-      c.state[i] = b.state[i] | b.state[i - 1] | b.state[i + 1];
+      c[i] = b[i] | b[i - 1] | b[i + 1];
     }
-    c.state[N - 1] = b.state[N - 1] | b.state[N - 1 - 1] | b.state[0];
+    c[N - 1] = b[N - 1] | b[N - 1 - 1] | b[0];
 
     LifeState zoi(false);
 
-    zoi.state[0] =
-      c.state[0] | RotateLeft(c.state[0]) | RotateRight(c.state[0]);
+    zoi[0] =
+      c[0] | RotateLeft(c[0]) | RotateRight(c[0]);
     for (int i = 1; i < N - 1; i++) {
-      zoi.state[i] =
-        c.state[i] | RotateLeft(c.state[i]) | RotateRight(c.state[i]);
+      zoi[i] =
+        c[i] | RotateLeft(c[i]) | RotateRight(c[i]);
     }
-    zoi.state[N - 1] = c.state[N - 1] | RotateLeft(c.state[N - 1]) |
-      RotateRight(c.state[N - 1]);
+    zoi[N - 1] = c[N - 1] | RotateLeft(c[N - 1]) |
+      RotateRight(c[N - 1]);
 
     return zoi;
   }
 
   static inline void ConvolveInner(LifeState &result, const uint64_t (&doubledother)[N*2], uint64_t x, unsigned int k, unsigned int postshift) {
     for (int i = 0; i < N; i++) {
-      result.state[i] |= __builtin_rotateleft64(convolve_uint64_t(x, doubledother[i+k]), postshift);
+      result[i] |= __builtin_rotateleft64(convolve_uint64_t(x, doubledother[i+k]), postshift);
     }
   }
 
@@ -858,7 +861,7 @@ public:
   static LifeState RandomState() {
     LifeState result;
     for (int i = 0; i < N; i++)
-      result.state[i] = PRNG::dist(PRNG::e2);
+      result[i] = PRNG::dist(PRNG::e2);
 
     return result;
   }
@@ -951,12 +954,12 @@ public:
     LifeState result;
     if (end > start) {
       for (unsigned int i = start; i < end; i++)
-        result.state[i] = column;
+        result[i] = column;
     } else {
       for (unsigned int i = 0; i < end; i++)
-        result.state[i] = column;
+        result[i] = column;
       for (unsigned int i = start; i < N; i++)
-        result.state[i] = column;
+        result[i] = column;
     }
     return result;
   }

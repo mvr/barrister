@@ -89,10 +89,10 @@ void SearchState::TransferStableToCurrent() {
 void SearchState::TransferStableToCurrentColumn(int column) {
   for (int i = 0; i < 5; i++) {
     int c = (column + i - 2 + N) % N;
-    uint64_t updated = current.unknownStable.state[c] & ~stable.unknownStable.state[c];
-    current.state.state[c] |= stable.state.state[c] & updated;
-    current.unknown.state[c] &= ~updated;
-    current.unknownStable.state[c] &= ~updated;
+    uint64_t updated = current.unknownStable[c] & ~stable.unknownStable[c];
+    current.state[c] |= stable.state[c] & updated;
+    current.unknown[c] &= ~updated;
+    current.unknownStable[c] &= ~updated;
   }
 }
 
@@ -433,10 +433,10 @@ void SearchState::SearchStep() {
 bool SearchState::ContainsEater2(LifeState &stable, LifeState &everActive) const {
   LifeState blockMatch;
   for(unsigned i = 0; i < N-1; ++i)
-    blockMatch.state[i] = stable.state[i] & RotateRight(stable.state[i]) &
-      stable.state[i+1] & RotateRight(stable.state[i+1]);
-  blockMatch.state[N-1] = stable.state[N-1] & RotateRight(stable.state[N-1]) &
-    stable.state[0] & RotateRight(stable.state[0]);
+    blockMatch[i] = stable[i] & RotateRight(stable[i]) &
+      stable[i+1] & RotateRight(stable[i+1]);
+  blockMatch[N-1] = stable[N-1] & RotateRight(stable[N-1]) &
+    stable[0] & RotateRight(stable[0]);
 
   std::vector<LifeState> shouldBeActive = {
       LifeState::Parse("bo$o!", 1, 1),
