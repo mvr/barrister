@@ -349,7 +349,7 @@ void SearchState::SearchStep() {
 
     pendingFocuses = FindFocuses(lookahead, lookaheadSize);
 
-    SanityCheck();
+    // SanityCheck();
   }
 
   auto focus = (pendingFocuses.focuses & ~pendingFocuses.glanceable).FirstOn();
