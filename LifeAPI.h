@@ -20,7 +20,8 @@
 #include <immintrin.h>
 #endif
 
-#define N 64
+// Best if multiple of 4
+#define N 32
 
 #define SUCCESS 1
 #define FAIL 0
