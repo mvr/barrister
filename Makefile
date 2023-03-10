@@ -18,6 +18,7 @@ Barrister: Barrister.cpp LifeAPI.h *.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o Barrister Barrister.cpp $(LDFLAGS)
 
 instrument: Barrister.cpp LifeAPI.h *.hpp
+	mkdir -p instrumenting
 	$(CC) $(CFLAGS) -fprofile-generate=instrumenting/pass1 -o instrumenting/pass1-Barrister Barrister.cpp
 	instrumenting/pass1-Barrister inputs/benchmark.toml
 	$(PROFDATAEXE) merge instrumenting/pass1 -o instrumenting/pass1.profdata
