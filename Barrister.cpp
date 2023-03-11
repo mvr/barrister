@@ -175,7 +175,17 @@ std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::Popu
 }
 
 FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
+  const LifeState activeRect = ~LifeState::SolidRect(
+      -params->activeBounds.first + 1, -params->activeBounds.second + 1,
+      2 * params->activeBounds.first - 1, 2 * params->activeBounds.second - 1);
+
+  const LifeState everActiveRect = ~LifeState::SolidRect(
+      -params->everActiveBounds.first + 1, -params->everActiveBounds.second + 1,
+      2 * params->everActiveBounds.first - 1, 2 * params->everActiveBounds.second - 1);
+  const LifeState everActivePriority = everActive.Convolve(everActiveRect);
+
   std::array<LifeState, maxLookaheadGens> allFocusable;
+  std::array<LifeState, maxLookaheadGens> allPriority;
   for (int i = 1; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
@@ -187,16 +197,20 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
     // LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~prevActive;
     // LifeState nearActiveUnknown = prevActive.ZOI();
 
+    // This is being recomputed
+    LifeState active = gen.ActiveComparedTo(stable);
+
     allFocusable[i] = becomeUnknown & ~nearActiveUnknown;
+
+    // IDEA: calculate a 'priority' area, for example cells outside
+    // the permitted 'everActive' area
+
+    allPriority[i] = active.Convolve(activeRect) | everActivePriority;
+    if (active.GetPop() == params->maxActiveCells - 1) {
+      // Any active cell at all will
+      allPriority[i] = ~LifeState();
+    }
   }
-
-  // IDEA: calculate a 'priority' area, for example cells outside
-  // the permitted 'everActive' area
-
-  const LifeState rect = LifeState::SolidRect(
-      -params->everActiveBounds.first + 1, -params->everActiveBounds.second + 1,
-      2 * params->everActiveBounds.first - 1, 2 * params->everActiveBounds.second - 1);
-  const LifeState priority = everActive.Convolve(~rect);
 
   // IDEA: look for focusable cells where all the unknown neighbours
   // are unknownStable, that will stop us from wasting time on an
@@ -207,12 +221,14 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
   LifeState oneOrTwoUnknownNeighbours  = (stable.unknown0 ^ stable.unknown1) & ~stable.unknown2 & ~stable.unknown3;
   // LifeState fewStableUnknownNeighbours = ~stable.unknown2 & ~stable.unknown3;
 
-#define TRY_CHOOSE(exp) \
-  for (int i = 1; i < lookaheadSize; i++) { \
-    LifeState focusable = allFocusable[i]; \
-    focusable &= exp; \
-    if (!focusable.IsEmpty()) \
-      return {focusable, lookahead[i].glanceableUnknown, priority, lookahead[i-1], currentGen + i - 1}; \
+#define TRY_CHOOSE(exp)                                                        \
+  for (int i = 1; i < lookaheadSize; i++) {                                    \
+    LifeState focusable = allFocusable[i];                                     \
+    LifeState priority = allPriority[i];                                       \
+    focusable &= exp;                                                          \
+    if (!focusable.IsEmpty())                                                  \
+      return {focusable, lookahead[i].glanceableUnknown, priority,             \
+              lookahead[i - 1], currentGen + i - 1};                           \
   }
 
   TRY_CHOOSE(stable.stateZOI & priority & oneOrTwoUnknownNeighbours);
@@ -242,6 +258,9 @@ bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState 
   if (activePop > params->maxActiveCells)
     return false;
 
+  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
+    return false;
+
   auto wh = active.WidthHeight();
   if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
     return false;
@@ -251,9 +270,6 @@ bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState 
 
   wh = everActive.WidthHeight();
   if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
-    return false;
-
-  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
     return false;
 
   return true;
@@ -271,7 +287,7 @@ bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens>
     if (!genResult)
       return false;
   }
-  // This could miss a catalyst recovering then failing
+  // TODO: This could miss a catalyst recovering then failing
   if (hasInteracted) {
     LifeUnknownState gen = lookahead[lookaheadSize - 1];
     for(int i = lookaheadSize; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
