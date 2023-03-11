@@ -38,8 +38,9 @@ public:
   unsigned recoveredTime;
 
   SearchParams *params;
+  std::vector<LifeState> *allSolutions;
 
-  SearchState(SearchParams &inparams);
+  SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions);
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
 
@@ -69,10 +70,11 @@ public:
 //   return LifeBellmanRLEFor(state, marked);
 // }
 
-SearchState::SearchState(SearchParams &inparams)
+SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions)
   : currentGen{0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
 
   params = &inparams;
+  allSolutions = &outsolutions;
 
   starting = inparams.activePattern | inparams.startingStable;
   stable.state = inparams.startingStable;
@@ -509,15 +511,28 @@ void SearchState::ReportSolution() {
     LifeState completed = stable.CompleteStable();
     std::cout << "Completed:" << std::endl;
     std::cout << (completed | starting).RLE() << std::endl;
+    allSolutions->push_back(completed | starting);
+  }
+}
+
+void PrintSummary(std::vector<LifeState> &pats) {
+  std::cout << "x = 0, y = 0, rule = Life" << std::endl;
+  for (unsigned i = 0; i < pats.size(); i += 8) {
+    std::vector<LifeState> row =
+        std::vector<LifeState>(pats.begin() + i, pats.begin() + i + 8);
+    std::cout << RowRLE(row) << std::endl;
   }
 }
 
 int main(int argc, char *argv[]) {
-
-
   auto toml = toml::parse(argv[1]);
   SearchParams params = SearchParams::FromToml(toml);
 
-  SearchState search(params);
+  std::vector<LifeState> allSolutions;
+
+  SearchState search(params, allSolutions);
   search.Search();
+
+  if (params.printSummary)
+    PrintSummary(allSolutions);
 }

@@ -129,3 +129,77 @@ std::string UnknownRLEFor(const LifeState &stable, const LifeState &unknown) {
 std::string LifeBellmanRLEFor(const LifeState &state, const LifeState &marked) {
   return MultiStateRLE({'.', 'A', 'E', 'C'}, state, marked);
 }
+
+std::string RowRLE(std::vector<LifeState> &row) {
+  const unsigned spacing = 70;
+
+  std::stringstream result;
+
+  bool last_val;
+  unsigned run_count = 0;
+  unsigned eol_count = 0;
+  for (unsigned j = 0; j < spacing; j++) {
+    if(j < 64)
+      last_val = row[0].GetCell(0 - N/2, j - 32);
+    else
+      last_val = false;
+    run_count = 0;
+
+    for (auto &pat : row) {
+      for (unsigned i = 0; i < spacing; i++) {
+        bool val = false;
+        if(i < N && j < 64)
+          val = pat.GetCell(i - N/2, j - 32);
+
+        // Flush linefeeds if we find a live cell
+        if (val && eol_count > 0) {
+          if (eol_count > 1)
+            result << eol_count;
+
+          result << "$";
+
+          eol_count = 0;
+        }
+
+        // Flush current run if val changes
+        if (val == !last_val) {
+          if (run_count > 1)
+            result << run_count;
+
+          if (last_val == 1)
+            result << "o";
+          else
+            result << "b";
+
+          run_count = 0;
+        }
+
+        run_count++;
+        last_val = val;
+      }
+    }
+    // Flush run of live cells at end of line
+    if (last_val) {
+      if (run_count > 1)
+        result << run_count;
+
+      result << "o";
+
+      run_count = 0;
+    }
+
+    eol_count++;
+  }
+
+  // Flush trailing linefeeds
+  if (eol_count > 0) {
+    if (eol_count > 1)
+      result << eol_count;
+
+    result << "$";
+
+    eol_count = 0;
+  }
+
+  return result.str();
+}
