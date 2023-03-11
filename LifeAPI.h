@@ -650,7 +650,7 @@ public:
   }
 
   LifeState Convolve(const LifeState &other) const {
-    LifeState result(false);
+    LifeState result;
     uint64_t doubledother[N*2];
     memcpy(doubledother,     other.state, N * sizeof(uint64_t));
     memcpy(doubledother + N, other.state, N * sizeof(uint64_t));
