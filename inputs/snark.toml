@@ -1,10 +1,10 @@
 # Snarks are easy to find if you know exactly where to look
 
-first-active-range = [40, 42]
+first-active-range = [35, 50]
 active-window-range = [0, 20]
 
-max-active-cells = 15
-ever-active-bounds = [6, 4]
+max-active-cells = 8
+ever-active-bounds = [6, 6]
 
 stabilise-results = true
 skip-glancing = true
