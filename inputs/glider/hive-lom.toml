@@ -1,0 +1,19 @@
+first-active-range = [35, 70]
+active-window-range = [0, 20]
+
+max-active-cells = 20
+ever-active-bounds = [6, 6]
+
+stabilise-results = true
+skip-glancing = true
+forbid-eater2 = true
+
+pattern-center = [15, 15]
+pattern = '''
+x = 37, y = 26, rule = LifeHistory
+5.32B$6.31B$7.30B$4.A3.29B$5.A3.28B$3.3A4.27B$B10.26B$2B10.25B$3B10.
+24B$4B10.23B$5B10.22B$6B10.21B$7B10.20B$8B10.2B4.13B$9B16.12B$10B11.
+2A3.11B$11B9.A2.A2.11B$12B9.2A3.11B$13B12.12B$14B10.13B$37B$37B$37B$
+37B$37B$37B!
+'''
+

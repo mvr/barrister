@@ -1,0 +1,23 @@
+min-first-active-gen = 3
+max-first-active-gen = 15
+max-active-window-gens = 20
+min-stable-interval = 4
+
+max-active-cells = 18
+active-bounds = [6, 6]
+ever-active-bounds = [6, 8]
+
+stabilise-results = true
+skip-glancing = true
+forbid-eater2 = true
+
+# debug = true
+
+pattern-center = [15, 15]
+pattern = '''
+x = 24, y = 30, rule = LifeHistory
+8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$9.15B$9.
+15B$4.3A2.15B$4.3A2.15B$3.A3.A.15B$2A2.3A2.15B$2A2.3A2.15B$9.15B$9.
+15B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B$8.16B
+!
+'''

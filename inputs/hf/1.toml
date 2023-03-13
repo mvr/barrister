@@ -1,0 +1,28 @@
+first-active-range = [3, 50]
+active-window-range = [0, 20]
+
+ever-active-bounds = [6, 6]
+
+stabilise-results = true
+skip-glancing = true
+forbid-eater2 = true
+
+pattern-center = [15, 15]
+pattern = '''
+x = 29, y = 32, rule = LifeHistory
+29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$29B$11B$11B3.3A$
+11B2.A3.A$11B.A5.A$11B.A5.A$11B.A5.A$11B2.A3.A$11B3.3A$11B14.2A$11B6.
+A7.A.A$11B5.A.A8.A$11B6.A.A.2A4.2A$11B4.A.A.A.A.A$11B3.A.A.A4.A$11B3.
+A.A2.4A$11B4.2A$21.2A$21.2A!
+'''
+
+# x = 307, y = 30, rule = B3/S23
+# 228bo$217bo8b3o$188bo29bo6bo$12bo164bo8b3o27b3o6b2o$bo8b3o139bo25bo6bo
+# $2bo6bo51bo79bo8b3o23b3o6b2o$3o6b2o39bo8b3o80bo6bo$51bo6bo81b3o6b2o75b
+# 2o$49b3o6b2o166b2o$186b2o118bo$10b2o174b2o107bo8b3o$10b2o138b2o81b2o
+# 61bo6bo$59b2o89b2o81bo60b3o6b2o$59b2o170bobo$231b2o$111bo115b2o$100bo
+# 8b3o115bobo74b2o$101bo6bo82b2o35b2o74b2o$11bo87b3o6b2o76b2obo2bo$7b2ob
+# obo172bobob3o$6bobobobo45b2o122bo2bobo104b2o$3bo2bobobob2o44bo38bo49b
+# 2o33b4ob3o101bobo$3b4ob2o2bo46b3o34bobo10b2o37bo2b2o33bo3bo100bo$7bo4b
+# obo46bo35bo11b2o32b2o2bo4bo31bobo2b2o99b2o$5bobo5b2o128bo4b4o32b2o$5b
+# 2o134b2o2bo$140bo2b7o$140b2o7bo$145b2o$145b2o!

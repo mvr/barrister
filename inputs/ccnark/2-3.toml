@@ -1,0 +1,16 @@
+first-active-range = [37, 50]
+active-window-range = [0, 20]
+
+ever-active-bounds = [6, 6]
+
+stabilise-results = true
+skip-glancing = true
+forbid-eater2 = true
+
+pattern-center = [15, 15]
+pattern = '''
+x = 25, y = 27, rule = LifeHistory
+18B$18B$18B$18B$18B$18B$18B$18B$18B4.A$17B3.3A$17B2.A$17B2.2A$17B$18B
+$4B4.10B2$5.2A6.2A$5.A.A5.2A$7.A$7.3A$5.2A3.A$4.A2.4A12.2A$4.2A.A14.
+2A$7.A.2A13.A$7.A.A$6.2A.A.A$10.2A!
+'''
