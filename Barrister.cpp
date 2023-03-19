@@ -195,23 +195,22 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
     LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~(prev.unknown & ~prev.unknownStable);
     LifeState nearActiveUnknown = (prev.unknown & ~prev.unknownStable).ZOI();
 
-    // LifeState prevActive = prev.unknown & ~prev.unknownStable;
-    // LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~prevActive;
-    // LifeState nearActiveUnknown = prevActive.ZOI();
-
-    // This is being recomputed
+    // TODO: This was already computed when populating the lookahead,
+    // shouldn't have to recompute
     LifeState active = gen.ActiveComparedTo(stable);
 
     allFocusable[i] = becomeUnknown & ~nearActiveUnknown;
 
-    // IDEA: calculate a 'priority' area, for example cells outside
-    // the permitted 'everActive' area
+    // IDEA: calculate 'priority' cells, where any cell that is
+    // active will break one of the constraints
 
-    allPriority[i] = active.Convolve(activeRect) | everActivePriority;
-    if (active.GetPop() == params->maxActiveCells - 1) {
-      // Any active cell at all will
+    if (active.GetPop() == params->maxActiveCells - 1 ||
+        currentGen + i < params->minFirstActiveGen) {
       allPriority[i] = ~LifeState();
+    } else {
+      allPriority[i] = active.Convolve(activeRect) | everActivePriority;
     }
+
   }
 
   // IDEA: look for focusable cells where all the unknown neighbours
