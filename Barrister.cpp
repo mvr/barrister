@@ -45,15 +45,15 @@ public:
   SearchState &operator= ( const SearchState & ) = default;
 
   void TransferStableToCurrent();
-  void TransferStableToCurrentColumn(int column);
+  void TransferStableToCurrentColumn(unsigned column);
   bool TryAdvance();
   bool TryAdvanceOne();
   std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead() const;
 
-  FocusSet FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const;
+  FocusSet FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const;
 
-  bool CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const;
-  bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize);
+  bool CheckConditionsOn(unsigned gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const;
+  bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize);
 
   void Search();
   void SearchStep();
@@ -92,9 +92,9 @@ void SearchState::TransferStableToCurrent() {
   current.unknownStable &= ~updated;
 }
 
-void SearchState::TransferStableToCurrentColumn(int column) {
-  for (int i = 0; i < 5; i++) {
-    int c = (column + i - 2 + N) % N;
+void SearchState::TransferStableToCurrentColumn(unsigned column) {
+  for (unsigned i = 0; i < 5; i++) {
+    int c = (column + (int)i - 2 + N) % N;
     uint64_t updated = current.unknownStable[c] & ~stable.unknownStable[c];
     current.state[c] |= stable.state[c] & updated;
     current.unknown[c] &= ~updated;
@@ -165,7 +165,7 @@ bool SearchState::TryAdvance() {
 std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::PopulateLookahead() const {
   auto lookahead = std::array<LifeUnknownState, maxLookaheadGens>();
   lookahead[0] = current;
-  int i;
+  unsigned i;
   for (i = 0; i < maxLookaheadGens-1; i++) {
     lookahead[i+1] = lookahead[i].UncertainStepMaintaining(stable);
 
@@ -176,7 +176,7 @@ std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::Popu
   return {lookahead, maxLookaheadGens};
 }
 
-FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) const {
+FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const {
   const LifeState activeRect = ~LifeState::SolidRect(
       -params->activeBounds.first + 1, -params->activeBounds.second + 1,
       2 * params->activeBounds.first - 1, 2 * params->activeBounds.second - 1);
@@ -188,7 +188,7 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
 
   std::array<LifeState, maxLookaheadGens> allFocusable;
   std::array<LifeState, maxLookaheadGens> allPriority;
-  for (int i = 1; i < lookaheadSize; i++) {
+  for (unsigned i = 1; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
 
@@ -223,14 +223,14 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
   LifeState oneOrTwoUnknownNeighbours  = (stable.unknown0 ^ stable.unknown1) & ~stable.unknown2 & ~stable.unknown3;
   // LifeState fewStableUnknownNeighbours = ~stable.unknown2 & ~stable.unknown3;
 
-#define TRY_CHOOSE(exp)                                                        \
-  for (int i = 1; i < lookaheadSize; i++) {                                    \
-    LifeState focusable = allFocusable[i];                                     \
-    LifeState priority = allPriority[i];                                       \
-    focusable &= exp;                                                          \
-    if (!focusable.IsEmpty())                                                  \
-      return {focusable, lookahead[i].glanceableUnknown, priority,             \
-              lookahead[i - 1], currentGen + i - 1};                           \
+#define TRY_CHOOSE(exp)                                                 \
+  for (unsigned i = 1; i < lookaheadSize; i++) {                        \
+    LifeState focusable = allFocusable[i];                              \
+    LifeState priority = allPriority[i];                                \
+    focusable &= exp;                                                   \
+    if (!focusable.IsEmpty())                                           \
+      return {focusable, lookahead[i].glanceableUnknown, priority,      \
+              lookahead[i - 1], currentGen + i - 1};                    \
   }
 
   TRY_CHOOSE(stable.stateZOI & priority & oneOrTwoUnknownNeighbours);
@@ -251,7 +251,7 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
   return {LifeState(), LifeState(), LifeState(), LifeUnknownState(), 0};
 }
 
-bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
+bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
   auto activePop = active.GetPop();
 
   if (gen < params->minFirstActiveGen && activePop > 0)
@@ -277,8 +277,8 @@ bool SearchState::CheckConditionsOn(int gen, LifeUnknownState &state, LifeState 
   return true;
 }
 
-bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, int lookaheadSize) {
-  for (int i = 0; i < lookaheadSize; i++) {
+bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) {
+  for (unsigned i = 0; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
 
     LifeState active = gen.ActiveComparedTo(stable);
@@ -292,7 +292,7 @@ bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens>
   // TODO: This could miss a catalyst recovering then failing
   if (hasInteracted) {
     LifeUnknownState gen = lookahead[lookaheadSize - 1];
-    for(int i = lookaheadSize; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
+    for(unsigned i = lookaheadSize; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
       gen = gen.UncertainStepMaintaining(stable);
       LifeState active = gen.ActiveComparedTo(stable);
       everActive |= active;
@@ -380,7 +380,9 @@ void SearchState::SearchStep() {
     }
   }
 
-  bool focusIsGlancing = params->skipGlancing && pendingFocuses.glanceable.Get(focus) && pendingFocuses.currentState.StillGlancingFor(focus, stable);
+  bool focusIsGlancing =
+      params->skipGlancing && pendingFocuses.glanceable.Get(focus) &&
+      pendingFocuses.currentState.StillGlancingFor(focus, stable);
   if(focusIsGlancing) {
     pendingFocuses.glanceable.Erase(focus);
 
@@ -524,7 +526,7 @@ void PrintSummary(std::vector<LifeState> &pats) {
   }
 }
 
-int main(int argc, char *argv[]) {
+int main(int, char *argv[]) {
   auto toml = toml::parse(argv[1]);
   SearchParams params = SearchParams::FromToml(toml);
 

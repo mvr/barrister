@@ -2,20 +2,21 @@
 
 struct SearchParams {
 public:
-  int minFirstActiveGen;
-  int maxFirstActiveGen;
-  // int minActiveWindowGens;
-  int maxActiveWindowGens;
-  int minStableInterval;
+  unsigned minFirstActiveGen;
+  unsigned maxFirstActiveGen;
+  // unsigned minActiveWindowGens;
+  unsigned maxActiveWindowGens;
+  unsigned minStableInterval;
 
-  // int maxStablePop;
+  // unsigned maxStablePop;
   // std::pair<unsigned, unsigned> stableBounds;
 
-  int maxActiveCells;
-  // int maxChanges;
+  unsigned maxActiveCells;
+  unsigned maxActiveOnCells;
+  // unsigned maxChanges;
   std::pair<unsigned, unsigned> activeBounds;
 
-  int maxEverActiveCells;
+  unsigned maxEverActiveCells;
   std::pair<unsigned, unsigned> everActiveBounds;
 
   LifeState activePattern;
