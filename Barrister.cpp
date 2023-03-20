@@ -48,7 +48,7 @@ public:
   void TransferStableToCurrentColumn(unsigned column);
   bool TryAdvance();
   bool TryAdvanceOne();
-  std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead() const;
+  std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead();
 
   FocusSet FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const;
 
@@ -162,20 +162,6 @@ bool SearchState::TryAdvance() {
   return true;
 }
 
-std::pair<std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::PopulateLookahead() const {
-  auto lookahead = std::array<LifeUnknownState, maxLookaheadGens>();
-  lookahead[0] = current;
-  unsigned i;
-  for (i = 0; i < maxLookaheadGens-1; i++) {
-    lookahead[i+1] = lookahead[i].UncertainStepMaintaining(stable);
-
-    LifeState active = lookahead[i+1].ActiveComparedTo(stable);
-    if(active.IsEmpty())
-      return {lookahead, i+2};
-  }
-  return {lookahead, maxLookaheadGens};
-}
-
 FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const {
   const LifeState activeRect = ~LifeState::SolidRect(
       -params->activeBounds.first + 1, -params->activeBounds.second + 1,
@@ -276,6 +262,43 @@ bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &state, LifeS
   return true;
 }
 
+std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::PopulateLookahead() {
+  auto lookahead = std::array<LifeUnknownState, maxLookaheadGens>();
+  lookahead[0] = current;
+  unsigned i;
+  for (i = 0; i < maxLookaheadGens-1; i++) {
+    lookahead[i+1] = lookahead[i].UncertainStepMaintaining(stable);
+
+    LifeState active = lookahead[i+1].ActiveComparedTo(stable);
+
+    everActive |= active;
+    bool genResult = CheckConditionsOn(currentGen + i, lookahead[i+1], active, everActive);
+
+    if(!genResult)
+      return {false, lookahead, i+2};
+
+    if(active.IsEmpty())
+      return {true, lookahead, i+2};
+  }
+
+  if (hasInteracted) {
+    LifeUnknownState gen = lookahead[maxLookaheadGens - 1];
+    for(unsigned i = maxLookaheadGens; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
+      gen = gen.UncertainStepMaintaining(stable);
+      LifeState active = gen.ActiveComparedTo(stable);
+      everActive |= active;
+
+      if(active.IsEmpty())
+        break;
+
+      bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive);
+      if (!genResult)
+        return {false, lookahead, maxLookaheadGens};
+    }
+  }
+
+  return {true, lookahead, maxLookaheadGens};
+}
 bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) {
   for (unsigned i = 0; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
@@ -348,6 +371,15 @@ void SearchState::SearchStep() {
       return;
     }
 
+    auto [passed, lookahead, lookaheadSize] = PopulateLookahead();
+
+    if (!passed) {
+      //std::cout << "conditions failed" << std::endl;
+      return;
+    }
+
+    pendingFocuses = FindFocuses(lookahead, lookaheadSize);
+
     // std::cout << "Stable" << std::endl;
     // LifeState state = starting | stable.state;
     // LifeState marked = stable.unknownStable | stable.state;
@@ -356,15 +388,6 @@ void SearchState::SearchStep() {
     // std::cout << "Current" << std::endl;
     // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
     // std::cout << LifeBellmanRLEFor(current.state, current.unknown) << std::endl;
-
-    auto [lookahead, lookaheadSize] = PopulateLookahead();
-
-    if (!CheckConditions(lookahead, lookaheadSize)) {
-      //std::cout << "conditions failed" << std::endl;
-      return;
-    }
-
-    pendingFocuses = FindFocuses(lookahead, lookaheadSize);
 
     // SanityCheck();
   }
