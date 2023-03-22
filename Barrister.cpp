@@ -9,7 +9,7 @@
 #include "LifeUnknownState.hpp"
 #include "Params.hpp"
 
-const unsigned maxLookaheadGens = 3;
+const unsigned maxLookaheadGens = 6;
 
 struct FocusSet {
   LifeState focuses;
