@@ -540,10 +540,11 @@ void SearchState::ReportSolution() {
 }
 
 void PrintSummary(std::vector<LifeState> &pats) {
-  std::cout << "x = 0, y = 0, rule = Life" << std::endl;
+  std::cout << "Summary:" << std::endl;
+  std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
   for (unsigned i = 0; i < pats.size(); i += 8) {
     std::vector<LifeState> row =
-        std::vector<LifeState>(pats.begin() + i, pats.begin() + i + 8);
+      std::vector<LifeState>(pats.begin() + i, pats.begin() + std::min((unsigned)pats.size(), i + 8));
     std::cout << RowRLE(row) << std::endl;
   }
 }
