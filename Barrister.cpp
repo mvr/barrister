@@ -284,7 +284,7 @@ std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchStat
   if (hasInteracted) {
     LifeUnknownState gen = lookahead[maxLookaheadGens - 1];
     for(unsigned i = maxLookaheadGens; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
-      gen = gen.UncertainStepMaintaining(stable);
+      gen = gen.UncertainStepFast(stable);
       LifeState active = gen.ActiveComparedTo(stable);
       everActive |= active;
 
@@ -446,7 +446,7 @@ void SearchState::SearchStep() {
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
-      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepMaintaining(nextState.stable);
+      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
       bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive);
@@ -468,7 +468,7 @@ void SearchState::SearchStep() {
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
-      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepMaintaining(nextState.stable);
+      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
       bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive);
