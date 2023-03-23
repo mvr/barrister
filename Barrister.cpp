@@ -24,7 +24,6 @@ struct FocusSet {
 class SearchState {
 public:
 
-  LifeState starting;
   LifeStableState stable;
   LifeUnknownState current;
 
@@ -76,9 +75,12 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   params = &inparams;
   allSolutions = &outsolutions;
 
-  starting = inparams.activePattern | inparams.startingStable;
   stable.state = inparams.startingStable;
   stable.unknownStable = inparams.searchArea;
+
+  current.state = inparams.activePattern | stable.state;
+  current.unknown = stable.unknownStable;
+  current.unknownStable = stable.unknownStable;
 
   everActive = LifeState();
   pendingFocuses.focuses = LifeState();
@@ -349,10 +351,6 @@ void SearchState::SanityCheck() {
 }
 
 void SearchState::Search() {
-  current.state = starting | stable.state;
-  current.unknown = stable.unknownStable;
-  current.unknownStable = stable.unknownStable;
-
   SearchStep();
 }
 
@@ -524,6 +522,7 @@ void SearchState::ReportSolution() {
 
   std::cout << "Winner:" << std::endl;
   std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  LifeState starting = params->activePattern;
   LifeState state = starting | stable.state;
   LifeState marked = stable.unknownStable | stable.state;
   std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
