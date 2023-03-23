@@ -301,37 +301,6 @@ std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchStat
 
   return {true, lookahead, maxLookaheadGens};
 }
-bool SearchState::CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) {
-  for (unsigned i = 0; i < lookaheadSize; i++) {
-    LifeUnknownState &gen = lookahead[i];
-
-    LifeState active = gen.ActiveComparedTo(stable);
-
-    everActive |= active;
-    bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive);
-
-    if (!genResult)
-      return false;
-  }
-  // TODO: This could miss a catalyst recovering then failing
-  if (hasInteracted) {
-    LifeUnknownState gen = lookahead[lookaheadSize - 1];
-    for(unsigned i = lookaheadSize; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
-      gen = gen.UncertainStepMaintaining(stable);
-      LifeState active = gen.ActiveComparedTo(stable);
-      everActive |= active;
-
-      if(active.IsEmpty())
-        break;
-
-      bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive);
-      if (!genResult)
-        return false;
-    }
-  }
-
-  return true;
-}
 
 void SearchState::SanityCheck() {
   assert((stable.unknownStable & stable.glanced).IsEmpty());
