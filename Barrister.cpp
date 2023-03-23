@@ -14,10 +14,10 @@ const unsigned maxLookaheadGens = 6;
 struct FocusSet {
   LifeState focuses;
   LifeState glanceable;
-  LifeState priority;
 
   LifeUnknownState currentState;
   unsigned currentGen;
+  bool isPriority;
 };
 
 
@@ -210,32 +210,32 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
   LifeState oneOrTwoUnknownNeighbours  = (stable.unknown0 ^ stable.unknown1) & ~stable.unknown2 & ~stable.unknown3;
   // LifeState fewStableUnknownNeighbours = ~stable.unknown2 & ~stable.unknown3;
 
-#define TRY_CHOOSE(exp)                                                 \
+#define TRY_CHOOSE(exp, isprio)                                         \
   for (unsigned i = 1; i < lookaheadSize; i++) {                        \
     LifeState focusable = allFocusable[i];                              \
     LifeState priority = allPriority[i];                                \
     focusable &= exp;                                                   \
     if (!focusable.IsEmpty())                                           \
-      return {focusable, lookahead[i].glanceableUnknown, priority,      \
-              lookahead[i - 1], currentGen + i - 1};                    \
+      return {focusable, lookahead[i].glanceableUnknown,                \
+              lookahead[i - 1], currentGen + i - 1, isprio};            \
   }
 
-  TRY_CHOOSE(stable.stateZOI & priority & oneOrTwoUnknownNeighbours);
-  TRY_CHOOSE(priority & oneOrTwoUnknownNeighbours);
-  TRY_CHOOSE(stable.stateZOI & priority)
-  TRY_CHOOSE(priority)
+  TRY_CHOOSE(stable.stateZOI & priority & oneOrTwoUnknownNeighbours, true);
+  TRY_CHOOSE(priority & oneOrTwoUnknownNeighbours, true);
+  TRY_CHOOSE(stable.stateZOI & priority, true);
+  TRY_CHOOSE(priority, true);
 
-  TRY_CHOOSE(stable.stateZOI & oneOrTwoUnknownNeighbours);
-  TRY_CHOOSE(oneOrTwoUnknownNeighbours);
-  TRY_CHOOSE(stable.stateZOI);
+  TRY_CHOOSE(stable.stateZOI & oneOrTwoUnknownNeighbours, false);
+  TRY_CHOOSE(oneOrTwoUnknownNeighbours, false);
+  TRY_CHOOSE(stable.stateZOI, false);
 
   // Try anything at all
-  TRY_CHOOSE(~LifeState());
+  TRY_CHOOSE(~LifeState(), false);
 
 #undef TRY_CHOOSE
 
   // This shouldn't be reached
-  return {LifeState(), LifeState(), LifeState(), LifeUnknownState(), 0};
+  return {LifeState(), LifeState(), LifeUnknownState(), 0, false};
 }
 
 bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
@@ -406,7 +406,7 @@ void SearchState::SearchStep() {
   if(focusIsGlancing) {
     pendingFocuses.glanceable.Erase(focus);
 
-    if (!pendingFocuses.priority.Get(focus) || stable.unknown2.Get(focus) ||
+    if (!pendingFocuses.isPriority || stable.unknown2.Get(focus) ||
         stable.unknown3.Get(focus)) { // TODO: handle overpopulation better
       SearchState nextState = *this;
       nextState.stable.glancedON.Set(focus);
