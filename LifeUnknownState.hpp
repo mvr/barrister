@@ -269,21 +269,21 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
 }
 
 void LifeUnknownState::UncertainStepColumn(int column, uint64_t &next, uint64_t &nextUnknown) const {
-  std::array<uint64_t, 3> nearbyState;
-  std::array<uint64_t, 3> nearbyUnknown;
+  std::array<uint64_t, 4> nearbyState;
+  std::array<uint64_t, 4> nearbyUnknown;
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 4; i++) {
     int c = (column + i - 1 + N) % N;
     nearbyState[i] = state[c];
     nearbyUnknown[i] = unknown[c];
   }
 
-  std::array<uint64_t, 3> oncol0;
-  std::array<uint64_t, 3> oncol1;
-  std::array<uint64_t, 3> unkcol0;
-  std::array<uint64_t, 3> unkcol1;
+  std::array<uint64_t, 4> oncol0;
+  std::array<uint64_t, 4> oncol1;
+  std::array<uint64_t, 4> unkcol0;
+  std::array<uint64_t, 4> unkcol1;
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 4; i++) {
     uint64_t a = nearbyState[i];
     uint64_t l = RotateLeft(a);
     uint64_t r = RotateRight(a);
@@ -292,7 +292,7 @@ void LifeUnknownState::UncertainStepColumn(int column, uint64_t &next, uint64_t 
     oncol1[i] = ((l ^ r) & a) | (l & r);
   }
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 4; i++) {
     uint64_t a = nearbyUnknown[i];
     uint64_t l = RotateLeft(a);
     uint64_t r = RotateRight(a);
