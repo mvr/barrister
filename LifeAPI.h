@@ -66,6 +66,34 @@ inline int __builtin_ctzll(uint64_t x) {
 }
 #endif
 
+inline unsigned longest_run_uint64_t(uint64_t x) {
+  unsigned count = 0;
+
+  while (x != 0) {
+    x = (x & __builtin_rotateleft64(x, 1));
+    count++;
+  }
+  return count;
+}
+
+inline unsigned populated_width_uint64_t(uint64_t x) {
+  return 64 - longest_run_uint64_t(~x);
+}
+
+inline unsigned longest_run_uint32_t(uint32_t x) {
+  unsigned count = 0;
+
+  while (x != 0) {
+    x = (x & __builtin_rotateleft32(x, 1));
+    count++;
+  }
+  return count;
+}
+
+inline unsigned populated_width_uint32_t(uint32_t x) {
+  return 32 - longest_run_uint32_t(~x);
+}
+
 inline uint64_t convolve_uint64_t(uint64_t x, uint64_t y) {
   if(y == 0)
     return 0;
@@ -997,36 +1025,39 @@ public:
         {minCol, topMargin - 32, maxCol, 31 - bottomMargin});
   }
 
-  std::pair<int, int> WidthHeight() const {
-    uint64_t orOfCols(0);
-    for (int i = 0; i < N; ++i) {
+#if N > 64
+#error "PopulatedColumns cannot handle N > 64"
+#endif
+
+  uint64_t PopulatedColumns() const {
+    uint64_t result = 0;
+    for (unsigned i = 0; i < N; i++)
+      if(state[i] != 0)
+        result |= 1 << i;
+    return result;
+  }
+
+  std::pair<int,int> WidthHeight() const {
+    uint64_t orOfCols = 0;
+    for (unsigned i = 0; i < N; ++i)
       orOfCols |= state[i];
-    }
 
-    if (orOfCols == 0ULL) {
-      return std::pair<int, int>(0, 0);
-    }
+    if (orOfCols == 0ULL) // empty grid.
+      return std::make_pair(0,0);
 
-    int minCol = -(N/2);
-    int maxCol = (N/2)-1;
-    for (int i = -(N/2); i <= (N/2)-1; i++) {
-      if (state[(i + N) % N] != 0) {
-        minCol = i;
-        break;
-      }
-    }
 
-    for (int i = (N/2)-1; i >= -(N/2); i--) {
-      if (state[(i + N) % N] != 0) {
-        maxCol = i;
-        break;
-      }
-    }
+    uint64_t cols = PopulatedColumns();
+#if N == 64
+    unsigned width = populated_width_uint64_t(cols);
+#elif N == 32
+    unsigned width = populated_width_uint32_t((uint32_t)cols);
+#else
+#error "WidthHeight cannot handle N"
+#endif
 
-    orOfCols = __builtin_rotateright64(orOfCols, 32);
-    int topMargin = __builtin_ctzll(orOfCols);
-    int bottomMargin = __builtin_clzll(orOfCols);
-    return std::pair<int, int>(maxCol - minCol + 1, 64 - topMargin - bottomMargin);
+    unsigned height = populated_width_uint64_t(orOfCols);
+
+    return {width, height};
   }
 
   LifeState ComponentContaining(const LifeState &seed, const LifeState &corona) const {
