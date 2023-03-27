@@ -238,7 +238,7 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
   return {LifeState(), LifeState(), LifeUnknownState(), 0, false};
 }
 
-bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &state, LifeState &active, LifeState &everActive) const {
+bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &current, LifeState &active, LifeState &everActive) const {
   auto activePop = active.GetPop();
 
   if (gen < params->minFirstActiveGen && activePop > 0)
@@ -259,6 +259,9 @@ bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &state, LifeS
 
   wh = everActive.WidthHeight();
   if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
+    return false;
+
+  if(!(~current.state & params->stator).IsEmpty())
     return false;
 
   return true;
@@ -502,6 +505,13 @@ void SearchState::ReportSolution() {
   if(params->stabiliseResults) {
     LifeState completed = stable.CompleteStable();
     std::cout << "Completed:" << std::endl;
+    std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+    LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
+    LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
+    LifeHistoryState history(starting | completed, remainingHistory , LifeState(), stator);
+    std::cout << history.RLE() << std::endl;
+
+    std::cout << "Completed Plain:" << std::endl;
     std::cout << (completed | starting).RLE() << std::endl;
     allSolutions->push_back(completed | starting);
   }

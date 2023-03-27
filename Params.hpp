@@ -22,6 +22,7 @@ public:
   LifeState activePattern;
   LifeState startingStable;
   LifeState searchArea;
+  LifeState stator;
 
   bool stabiliseResults;
   bool skipGlancing;
@@ -67,19 +68,20 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
 
   params.debug = toml::find_or(toml, "debug", false);
 
-  LifeState stateon;
-  LifeState statemarked;
-
   std::string rle = toml::find<std::string>(toml, "pattern");
-  ParseTristateWHeader(rle, stateon, statemarked);
+  LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
 
   std::vector<int> patternCenter = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
-  stateon.Move(-patternCenter[0], -patternCenter[1]);
-  statemarked.Move(-patternCenter[0], -patternCenter[1]);
 
-  params.activePattern = stateon & ~statemarked;
-  params.startingStable = stateon & statemarked;
-  params.searchArea = ~stateon & statemarked;
+  pat.state.Move(-patternCenter[0], -patternCenter[1]);
+  pat.marked.Move(-patternCenter[0], -patternCenter[1]);
+  pat.history.Move(-patternCenter[0], -patternCenter[1]);
+  pat.original.Move(-patternCenter[0], -patternCenter[1]);
+
+  params.activePattern = pat.state & ~pat.marked;
+  params.startingStable = pat.state & pat.marked;
+  params.searchArea = pat.history;
+  params.stator = pat.original;
 
   return params;
 }
