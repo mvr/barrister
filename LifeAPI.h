@@ -67,13 +67,22 @@ inline int __builtin_ctzll(uint64_t x) {
 #endif
 
 inline unsigned longest_run_uint64_t(uint64_t x) {
+  if(x == 0)
+    return 0;
+
   unsigned count = 0;
 
-  while (x != 0) {
-    x = (x & __builtin_rotateleft64(x, 1));
-    count++;
+  for(int n = 5; n >= 0; n--) {
+    for(unsigned i = 1; i <= (1<<n); i *= 2) {
+      uint64_t y = (x & __builtin_rotateleft64(x, i));
+      if(y != 0) {
+        x = y;
+        count += i;
+      }
+    }
   }
-  return count;
+
+  return count + 1;
 }
 
 inline unsigned populated_width_uint64_t(uint64_t x) {
@@ -81,13 +90,22 @@ inline unsigned populated_width_uint64_t(uint64_t x) {
 }
 
 inline unsigned longest_run_uint32_t(uint32_t x) {
+  if(x == 0)
+    return 0;
+
   unsigned count = 0;
 
-  while (x != 0) {
-    x = (x & __builtin_rotateleft32(x, 1));
-    count++;
+  for(int n = 4; n >= 0; n--) {
+    for(unsigned i = 1; i <= (1<<n); i *= 2) {
+      uint32_t y = (x & __builtin_rotateleft32(x, i));
+      if(y != 0) {
+        x = y;
+        count += i;
+      }
+    }
   }
-  return count;
+
+  return count + 1;
 }
 
 inline unsigned populated_width_uint32_t(uint32_t x) {
