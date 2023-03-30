@@ -70,7 +70,7 @@ LifeUnknownState LifeUnknownState::UncertainStepFast(const LifeStableState &stab
     result.unknown[i] = unknown;
   }
 
-  LifeState uneqStable = (state ^ stable.state) | (unknownStable ^ stable.unknownStable) | (unknownStable ^ unknownStable);
+  LifeState uneqStable = (state ^ stable.state) | (unknownStable ^ stable.unknownStable) | (unknown & ~unknownStable);
   LifeState uneqStableZOI = uneqStable.ZOI();
   // Anything in the neighbourhood
   result.state = (result.state & uneqStableZOI) | (stable.state & ~uneqStableZOI);
