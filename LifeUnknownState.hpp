@@ -75,7 +75,7 @@ LifeUnknownState LifeUnknownState::UncertainStepFast(const LifeStableState &stab
   // Anything in the neighbourhood
   result.state = (result.state & uneqStableZOI) | (stable.state & ~uneqStableZOI);
   result.unknown = (result.unknown & uneqStableZOI) | (stable.unknownStable & ~uneqStableZOI);
-  result.unknownStable = stable.unknownStable & ~uneqStableZOI;
+  result.unknownStable = result.unknown & stable.unknownStable & ~uneqStableZOI;
 
   return result;
 }
@@ -175,7 +175,7 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
     // Prevent unknown region from expanding
     result.state[i] = (result.state[i] & unequal_stable) | (stable.state[i] & equal_stable);
     result.unknown[i] = (result.unknown[i] & unequal_stable) | (stable.unknownStable[i] & equal_stable);
-    result.unknownStable[i] = stable.unknownStable[i] & equal_stable;
+    result.unknownStable[i] = result.unknown[i] & stable.unknownStable[i] & equal_stable;
   }
 
   return result;
