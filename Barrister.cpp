@@ -198,7 +198,6 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
     } else {
       allPriority[i] = active.Convolve(activeRect) | everActivePriority;
     }
-
   }
 
   // IDEA: look for focusable cells where all the unknown neighbours
@@ -337,27 +336,16 @@ void SearchState::SearchStep() {
     TransferStableToCurrent();
 
     if (!TryAdvance()) {
-      //std::cout << "advance failed" << std::endl;
       return;
     }
 
     auto [passed, lookahead, lookaheadSize] = PopulateLookahead();
 
     if (!passed) {
-      //std::cout << "conditions failed" << std::endl;
       return;
     }
 
     pendingFocuses = FindFocuses(lookahead, lookaheadSize);
-
-    // std::cout << "Stable" << std::endl;
-    // LifeState state = starting | stable.state;
-    // LifeState marked = stable.unknownStable | stable.state;
-    // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-    // std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
-    // std::cout << "Current" << std::endl;
-    // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-    // std::cout << LifeBellmanRLEFor(current.state, current.unknown) << std::endl;
 
     // SanityCheck();
   }
@@ -498,12 +486,10 @@ void SearchState::ReportSolution() {
   LifeState state = starting | stable.state;
   LifeState marked = stable.unknownStable | stable.state;
   std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
-  // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-  // std::cout << LifeBellmanRLEFor(state, stable.glanced) << std::endl;
-  // std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-  // std::cout << LifeBellmanRLEFor(state, stable.glancedON) << std::endl;m
+
   if(params->stabiliseResults) {
     LifeState completed = stable.CompleteStable();
+
     std::cout << "Completed:" << std::endl;
     std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
     LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
