@@ -645,15 +645,12 @@ public:
       temp[i] = col | RotateLeft(col) | RotateRight(col);
     }
 
-    LifeState boundary = temp;
+    LifeState boundary(false);
 
-    boundary[0] |= temp[N-1];
-    for(int i = 1; i < N; i++)
-        boundary[i] |= temp[i-1];
-
-    for(int i = 0; i < N-1; i++)
-        boundary[i] |= temp[i+1];
-    boundary[N-1] |= temp[0];
+    boundary[0] = temp[N-1] | temp[0] | temp[1];
+    for(int i = 1; i < N-1; i++)
+        boundary[i] = temp[i-1] | temp[i] | temp[i+1];
+    boundary[N-1] = temp[N-2] | temp[N-1] | temp[0];
 
     return boundary;
   }
