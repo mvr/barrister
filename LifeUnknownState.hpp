@@ -71,11 +71,11 @@ LifeUnknownState LifeUnknownState::UncertainStepFast(const LifeStableState &stab
   }
 
   LifeState uneqStable = (state ^ stable.state) | (unknownStable ^ stable.unknownStable) | (unknown & ~unknownStable);
-  LifeState uneqStableZOI = uneqStable.ZOI();
+  LifeState toRestore = ~uneqStable.ZOI() & result.unknown;
   // Anything in the neighbourhood
-  result.state = (result.state & uneqStableZOI) | (stable.state & ~uneqStableZOI);
-  result.unknown = (result.unknown & uneqStableZOI) | (stable.unknownStable & ~uneqStableZOI);
-  result.unknownStable = result.unknown & stable.unknownStable & ~uneqStableZOI;
+  result.state = (result.state & ~toRestore) | (stable.state & toRestore);
+  result.unknown = (result.unknown & ~toRestore) | (stable.unknownStable & toRestore);
+  result.unknownStable = stable.unknownStable & toRestore;
 
   return result;
 }
@@ -170,12 +170,12 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
         // If any of the unknown are not unknownStable, we can't use this trick.
         any_unstable_unknown;
 
-    uint64_t equal_stable = ~unequal_stable;
+    uint64_t toRestore = ~unequal_stable & result.unknown[i];
 
     // Prevent unknown region from expanding
-    result.state[i] = (result.state[i] & unequal_stable) | (stable.state[i] & equal_stable);
-    result.unknown[i] = (result.unknown[i] & unequal_stable) | (stable.unknownStable[i] & equal_stable);
-    result.unknownStable[i] = result.unknown[i] & stable.unknownStable[i] & equal_stable;
+    result.state[i] = (result.state[i] & ~toRestore) | (stable.state[i] & toRestore);
+    result.unknown[i] = (result.unknown[i] & ~toRestore) | (stable.unknownStable[i] & toRestore);
+    result.unknownStable[i] = stable.unknownStable[i] & toRestore;
   }
 
   return result;
