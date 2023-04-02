@@ -17,14 +17,14 @@ void inline FullAdd(uint64_t &out0, uint64_t &out1, const uint64_t ina, const ui
   out1 = halfcarry1 | halfcarry2;
 }
 
-void inline CountRows(const LifeState &state, LifeState &__restrict__ bit1, LifeState &__restrict__ bit0) {
+void inline CountRows(const LifeState &state, LifeState &__restrict__ bit0, LifeState &__restrict__ bit1) {
   for (int i = 0; i < N; i++) {
     uint64_t a = state.state[i];
     uint64_t l = RotateLeft(a);
     uint64_t r = RotateRight(a);
 
-    bit1.state[i] = l ^ r ^ a;
-    bit0.state[i] = ((l ^ r) & a) | (l & r);
+    bit0.state[i] = l ^ r ^ a;
+    bit1.state[i] = ((l ^ r) & a) | (l & r);
   }
 }
 
