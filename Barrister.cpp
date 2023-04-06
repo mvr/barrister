@@ -249,8 +249,8 @@ bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &current, Lif
   if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
     return false;
 
-  if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
   auto wh = (active & LifeState::DomainFromChoice(params->fundDomain)).WidthHeight();
+  if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
     return false;
 
   if (everActive.GetPop() > params->maxEverActiveCells)
