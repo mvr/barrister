@@ -249,14 +249,14 @@ bool SearchState::CheckConditionsOn(unsigned gen, LifeUnknownState &current, Lif
   if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
     return false;
 
-  auto wh = active.WidthHeight();
   if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
+  auto wh = (active & LifeState::DomainFromChoice(params->fundDomain)).WidthHeight();
     return false;
 
   if (everActive.GetPop() > params->maxEverActiveCells)
     return false;
 
-  wh = everActive.WidthHeight();
+  wh = (everActive & LifeState::DomainFromChoice(params->fundDomain)).WidthHeight();
   if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
     return false;
 
@@ -365,16 +365,21 @@ void SearchState::SearchStep() {
       pendingFocuses.currentState.StillGlancingFor(focus, stable);
   if(focusIsGlancing) {
     pendingFocuses.glanceable.Erase(focus);
+    pendingFocuses.glanceable.Erase(TransformedBy(params->symTransf, focus));
 
     if (!pendingFocuses.isPriority || stable.unknown2.Get(focus) ||
         stable.unknown3.Get(focus)) { // TODO: handle overpopulation better
       SearchState nextState = *this;
       nextState.stable.glancedON.Set(focus);
+      nextState.stable.glancedON.Set(TransformedBy(params->symTransf, focus));
       nextState.SearchStep();
     }
 
     pendingFocuses.focuses.Erase(focus);
     stable.glanced.Set(focus);
+
+    pendingFocuses.focuses.Erase(TransformedBy(params->symTransf, focus));
+    stable.glanced.Set(TransformedBy(params->symTransf, focus));
 
     [[clang::musttail]]
     return SearchStep();
@@ -385,6 +390,7 @@ void SearchState::SearchStep() {
   auto cell = stable.UnknownNeighbour(focus);
   if(focusIsDetermined || cell == std::pair(-1, -1)) {
     pendingFocuses.focuses.Erase(focus);
+    pendingFocuses.focuses.Erase(TransformedBy(params->symTransf, focus));
 
     [[clang::musttail]]
     return SearchStep();
@@ -401,9 +407,18 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
+    auto transformed = TransformedBy(params->symTransf, cell);
+    nextState.stable.state.SetCellUnsafe(transformed, which);
+    nextState.stable.unknownStable.Erase(transformed);
+
+    nextState.pendingFocuses.currentState.state.SetCellUnsafe(transformed, which);
+    nextState.pendingFocuses.currentState.unknown.Erase(transformed);
+    nextState.pendingFocuses.currentState.unknownStable.Erase(transformed);
+
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
+      nextState.TransferStableToCurrentColumn(transformed.first);
       LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
@@ -423,9 +438,18 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
+    auto transformed = TransformedBy(params->symTransf, cell);
+    nextState.stable.state.SetCellUnsafe(transformed, which);
+    nextState.stable.unknownStable.Erase(transformed);
+
+    nextState.pendingFocuses.currentState.state.SetCellUnsafe(transformed, which);
+    nextState.pendingFocuses.currentState.unknown.Erase(transformed);
+    nextState.pendingFocuses.currentState.unknownStable.Erase(transformed);
+
     bool consistent = nextState.stable.SimplePropagateColumnStep(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
+      nextState.TransferStableToCurrentColumn(transformed.first);
       LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;

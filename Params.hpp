@@ -29,6 +29,9 @@ public:
   bool forbidEater2;
   bool printSummary;
 
+  SymmetryTransform symTransf;
+  DomainChoice fundDomain;
+
   bool debug;
 
   static SearchParams FromToml(toml::value &toml);
@@ -66,6 +69,26 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.forbidEater2 = toml::find_or(toml, "forbid-eater2", false);
   params.printSummary = toml::find_or(toml, "print-summary", true);
 
+  std::string symName = toml::find_or<std::string>(toml, "symmetry", "identity");
+  params.symTransf = SymmetryTransform::Identity;
+  if (symName.compare("D2|") == 0)
+    params.symTransf = SymmetryTransform::ReflectAcrossY;
+  else if (symName.compare("D2|even") == 0)
+    params.symTransf = SymmetryTransform::ReflectAcrossYEven;
+  else if (symName.compare("D2-") == 0)
+    params.symTransf = SymmetryTransform::ReflectAcrossX;
+  else if (symName.compare("D2-even") == 0)
+    params.symTransf = SymmetryTransform::ReflectAcrossXEven;
+  else if (symName.compare("C2botheven") == 0 || symName.compare("C2evenboth") == 0)
+    params.symTransf = SymmetryTransform::Rotate180EvenBoth;
+  else if (symName.compare("C2horizontaleven") == 0 || symName.compare("C2|even") == 0)
+    params.symTransf = SymmetryTransform::Rotate180EvenHorizontal;
+  else if (symName.compare("C2verticaleven") == 0 || symName.compare("C2-even") == 0)
+    params.symTransf = SymmetryTransform::Rotate180EvenVertical;
+  else if (symName.compare("C2") == 0 || symName.compare("C2oddboth") == 0 ||
+                symName.compare("C2bothodd") == 0)
+    params.symTransf = SymmetryTransform::Rotate180OddBoth;
+
   params.debug = toml::find_or(toml, "debug", false);
 
   std::string rle = toml::find<std::string>(toml, "pattern");
@@ -82,6 +105,28 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.startingStable = pat.state & pat.marked;
   params.searchArea = pat.history;
   params.stator = pat.original;
+
+  // we make a choice of fundamental domain based off whether
+  // the prescribed search area
+  std::array<SymmetryTransform, 4> rotationalSyms({Rotate180EvenBoth,
+      Rotate180OddBoth, Rotate180EvenHorizontal, Rotate180EvenVertical});
+  if(std::find(rotationalSyms.begin(), rotationalSyms.end(), params.symTransf)
+          != rotationalSyms.end()){
+    const LifeState yAxis = LifeState::SolidRect(0, 0, 1, 64);
+    const LifeState xAxis = LifeState::SolidRect(0,0,N,1);
+    if ((params.searchArea & yAxis).IsEmpty())
+      params.fundDomain = DomainChoice::LEFTRIGHT;
+    else if ((params.searchArea & xAxis).IsEmpty())
+      params.fundDomain = DomainChoice::TOPBOTTOM;
+    else {
+      std::cout << "Unable to make domain choice for C2 symmetry";
+      std::cout << " based off search area" << std::endl;
+      exit(1);
+    }
+  } else
+    params.fundDomain = DomainChoice::NONE;
+
+  params.fundDomain = DomainChoice::TOPBOTTOM;
 
   return params;
 }

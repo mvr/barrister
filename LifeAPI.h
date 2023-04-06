@@ -21,7 +21,8 @@
 #endif
 
 // Best if multiple of 4
-#define N 32
+// #define N 32
+#define N 64
 
 #define SUCCESS 1
 #define FAIL 0
@@ -207,6 +208,29 @@ enum SymmetryTransform {
   ReflectAcrossYeqNegXP1
 };
 
+std::pair<int,int> TransformedBy(SymmetryTransform transf, std::pair<int,int> coord){
+  switch(transf){
+    case(SymmetryTransform::ReflectAcrossY):
+      return std::make_pair((N-coord.first)%N, coord.second);
+    case(SymmetryTransform::ReflectAcrossYEven):
+      return std::make_pair(N-1-coord.first, coord.second);
+    case(SymmetryTransform::Rotate180OddBoth):
+      return std::make_pair((N-coord.first)%N, (64-coord.second)%64);
+    case(SymmetryTransform::Rotate180EvenBoth):
+      return std::make_pair(N-1-coord.first, 63-coord.second);
+    case(SymmetryTransform::Rotate180EvenHorizontal):
+      return std::make_pair(N-1-coord.first, (64-coord.second)%64);
+    case(SymmetryTransform::Rotate180EvenVertical):
+      return std::make_pair((N-coord.first)%N, 63-coord.second);
+    case(SymmetryTransform::ReflectAcrossX):
+      return std::make_pair(coord.first, (64-coord.second)%64);
+    case(SymmetryTransform::ReflectAcrossXEven):
+      return std::make_pair(coord.first, 63-coord.second);
+    default:
+      return coord;
+  }
+}
+
 enum StaticSymmetry {
   C1,
   D2AcrossX,
@@ -230,6 +254,9 @@ enum StaticSymmetry {
   D8,
   D8even,
 };
+
+
+enum DomainChoice {LEFTRIGHT, TOPBOTTOM, NONE};
 
 inline uint64_t RotateLeft(uint64_t x, unsigned int k) {
   return __builtin_rotateleft64(x, k);
@@ -1127,6 +1154,28 @@ public:
       remaining &= ~component;
     }
     return result;
+  }
+
+  // for priority stuff with reflection symmetries.
+  static LifeState WithinDistOfAxis(SymmetryTransform sym, std::pair<int,int> dims) {
+    if (sym == SymmetryTransform::ReflectAcrossY ||
+             sym == SymmetryTransform::ReflectAcrossYEven)
+      return LifeState::SolidRect(-(dims.first/2), 0, dims.first, 64);
+    else if (sym == SymmetryTransform::ReflectAcrossX ||
+              sym == SymmetryTransform::ReflectAcrossXEven)
+      return LifeState::SolidRect(0, -(dims.second/2), N, dims.second);
+    else
+      return ~LifeState();
+  }
+
+  // for priority stuff with rotational symmetries.
+  static LifeState DomainFromChoice(DomainChoice choice) {
+    if (choice == DomainChoice::LEFTRIGHT)
+      return LifeState::SolidRect(0,0,N/2, 64);
+    if (choice == DomainChoice::TOPBOTTOM)
+      return LifeState::SolidRect(0,0,N, 32);
+    else
+      return ~LifeState();
   }
 };
 
