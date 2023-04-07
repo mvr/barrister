@@ -92,15 +92,25 @@ void SearchState::TransferStableToCurrent() {
   current.state |= stable.state & updated;
   current.unknown &= ~updated;
   current.unknownStable &= ~updated;
+
+  LifeState focusesUpdated = pendingFocuses.currentState.unknownStable & ~stable.unknownStable;
+  pendingFocuses.currentState.state |= stable.state & focusesUpdated;
+  pendingFocuses.currentState.unknown &= ~focusesUpdated;
+  pendingFocuses.currentState.unknownStable &= ~focusesUpdated;
 }
 
 void SearchState::TransferStableToCurrentColumn(unsigned column) {
-  for (unsigned i = 0; i < 5; i++) {
+  for (unsigned i = 0; i < 6; i++) {
     int c = (column + (int)i - 2 + N) % N;
     uint64_t updated = current.unknownStable[c] & ~stable.unknownStable[c];
     current.state[c] |= stable.state[c] & updated;
     current.unknown[c] &= ~updated;
     current.unknownStable[c] &= ~updated;
+
+    uint64_t focusesUpdated = pendingFocuses.currentState.unknownStable[c] & ~stable.unknownStable[c];
+    pendingFocuses.currentState.state[c] |= stable.state[c] & focusesUpdated;
+    pendingFocuses.currentState.unknown[c] &= ~focusesUpdated;
+    pendingFocuses.currentState.unknownStable[c] &= ~focusesUpdated;
   }
 }
 
