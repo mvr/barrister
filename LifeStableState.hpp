@@ -21,7 +21,9 @@ public:
   LifeState unknown1;
   LifeState unknown0;
 
-  bool SimplePropagateColumnStep(int column); // NOTE: doesn't update the counts
+  // NOTE: doesn't update the counts
+  std::pair<bool, bool> SimplePropagateColumnStep(int column);
+  bool SimplePropagateColumn(int column);
 
   // std::pair<bool, bool> SimplePropagateStableStep();
   // bool SimplePropagateStable();
@@ -39,7 +41,7 @@ public:
   LifeState CompleteStable();
 };
 
-bool LifeStableState::SimplePropagateColumnStep(int column) {
+std::pair<bool, bool> LifeStableState::SimplePropagateColumnStep(int column) {
   std::array<uint64_t, 6> nearbyStable;
   std::array<uint64_t, 6> nearbyUnknown;
   std::array<uint64_t, 6> nearbyGlanced;
@@ -183,7 +185,7 @@ signal_on |= stateon & (~on1) & on0 & (~unk0) ;
   }
 
   if(abort != 0)
-    return false;
+    return {false, false};
 
   #pragma clang loop vectorize(enable)
   for (int i = 1; i < 5; i++) {
@@ -204,7 +206,7 @@ signal_on |= stateon & (~on1) & on0 & (~unk0) ;
     signalled_overlaps |= nearbyUnknown[i] & signalled_off[i] & signalled_on[i];
   }
   if(signalled_overlaps != 0)
-    return false;
+    return {false, false};
 
   #pragma clang loop vectorize(enable)
   for (int i = 1; i < 5; i++) {
@@ -222,6 +224,28 @@ signal_on |= stateon & (~on1) & on0 & (~unk0) ;
     unknownStable[orig] &= ~signalled_off[i];
   }
 
+  uint64_t unknownChanges = 0;
+  // int changeCnt = 0;
+  #pragma clang loop vectorize(enable)
+  for (int i = 0; i < 6; i++) {
+    int orig = (column + i - 2 + N) % N;
+    // changeCnt += __builtin_popcount(unknownStable[orig] ^ nearbyUnknown[i]);
+    unknownChanges |= unknownStable[orig] ^ nearbyUnknown[i];
+  }
+  // std::cout << changeCnt << std::endl;
+
+  return { true, unknownChanges == 0 };
+}
+
+bool LifeStableState::SimplePropagateColumn(int column) {
+  bool done = false;
+  while (!done) {
+    auto result = SimplePropagateColumnStep(column);
+    if (!result.first) {
+      return false;
+    }
+    done = result.second;
+  }
   return true;
 }
 
