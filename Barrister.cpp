@@ -202,7 +202,7 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
     // IDEA: calculate 'priority' cells, where any cell that is
     // active will break one of the constraints
 
-    if (active.GetPop() == params->maxActiveCells - 1 ||
+    if (active.GetPop() == params->maxActiveCells ||
         currentGen + i < params->minFirstActiveGen) {
       allPriority[i] = ~LifeState();
     } else {
