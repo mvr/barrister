@@ -204,7 +204,7 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
 
     if (active.GetPop() == params->maxActiveCells ||
         currentGen + i < params->minFirstActiveGen) {
-      allPriority[i] = ~LifeState();
+      allPriority[i] = ~active;
     } else {
       allPriority[i] = active.Convolve(activeRect) | everActivePriority;
     }
