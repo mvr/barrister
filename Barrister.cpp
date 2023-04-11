@@ -411,7 +411,7 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
-    bool consistent = nextState.stable.SimplePropagateColumn(cell.first);
+    bool consistent = nextState.stable.PropagateColumn(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
       LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
@@ -433,7 +433,7 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
-    bool consistent = nextState.stable.SimplePropagateColumn(cell.first);
+    bool consistent = nextState.stable.PropagateColumn(cell.first);
     if(consistent) {
       nextState.TransferStableToCurrentColumn(cell.first);
       LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);

@@ -22,8 +22,8 @@ public:
   LifeState unknown0;
 
   // NOTE: doesn't update the counts
-  std::pair<bool, bool> SimplePropagateColumnStep(int column);
-  bool SimplePropagateColumn(int column);
+  std::pair<bool, bool> PropagateColumnStep(int column);
+  bool PropagateColumn(int column);
 
   // std::pair<bool, bool> SimplePropagateStableStep();
   // bool SimplePropagateStable();
@@ -41,7 +41,7 @@ public:
   LifeState CompleteStable();
 };
 
-std::pair<bool, bool> LifeStableState::SimplePropagateColumnStep(int column) {
+std::pair<bool, bool> LifeStableState::PropagateColumnStep(int column) {
   std::array<uint64_t, 6> nearbyStable;
   std::array<uint64_t, 6> nearbyUnknown;
   std::array<uint64_t, 6> nearbyGlanced;
@@ -237,10 +237,10 @@ signal_on |= stateon & (~on1) & on0 & (~unk0) ;
   return { true, unknownChanges == 0 };
 }
 
-bool LifeStableState::SimplePropagateColumn(int column) {
+bool LifeStableState::PropagateColumn(int column) {
   bool done = false;
   while (!done) {
-    auto result = SimplePropagateColumnStep(column);
+    auto result = PropagateColumnStep(column);
     if (!result.first) {
       return false;
     }
