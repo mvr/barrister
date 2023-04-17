@@ -11,18 +11,18 @@ public:
   // unsigned maxStablePop;
   // std::pair<unsigned, unsigned> stableBounds;
 
-  unsigned maxActiveCells;
-  unsigned maxActiveOnCells;
+  int maxActiveCells;
   // unsigned maxChanges;
-  std::pair<unsigned, unsigned> activeBounds;
+  std::pair<int, int> activeBounds;
 
-  unsigned maxEverActiveCells;
-  std::pair<unsigned, unsigned> everActiveBounds;
+  int maxEverActiveCells;
+  std::pair<int, int> everActiveBounds;
 
   LifeState activePattern;
   LifeState startingStable;
   LifeState searchArea;
   LifeState stator;
+  bool hasStator;
 
   bool stabiliseResults;
   bool skipGlancing;
@@ -47,15 +47,15 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
 
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 4);
 
-  params.maxActiveCells = toml::find_or(toml, "max-active-cells", 20);
+  params.maxActiveCells = toml::find_or(toml, "max-active-cells", -1);
 
-  std::vector<int> activeBounds = toml::find_or<std::vector<int>>(toml, "active-bounds", {100, 100});
+  std::vector<int> activeBounds = toml::find_or<std::vector<int>>(toml, "active-bounds", {-1, -1});
   params.activeBounds.first = activeBounds[0];
   params.activeBounds.second = activeBounds[1];
 
-  params.maxEverActiveCells = toml::find_or(toml, "max-ever-active-cells", 100);
+  params.maxEverActiveCells = toml::find_or(toml, "max-ever-active-cells", -1);
 
-  std::vector<int> everActiveBounds = toml::find_or<std::vector<int>>(toml, "ever-active-bounds", {100, 100});
+  std::vector<int> everActiveBounds = toml::find_or<std::vector<int>>(toml, "ever-active-bounds", {-1, -1});
   params.everActiveBounds.first = everActiveBounds[0];
   params.everActiveBounds.second = everActiveBounds[1];
 
@@ -82,6 +82,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.startingStable = pat.state & pat.marked;
   params.searchArea = pat.history;
   params.stator = pat.original;
+  params.hasStator = !params.stator.IsEmpty();
 
   return params;
 }
