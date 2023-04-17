@@ -126,13 +126,13 @@ inline unsigned populated_width_uint32_t(uint32_t x) {
     return 0;
 
   // First, shift to try and make it 2^n-1
-  int lzeroes = __builtin_ctzll(x);
+  int lzeroes = __builtin_ctz(x);
   x = __builtin_rotateright32(x, lzeroes);
-  int tones = __builtin_clzll(~x);
+  int tones = __builtin_clz(~x);
   x = __builtin_rotateleft32(x, tones);
 
   if ((x & (x + 1)) == 0)
-    return __builtin_ctzll(~x);
+    return __builtin_ctz(~x);
 
   return 32 - longest_run_uint32_t(~x);
 }
