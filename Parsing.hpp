@@ -147,10 +147,10 @@ LifeHistoryState ParseLifeHistory(const std::string &rle) {
           result.history.Set(x, y);
           break;
         case 'C':
+          result.state.Set(x, y);
           result.marked.Set(x, y);
           break;
         case 'D':
-          result.state.Set(x, y);
           result.marked.Set(x, y);
           break;
         case 'E':
