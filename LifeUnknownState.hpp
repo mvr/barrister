@@ -68,6 +68,14 @@ LifeUnknownState LifeUnknownState::UncertainStepFast(const LifeStableState &stab
 
     result.state[i] = next_on;
     result.unknown[i] = unknown;
+
+    // Remove unknown cells that we have decided were glancing
+    uint64_t glanceSafe =
+      (unknown & ~(stateon | stateunk | stable.state2[i] | stable.state1[i] | on2))
+      & (  (~stable.state0[i] & (~on1) & on0)
+         | ( stable.state0[i] & (on1 ^ on0))
+        );
+    result.unknown[i] &= ~(glanceSafe & stable.glanced[i]);
   }
 
   LifeState uneqStable = (state ^ stable.state) | (unknownStable ^ stable.unknownStable) | (unknown & ~unknownStable);
