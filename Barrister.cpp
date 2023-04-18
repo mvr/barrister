@@ -316,7 +316,7 @@ std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchStat
 
   if (hasInteracted) {
     LifeUnknownState gen = lookahead[maxLookaheadGens - 1];
-    for(unsigned i = maxLookaheadGens; currentGen + i < interactionStart + params->maxActiveWindowGens; i++) {
+    for(unsigned i = maxLookaheadGens; currentGen + i <= interactionStart + params->maxActiveWindowGens + 1; i++) {
       gen = gen.UncertainStepFast(stable);
       LifeState active = gen.ActiveComparedTo(stable);
       everActive |= active;
