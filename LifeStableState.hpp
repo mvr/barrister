@@ -277,8 +277,8 @@ std::pair<bool, bool> LifeStableState::PropagateStableStep() {
     unk1 |= unk2 | unk3;
     unk0 |= unk2 | unk3;
 
-    uint64_t state0 = state[i];
-    uint64_t state1 = unknownStable[i];
+    uint64_t stateon = state[i];
+    uint64_t stateunk   = unknownStable[i];
     uint64_t gl     = glanced[i];
     uint64_t dr     = glancedON[i];
 
@@ -308,20 +308,20 @@ signal_on |= state0 & (~on1) & on0 & (~unk0) ;
    // A glanced cell with too many neighbours
    abort |= gl & (on2 | on1);
    // A glanced cell that is ON
-   abort |= gl & state0;
+   abort |= gl & stateon;
 
    // A glancedON cell with 2 ON/UNK neighbours
-   signal_on |= dr & (~unk3) & (~on2) & (~on1) & (~unk2) & (((~unk1) & unk0 & on0) | (unk1 & (~unk0) & (~on0)));
+   signal_on |= dr & (~unk3) & (~unk2) & (~on2) & (~on1) & (((~unk1) & unk0 & on0) | (unk1 & (~unk0) & (~on0)));
    // A glancedON cell with too few neighbours
    abort |= dr & (~unk3) & (~unk2) & (~unk1) & (~on2) & (~on1) & (((~unk0) & (~on0)) | (unk0 & (~on0)) | ((~unk0) & on0));
    // A glancedON cell that is ON
-   abort |= dr & state0;
+   abort |= dr & stateon;
 
    signal_off &= unk0 | unk1;
    signal_on  &= unk0 | unk1;
 
-   new_off[i] = set_off & state1;
-   new_on[i] = set_on & state1;
+   new_off[i] = set_off & stateunk;
+   new_on[i] = set_on & stateunk;
    new_signal_off[i] = signal_off;
    new_signal_on[i] = signal_on;
 
