@@ -52,7 +52,7 @@ public:
 
   FocusSet FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const;
 
-  bool CheckConditionsOn(unsigned gen, const LifeState &state, const LifeState &active, const LifeState &everActive) const;
+  bool CheckConditionsOn(unsigned gen, const LifeUnknownState &state, const LifeState &active, const LifeState &everActive) const;
   bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize);
 
   void Search();
@@ -155,7 +155,7 @@ bool SearchState::TryAdvance() {
     LifeState active = current.ActiveComparedTo(stable);
     everActive |= active;
 
-    if (!CheckConditionsOn(currentGen, current.state, active, everActive))
+    if (!CheckConditionsOn(currentGen, current, active, everActive))
       return false;
 
     if(!hasInteracted && currentGen > params->maxFirstActiveGen)
@@ -264,7 +264,7 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
   return {LifeState(), LifeState(), LifeUnknownState(), 0, false};
 }
 
-bool SearchState::CheckConditionsOn(unsigned gen, const LifeState &state, const LifeState &active, const LifeState &everActive) const {
+bool SearchState::CheckConditionsOn(unsigned gen, const LifeUnknownState &state, const LifeState &active, const LifeState &everActive) const {
   auto activePop = active.GetPop();
 
   if (gen < params->minFirstActiveGen && activePop > 0)
@@ -291,8 +291,8 @@ bool SearchState::CheckConditionsOn(unsigned gen, const LifeState &state, const 
       return false;
   }
 
-  if(params->hasStator && !(~state & params->stator).IsEmpty())
-    return false;
+  if (params->hasStator && !(~state.state & params->stator & ~state.unknown).IsEmpty())
+      return false;
 
   return true;
 }
@@ -307,7 +307,7 @@ std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchStat
     LifeState active = lookahead[i+1].ActiveComparedTo(stable);
 
     everActive |= active;
-    bool genResult = CheckConditionsOn(currentGen + i, lookahead[i+1].state, active, everActive);
+    bool genResult = CheckConditionsOn(currentGen + i, lookahead[i+1], active, everActive);
 
     if(!genResult)
       return {false, lookahead, i+2};
@@ -326,7 +326,7 @@ std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchStat
       if(active.IsEmpty())
         break;
 
-      bool genResult = CheckConditionsOn(currentGen + i, gen.state, active, everActive);
+      bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive);
       if (!genResult)
         return {false, lookahead, maxLookaheadGens};
     }
@@ -440,7 +440,7 @@ void SearchState::SearchStep() {
       LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
-      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook.state, quickactive, quickeveractive);
+      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive);
 
       if(conditionsPassed)
         nextState.SearchStep();
@@ -463,7 +463,7 @@ void SearchState::SearchStep() {
       LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
-      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook.state, quickactive, quickeveractive);
+      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive);
       if(conditionsPassed)
         [[clang::musttail]]
         return nextState.SearchStep();
