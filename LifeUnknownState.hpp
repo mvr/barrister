@@ -70,11 +70,10 @@ LifeUnknownState LifeUnknownState::UncertainStepFast(const LifeStableState &stab
     result.unknown[i] = unknown;
 
     // Remove unknown cells that we have decided were glancing
+    // Careful: stable.state0/1/2 may be out of date when this
+    // function is called, so think very hard before adjusting this
     uint64_t glanceSafe =
-      (unknown & ~(stateon | stateunk | stable.state2[i] | stable.state1[i] | on2))
-      & (  (~stable.state0[i] & (~on1) & on0)
-         | ( stable.state0[i] & (on1 ^ on0))
-        );
+      unknown & ~(stateon | stateunk | stable.state2[i] | stable.state1[i] | stable.state0[i] | on2 | on1);
     result.unknown[i] &= ~(glanceSafe & stable.glanced[i]);
   }
 
@@ -136,27 +135,19 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
     result.state[i] = next_on;
     result.unknown[i] = unknown;
 
-    uint64_t common_part = (~stateon)
-      & (~stateunk)
-      & unknown
+    uint64_t common_part = unknown &
 //      & ~any_unstable_unknown
-      & (~stable.state2[i])
-      & (~stable.state1[i])
-      & (~on2);
+      ~(stateon | stateunk | stable.state2[i] | stable.state1[i] | on2);
 
     uint64_t glanceable =
       common_part
       & (~stable.state0[i])
       & (~on1) & on0
-      & (unk2 | unk1 | unk0);
+      & (unk1 | unk0);
     result.glanceableUnknown[i] = glanceable;
 
     // Remove unknown cells that we have decided were glancing
-    uint64_t glanceSafe =
-      common_part
-      & (  (~stable.state0[i] & (~on1) & on0)
-         | ( stable.state0[i] & (on1 ^ on0))
-        );
+    uint64_t glanceSafe = common_part & ~stable.state0[i] & ~on1;
     result.unknown[i] &= ~(glanceSafe & stable.glanced[i]);
   }
 
