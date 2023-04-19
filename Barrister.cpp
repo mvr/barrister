@@ -17,7 +17,7 @@ struct FocusSet {
 
   LifeUnknownState currentState;
   unsigned currentGen;
-  bool isPriority;
+  bool isForcedInactive;
 };
 
 
@@ -30,6 +30,7 @@ public:
   LifeState everActive;
 
   FocusSet pendingFocuses;
+  std::pair<int, int> focus;
 
   unsigned currentGen;
   bool hasInteracted;
@@ -83,6 +84,7 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   current.unknownStable = stable.unknownStable;
 
   everActive = LifeState();
+  focus = {-1, -1};
   pendingFocuses.focuses = LifeState();
 }
 
@@ -184,19 +186,19 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
       2 * params->activeBounds.first - 1, 2 * params->activeBounds.second - 1);
   }
 
-  LifeState everActivePriority(false);
+  LifeState everActiveForcedInactive(false);
   if (params->everActiveBounds.first == -1) {
-    everActivePriority = LifeState();
+    everActiveForcedInactive = LifeState();
   } else {
     LifeState everActiveRect = ~LifeState::SolidRect(
       -params->everActiveBounds.first + 1, -params->everActiveBounds.second + 1,
       2 * params->everActiveBounds.first - 1, 2 * params->everActiveBounds.second - 1);
-    everActivePriority = everActive.Convolve(everActiveRect);
+    everActiveForcedInactive = everActive.Convolve(everActiveRect);
   }
 
 
   std::array<LifeState, maxLookaheadGens> allFocusable;
-  std::array<LifeState, maxLookaheadGens> allPriority;
+  std::array<LifeState, maxLookaheadGens> allForcedInactive;
   for (unsigned i = 1; i < lookaheadSize; i++) {
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
@@ -210,19 +212,19 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
 
     allFocusable[i] = becomeUnknown & ~nearActiveUnknown;
 
-    // IDEA: calculate 'priority' cells, where any cell that is
+    // IDEA: calculate 'forcedInactive' cells, where any cell that is
     // active will break one of the constraints
 
-    LifeState activePriority(false);
+    LifeState activeForcedInactive(false);
     if (params->maxActiveCells != -1 && (active.GetPop() == (unsigned)params->maxActiveCells || currentGen + i < params->minFirstActiveGen)) {
-      activePriority = ~active;
+      activeForcedInactive = ~active;
     } else if (params->activeBounds.first != -1) {
-      activePriority = active.Convolve(activeRect);
+      activeForcedInactive = active.Convolve(activeRect);
     } else {
-      activePriority = LifeState();
+      activeForcedInactive = LifeState();
     }
 
-    allPriority[i] = activePriority | everActivePriority;
+    allForcedInactive[i] = activeForcedInactive | everActiveForcedInactive;
   }
 
   // IDEA: look for focusable cells where all the unknown neighbours
@@ -237,17 +239,17 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
 #define TRY_CHOOSE(exp, isprio)                                         \
   for (unsigned i = 1; i < lookaheadSize; i++) {                        \
     LifeState focusable = allFocusable[i];                              \
-    LifeState priority = allPriority[i];                                \
+    LifeState forcedInactive = allForcedInactive[i];                                \
     focusable &= exp;                                                   \
     if (!focusable.IsEmpty())                                           \
-      return {focusable, lookahead[i].glanceableUnknown,                \
+      return {focusable, focusable, lookahead[i].glanceableUnknown,     \
               lookahead[i - 1], currentGen + i - 1, isprio};            \
   }
 
-  TRY_CHOOSE(stable.stateZOI & priority & oneOrTwoUnknownNeighbours, true);
-  TRY_CHOOSE(priority & oneOrTwoUnknownNeighbours, true);
-  TRY_CHOOSE(stable.stateZOI & priority, true);
-  TRY_CHOOSE(priority, true);
+  TRY_CHOOSE(stable.stateZOI & forcedInactive & oneOrTwoUnknownNeighbours, true);
+  TRY_CHOOSE(forcedInactive & oneOrTwoUnknownNeighbours, true);
+  TRY_CHOOSE(stable.stateZOI & forcedInactive, true);
+  TRY_CHOOSE(forcedInactive, true);
 
   TRY_CHOOSE(stable.stateZOI & oneOrTwoUnknownNeighbours, false);
   TRY_CHOOSE(oneOrTwoUnknownNeighbours, false);
@@ -355,65 +357,67 @@ void SearchState::Search() {
 }
 
 void SearchState::SearchStep() {
-  if(pendingFocuses.focuses.IsEmpty()) {
+  if (focus == std::pair(-1, -1) && pendingFocuses.focuses.IsEmpty()) {
     bool consistent = stable.PropagateStable();
-    if (!consistent) {
-      //    std::cout << "not consistent" << std::endl;
+    if (!consistent)
       return;
-    }
 
     TransferStableToCurrent();
 
-    if (!TryAdvance()) {
+    if (!TryAdvance())
       return;
-    }
 
     auto [passed, lookahead, lookaheadSize] = PopulateLookahead();
 
-    if (!passed) {
+    if (!passed)
       return;
-    }
 
     pendingFocuses = FindFocuses(lookahead, lookaheadSize);
 
     // SanityCheck();
   }
 
-  auto focus = (pendingFocuses.focuses & ~pendingFocuses.glanceable).FirstOn();
-  if (focus == std::pair(-1, -1)) {
-    focus = pendingFocuses.focuses.FirstOn();
-    // Shouldn't be possible
+  if(focus == std::pair(-1, -1)) {
+    focus = (pendingFocuses.focuses & ~pendingFocuses.glanceable).FirstOn();
     if (focus == std::pair(-1, -1)) {
-      std::cout << "no focus" << std::endl;
-      exit(1);
-    }
-  }
-
-  bool focusIsGlancing =
-      params->skipGlancing && pendingFocuses.glanceable.Get(focus) &&
-      pendingFocuses.currentState.StillGlancingFor(focus, stable);
-  if(focusIsGlancing) {
-    pendingFocuses.glanceable.Erase(focus);
-
-    if (!pendingFocuses.isPriority || stable.unknown2.Get(focus) ||
-        stable.unknown3.Get(focus)) { // TODO: handle overpopulation better
-      SearchState nextState = *this;
-      nextState.stable.glancedON.Set(focus);
-      nextState.SearchStep();
+      focus = pendingFocuses.focuses.FirstOn();
+      // Shouldn't be possible
+      if (focus == std::pair(-1, -1)) {
+        std::cout << "no focus" << std::endl;
+        exit(1);
+      }
     }
 
-    pendingFocuses.focuses.Erase(focus);
-    stable.glanced.Set(focus);
+    bool focusIsGlancing =
+        params->skipGlancing && pendingFocuses.glanceable.Get(focus) &&
+        pendingFocuses.currentState.StillGlancingFor(focus, stable);
 
-    [[clang::musttail]]
-    return SearchStep();
+    if(focusIsGlancing) {
+      pendingFocuses.glanceable.Erase(focus);
+
+      if (!pendingFocuses.isForcedInactive || stable.unknown2.Get(focus) ||
+          stable.unknown3.Get(focus)) { // TODO: handle overpopulation better
+
+        SearchState nextState = *this;
+        nextState.stable.glancedON.Set(focus);
+        nextState.SearchStep();
+      }
+
+      stable.glanced.Set(focus);
+      pendingFocuses.focuses.Erase(focus);
+      focus = {-1, -1};
+
+      [[clang::musttail]]
+      return SearchStep();
+    }
   }
 
   bool focusIsDetermined = pendingFocuses.currentState.KnownNext(focus);
 
   auto cell = stable.UnknownNeighbour(focus);
-  if(focusIsDetermined || cell == std::pair(-1, -1)) {
+  if (focusIsDetermined || cell == std::pair(-1, -1)) {
     pendingFocuses.focuses.Erase(focus);
+    focus = {-1, -1};
 
     [[clang::musttail]]
     return SearchStep();
