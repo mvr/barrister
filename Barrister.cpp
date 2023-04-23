@@ -239,10 +239,10 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
 #define TRY_CHOOSE(exp, isprio)                                         \
   for (unsigned i = 1; i < lookaheadSize; i++) {                        \
     LifeState focusable = allFocusable[i];                              \
-    LifeState forcedInactive = allForcedInactive[i];                                \
+    LifeState forcedInactive = allForcedInactive[i];                    \
     focusable &= exp;                                                   \
     if (!focusable.IsEmpty())                                           \
-      return {focusable, focusable, lookahead[i].glanceableUnknown,     \
+      return {focusable, lookahead[i].glanceableUnknown,                \
               lookahead[i - 1], currentGen + i - 1, isprio};            \
   }
 
