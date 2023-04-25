@@ -1073,7 +1073,7 @@ public:
     uint64_t result = 0;
     for (unsigned i = 0; i < N; i++)
       if(state[i] != 0)
-        result |= 1 << i;
+        result |= 1ULL << i;
     return result;
   }
 
