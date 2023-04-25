@@ -70,3 +70,35 @@ void inline CountNeighbourhood(const LifeState &state, LifeState &__restrict__ b
     }
   }
 }
+
+template <uint32_t max>
+class LifeCountdown {
+public:
+  static constexpr uint32_t lmax = 32 - __builtin_clz(max);
+  LifeState started;
+  LifeState finished;
+  LifeState counter[lmax] = {0}; // implements decrementing counter
+  uint32_t n;
+
+  LifeCountdown() : started{0}, finished{0}, counter{0}, n{0} {};
+  LifeCountdown(uint32_t n) : started{0}, finished{0}, counter{0}, n{n} {};
+
+  void Start(LifeState &state) {
+    LifeState newStarted = state & ~started;
+    for (unsigned i = 0; i < lmax; i++) {
+      if ((n >> i) & 1) {
+        counter[i] |= newStarted;
+      }
+    }
+    started |= state;
+  }
+
+  void Tick() {
+    auto carry = started;
+    for (unsigned i = 0; i < lmax; i++) {
+        counter[i] ^= carry;
+        carry &= counter[i];
+    }
+    finished |= carry;
+  }
+};

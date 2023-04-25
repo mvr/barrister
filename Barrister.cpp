@@ -10,6 +10,7 @@
 #include "Params.hpp"
 
 const unsigned maxLookaheadGens = 6;
+const unsigned maxAncientGens = 16-1;
 
 struct FocusSet {
   LifeState focuses;
@@ -30,6 +31,9 @@ public:
   LifeState everActive;
 
   FocusSet pendingFocuses;
+
+  LifeCountdown<maxAncientGens> activeTimer;
+
   std::pair<int, int> focus;
 
   unsigned currentGen;
@@ -86,6 +90,7 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   everActive = LifeState();
   focus = {-1, -1};
   pendingFocuses.focuses = LifeState();
+  activeTimer = LifeCountdown<maxAncientGens>(params->maxCellActiveWindowGens);
 }
 
 void SearchState::TransferStableToCurrent() {
@@ -154,6 +159,11 @@ bool SearchState::TryAdvance() {
   while (didAdvance = TryAdvanceOne(), didAdvance) {
     LifeState active = current.ActiveComparedTo(stable);
     everActive |= active;
+
+    if (params->maxCellActiveWindowGens != -1) {
+      activeTimer.Start(active);
+      activeTimer.Tick();
+    }
 
     if (!CheckConditionsOn(currentGen, current, active, everActive))
       return false;
@@ -274,6 +284,9 @@ bool SearchState::CheckConditionsOn(unsigned gen, const LifeUnknownState &state,
     return false;
 
   if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
+    return false;
+
+  if (params->maxCellActiveWindowGens != -1 && currentGen > (unsigned)params->maxCellActiveWindowGens && !(active & activeTimer.finished).IsEmpty())
     return false;
 
   if(params->activeBounds.first != -1) {

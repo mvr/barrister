@@ -18,6 +18,8 @@ public:
   int maxEverActiveCells;
   std::pair<int, int> everActiveBounds;
 
+  int maxCellActiveWindowGens;
+
   LifeState activePattern;
   LifeState startingStable;
   LifeState searchArea;
@@ -60,6 +62,8 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.everActiveBounds.second = everActiveBounds[1];
 
   // params.maxChanges = toml::find_or(toml, "max-changed-cells", 100);
+
+  params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", true);
   params.skipGlancing = toml::find_or(toml, "skip-glancing", true);
