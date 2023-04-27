@@ -256,14 +256,18 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
               lookahead[i - 1], currentGen + i - 1, isprio};            \
   }
 
-  TRY_CHOOSE(stable.stateZOI & forcedInactive & oneOrTwoUnknownNeighbours, true);
   TRY_CHOOSE(forcedInactive & oneOrTwoUnknownNeighbours, true);
-  TRY_CHOOSE(stable.stateZOI & forcedInactive, true);
   TRY_CHOOSE(forcedInactive, true);
-
-  TRY_CHOOSE(stable.stateZOI & oneOrTwoUnknownNeighbours, false);
   TRY_CHOOSE(oneOrTwoUnknownNeighbours, false);
-  TRY_CHOOSE(stable.stateZOI, false);
+
+  // TRY_CHOOSE(stable.stateZOI & forcedInactive & oneOrTwoUnknownNeighbours, true);
+  // TRY_CHOOSE(forcedInactive & oneOrTwoUnknownNeighbours, true);
+  // TRY_CHOOSE(stable.stateZOI & forcedInactive, true);
+  // TRY_CHOOSE(forcedInactive, true);
+
+  // TRY_CHOOSE(stable.stateZOI & oneOrTwoUnknownNeighbours, false);
+  // TRY_CHOOSE(oneOrTwoUnknownNeighbours, false);
+  // TRY_CHOOSE(stable.stateZOI, false);
 
   // Try anything at all
   TRY_CHOOSE(~LifeState(), false);
