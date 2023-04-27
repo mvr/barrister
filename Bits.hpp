@@ -80,8 +80,8 @@ public:
   LifeState counter[lmax] = {0}; // implements decrementing counter
   uint32_t n;
 
-  LifeCountdown() : started{0}, finished{0}, counter{0}, n{0} {};
-  LifeCountdown(uint32_t n) : started{0}, finished{0}, counter{0}, n{n} {};
+  LifeCountdown() : started{}, finished{}, counter{}, n{0} {};
+  LifeCountdown(uint32_t n) : started{}, finished{}, counter{}, n{n} {};
 
   void Start(LifeState &state) {
     LifeState newStarted = state & ~started;
