@@ -20,6 +20,7 @@ public:
 
   int maxCellActiveWindowGens;
 
+  LifeState startingPattern;
   LifeState activePattern;
   LifeState startingStable;
   LifeState searchArea;
@@ -82,8 +83,9 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   pat.history.Move(-patternCenter[0], -patternCenter[1]);
   pat.original.Move(-patternCenter[0], -patternCenter[1]);
 
+  params.startingPattern = pat.state;
   params.activePattern = pat.state & ~pat.marked;
-  params.startingStable = pat.state & pat.marked;
+  params.startingStable = pat.marked;
   params.searchArea = pat.history;
   params.stator = pat.original;
   params.hasStator = !params.stator.IsEmpty();

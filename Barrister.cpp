@@ -83,7 +83,7 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   stable.state = inparams.startingStable;
   stable.unknownStable = inparams.searchArea;
 
-  current.state = inparams.activePattern | stable.state;
+  current.state = inparams.startingPattern;
   current.unknown = stable.unknownStable;
   current.unknownStable = stable.unknownStable;
 
@@ -132,7 +132,7 @@ bool SearchState::TryAdvanceOne() {
     LifeState steppedWithoutStable = (current.state & ~stable.state);
     steppedWithoutStable.Step();
 
-    bool isDifferent = !(next.state ^ steppedWithoutStable).IsEmpty();
+    bool isDifferent = !(next.state ^ (steppedWithoutStable | stable.state)).IsEmpty();
 
     if (isDifferent) {
       hasInteracted = true;
@@ -529,9 +529,10 @@ void SearchState::ReportSolution() {
 
   std::cout << "Winner:" << std::endl;
   std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-  LifeState starting = params->activePattern;
-  LifeState state = starting | stable.state;
-  LifeState marked = stable.unknownStable | stable.state;
+  LifeState starting = params->startingPattern;
+  LifeState startingStableOff = params->startingStable & ~params->startingPattern;
+  LifeState state = params->startingPattern | (stable.state & ~startingStableOff);
+  LifeState marked = stable.unknownStable | (stable.state & ~startingStableOff);
   std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
 
   if(params->stabiliseResults) {
@@ -542,12 +543,12 @@ void SearchState::ReportSolution() {
       std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
       LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
       LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
-      LifeHistoryState history(starting | completed, remainingHistory , LifeState(), stator);
+      LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
       std::cout << history.RLE() << std::endl;
 
       std::cout << "Completed Plain:" << std::endl;
-      std::cout << (completed | starting).RLE() << std::endl;
-      allSolutions->push_back(completed | starting);
+      std::cout << ((completed & ~startingStableOff) | starting).RLE() << std::endl;
+      allSolutions->push_back((completed & ~startingStableOff) | starting);
     } else {
       std::cout << "Completion failed!" << std::endl;
       std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
