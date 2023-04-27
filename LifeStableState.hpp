@@ -37,8 +37,11 @@ public:
   // }
 
   bool TestUnknowns();
+  bool TestUnknowns(LifeState &cells);
   bool CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, unsigned &maxPop, LifeState &best);
   LifeState CompleteStable();
+
+  LifeState Vulnerable() const;
 };
 
 std::pair<bool, bool> LifeStableState::PropagateColumnStep(int column) {
@@ -438,6 +441,67 @@ bool LifeStableState::TestUnknowns() {
   return true;
 }
 
+bool LifeStableState::TestUnknowns(LifeState &cells) {
+  // Try all the nearby changes to see if any are forced
+  LifeState remainingCells = cells;
+  while (!remainingCells.IsEmpty()) {
+    auto cell = remainingCells.FirstOn();
+    remainingCells.Erase(cell.first, cell.second);
+
+    LifeStableState onSearch;
+    LifeStableState offSearch;
+    bool onConsistent;
+    bool offConsistent;
+
+    // Try on
+    {
+      onSearch = *this;
+      onSearch.state.SetCell(cell.first, cell.second, true);
+      onSearch.unknownStable.Erase(cell.first, cell.second);
+      onConsistent = onSearch.PropagateStable();
+    }
+
+    // Try off
+    {
+      offSearch = *this;
+      offSearch.state.SetCell(cell.first, cell.second, false);
+      offSearch.unknownStable.Erase(cell.first, cell.second);
+      offConsistent = offSearch.PropagateStable();
+    }
+
+    if(!onConsistent && !offConsistent) {
+      return false;
+    }
+
+    if(onConsistent && !offConsistent) {
+      *this = onSearch;
+    }
+
+    if (!onConsistent && offConsistent) {
+      *this = offSearch;
+    }
+
+    if (onConsistent && offConsistent) {
+      // Copy over common cells
+      LifeState agreement = unknownStable & ~onSearch.unknownStable & ~offSearch.unknownStable & ~(onSearch.state ^ offSearch.state);
+      state |= agreement & onSearch.state;
+      unknownStable &= ~agreement;
+
+      // Unfortunate!
+      if(!agreement.IsEmpty()) {
+        // PropagateStable();
+      LifeState dummy(false);
+      CountNeighbourhood(state, dummy, state2, state1, state0);
+      CountNeighbourhood(unknownStable, unknown3, unknown2, unknown1, unknown0);
+      }
+
+    }
+
+    remainingCells &= unknownStable;
+  }
+  return true;
+}
+
 bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, unsigned &maxPop, LifeState &best) {
   if (state.GetPop() >= maxPop) {
     return false;
@@ -541,4 +605,17 @@ LifeState LifeStableState::CompleteStable() {
       break;
   }
   return best;
+}
+
+LifeState LifeStableState::Vulnerable() const {
+  return unknownStable
+    & (
+       (~unknown3 & ~unknown2 & unknown1 & ~unknown0)
+       // LifeState()
+//     | (~state2 &  state1 &  state0 & ~unknown3 & ~unknown2 &  unknown1 & ~unknown0) // 3 ON, 1 UNK
+//     | (~state2 &  state1 &  state0 & (unknown3 | unknown2 | unknown1)) // 3 ON, any UNK
+//     | (~state2 & ~state1 & ~state0 & ~unknown3 & ~unknown2 &  unknown1 &  unknown0) // 0 ON, 2 UNK 21.5
+//     | (~state2 & ~state1 &  state0 & ~unknown3 & ~unknown2 &  unknown1 &  unknown0) // 1 ON, 2 UNK 20.7
+//     | (~state2 &  state1 & ~state0 & ~unknown3 & ~unknown2 &  unknown1 & ~unknown0) // 2 ON, 1 UNK 20.6
+       );
 }

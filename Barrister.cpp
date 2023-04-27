@@ -375,6 +375,10 @@ void SearchState::SearchStep() {
     if (!consistent)
       return;
 
+    LifeState cells = stable.Vulnerable() & stable.unknownStable;
+    bool testconsistent = stable.TestUnknowns(cells);
+    if (!testconsistent)
+      return;
     TransferStableToCurrent();
 
     if (!TryAdvance())
