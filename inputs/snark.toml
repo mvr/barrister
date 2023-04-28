@@ -18,11 +18,9 @@ $24.8B$6.EA15.9B$5.E.E5.2A.16B$5.E7.2A.16B$4.2E10.16B$8.24B$8.24B$32B
 $32B$32B$32B$32B$32B$32B$32B$32B$32B$32B!
 '''
 
-# Filters not yet implemented
-
-# #F 46 19 10
-# .....
-# .***.
-# ...*.
-# ..*..
-# .....
+filter-gen = 46
+filter-pos = [2, -8]
+filter = '''
+x = 5, y = 5, rule = LifeHistory
+5D$D3CD$3DCD$.DC2D$.3D!
+'''

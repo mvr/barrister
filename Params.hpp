@@ -27,6 +27,11 @@ public:
   LifeState stator;
   bool hasStator;
 
+  // TODO: of course we might want more than one of these
+  int filterGen;
+  LifeState filterMask;
+  LifeState filterPattern;
+
   bool stabiliseResults;
   bool skipGlancing;
   bool forbidEater2;
@@ -90,5 +95,19 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.stator = pat.original;
   params.hasStator = !params.stator.IsEmpty();
 
+  params.filterGen = toml::find_or(toml, "filter-gen", -1);
+  if(params.filterGen != -1) {
+    std::string rle = toml::find_or<std::string>(toml, "filter", "");
+    LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
+
+    std::vector<int> patternCenter = toml::find_or<std::vector<int>>(toml, "filter-pos", {0, 0});
+    pat.state.Move(-patternCenter[0], -patternCenter[1]);
+    pat.marked.Move(-patternCenter[0], -patternCenter[1]);
+    pat.history.Move(-patternCenter[0], -patternCenter[1]);
+    pat.original.Move(-patternCenter[0], -patternCenter[1]);
+
+    params.filterMask = pat.marked;
+    params.filterPattern = pat.state;
+  }
   return params;
 }

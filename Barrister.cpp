@@ -311,6 +311,9 @@ bool SearchState::CheckConditionsOn(unsigned gen, const LifeUnknownState &state,
   if (params->hasStator && !(~state.state & params->stator & ~state.unknown).IsEmpty())
       return false;
 
+  if (params->filterGen != -1 && gen == (unsigned)params->filterGen && !((state.state ^ params->filterPattern) & params->filterMask & ~state.unknown).IsEmpty())
+    return false;
+
   return true;
 }
 
