@@ -534,8 +534,26 @@ bool SearchState::ContainsEater2(LifeState &stable, LifeState &everActive) const
   return false;
 }
 
+bool SearchState::PassesFilter() const {
+  if(currentGen > params->filterGen)
+    return true;
+
+  LifeUnknownState lookahead = current;
+  unsigned lookaheadGen = currentGen;
+  for (unsigned lookaheadGen = currentGen; lookaheadGen < params->filterGen; lookaheadGen++) {
+    lookahead = lookahead.UncertainStepMaintaining(stable);
+  }
+
+  bool allKnown = (params->filterMask & lookahead.unknown).IsEmpty();
+  bool matches = ((lookahead.state ^ params->filterPattern) & params->filterMask).IsEmpty();
+  return allKnown && matches;
+}
+
 void SearchState::ReportSolution() {
   if (params->forbidEater2 && ContainsEater2(stable.state, everActive))
+    return;
+
+  if (params->filterGen != -1 && !PassesFilter())
     return;
 
   std::cout << "Winner:" << std::endl;
