@@ -327,7 +327,7 @@ std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchStat
     LifeState active = lookahead[i+1].ActiveComparedTo(stable);
 
     everActive |= active;
-    bool genResult = CheckConditionsOn(currentGen + i, lookahead[i+1], active, everActive);
+    bool genResult = CheckConditionsOn(currentGen + i + 1, lookahead[i+1], active, everActive);
 
     if(!genResult)
       return {false, lookahead, i+2};
