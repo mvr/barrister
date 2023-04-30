@@ -101,10 +101,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
 
     std::vector<int> patternCenter = toml::find_or<std::vector<int>>(toml, "filter-pos", {0, 0});
-    pat.state.Move(-patternCenter[0], -patternCenter[1]);
-    pat.marked.Move(-patternCenter[0], -patternCenter[1]);
-    pat.history.Move(-patternCenter[0], -patternCenter[1]);
-    pat.original.Move(-patternCenter[0], -patternCenter[1]);
+    pat.state.Move(patternCenter[0], patternCenter[1]);
+    pat.marked.Move(patternCenter[0], patternCenter[1]);
+    pat.history.Move(patternCenter[0], patternCenter[1]);
+    pat.original.Move(patternCenter[0], patternCenter[1]);
 
     params.filterMask = pat.marked;
     params.filterPattern = pat.state;
