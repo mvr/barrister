@@ -63,6 +63,7 @@ public:
   void SearchStep();
 
   bool ContainsEater2(LifeState &stable, LifeState &everActive) const;
+  bool PassesFilter() const;
   void ReportSolution();
 
   void SanityCheck();
