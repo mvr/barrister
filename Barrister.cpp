@@ -65,6 +65,8 @@ public:
   bool ContainsEater2(LifeState &stable, LifeState &everActive) const;
   bool PassesFilter() const;
   void ReportSolution();
+  void ReportFullSolution();
+  void ReportPipeSolution();
 
   void SanityCheck();
 };
@@ -551,6 +553,13 @@ bool SearchState::PassesFilter() const {
 }
 
 void SearchState::ReportSolution() {
+  if(params->pipeResults)
+    ReportPipeSolution();
+  else
+    ReportFullSolution();
+}
+
+void SearchState::ReportFullSolution() {
   if (params->forbidEater2 && ContainsEater2(stable.state, everActive))
     return;
 
@@ -589,6 +598,20 @@ void SearchState::ReportSolution() {
     }
   }
 }
+
+void SearchState::ReportPipeSolution() {
+    LifeState completed = stable.CompleteStable();
+
+    if(completed.IsEmpty())
+      return;
+
+    LifeState starting = params->startingPattern;
+    LifeState startingStableOff = params->startingStable & ~params->startingPattern;
+
+    std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
+    std::cout << ((completed & ~startingStableOff) | starting).RLE() << "!" << std::endl << std::endl;
+}
+
 
 void PrintSummary(std::vector<LifeState> &pats) {
   std::cout << "Summary:" << std::endl;
