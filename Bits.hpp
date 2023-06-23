@@ -74,10 +74,10 @@ void inline CountNeighbourhood(const LifeState &state, LifeState &__restrict__ b
 template <uint32_t max>
 class LifeCountdown {
 public:
-  static constexpr uint32_t lmax = 32 - __builtin_clz(max);
+  static constexpr uint32_t lmax = (max == 0) ? 0 : 32 - __builtin_clz(max);
   LifeState started;
   LifeState finished;
-  LifeState counter[lmax] = {0}; // implements decrementing counter
+  std::array<LifeState, lmax> counter = {0}; // implements decrementing counter
   uint32_t n;
 
   LifeCountdown() : started{}, finished{}, counter{}, n{0} {};
