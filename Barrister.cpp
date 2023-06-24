@@ -87,7 +87,7 @@ public:
   void TransferStableToCurrent();
   void TransferStableToCurrentColumn(unsigned column);
   bool TryAdvance();
-  bool TryAdvanceOne();
+  bool TestRecovered();
   std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead();
 
   FocusSet FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const;
@@ -160,42 +160,72 @@ void SearchState::TransferStableToCurrentColumn(unsigned column) {
   }
 }
 
-bool SearchState::TryAdvanceOne() {
-  LifeUnknownState next = current.UncertainStepMaintaining(stable);
-  bool fullyKnown = (next.unknown ^ next.unknownStable).IsEmpty();
-
-  if (!fullyKnown)
-    return false;
-
-  if (!hasInteracted) {
-    LifeState steppedWithoutStable = (current.state & ~stable.state);
-    steppedWithoutStable.Step();
-
-    bool isDifferent = !(next.state ^ (steppedWithoutStable | stable.state)).IsEmpty();
-
-    if (isDifferent) {
-      hasInteracted = true;
-      interactionStart = currentGen;
-    }
-  }
-
-  current = next;
-  currentGen++;
-
-  if (hasInteracted) {
-    bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
-    if (isRecovered)
-      recoveredTime++;
-    else
-      recoveredTime = 0;
-  }
-
-  return true;
-}
-
 bool SearchState::TryAdvance() {
-  bool didAdvance;
-  while (didAdvance = TryAdvanceOne(), didAdvance) {
+  while (true) {
+    LifeUnknownState next = current.UncertainStepMaintaining(stable);
+    bool fullyKnown = (next.unknown ^ next.unknownStable).IsEmpty();
+
+    if (!fullyKnown)
+      break;
+
+    // Test whether we interact now
+    if(!hasInteracted) {
+      LifeState steppedWithoutStable = (current.state & ~stable.state);
+      steppedWithoutStable.Step();
+
+      bool isDifferent = !(next.state ^ (steppedWithoutStable | stable.state)).IsEmpty();
+
+      if (isDifferent) {
+        // Too early:
+        if (currentGen < params->minFirstActiveGen)
+          return false;
+
+        hasInteracted = true;
+        interactionStart = currentGen;
+      } else {
+        // Too late:
+        if(currentGen > params->maxFirstActiveGen)
+          return false;
+      }
+    }
+
+    current = next;
+    currentGen++;
+
+    // Test recovery
+    if (hasInteracted) {
+      bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
+
+      if (isRecovered && recoveredTime == 0) {
+        // See whether this is already a solution with no additional ON cells
+
+        // TODO: This could definitely be done without copying the
+        // entire state, but I am too lazy.
+        SearchState testState = *this;
+
+        bool succeeded = testState.TestRecovered();
+        if (succeeded) {
+          testState.ReportSolution();
+          return false;
+        }
+      }
+
+      if (isRecovered)
+        recoveredTime++;
+      else
+        recoveredTime = 0;
+
+      if (currentGen > interactionStart + params->maxActiveWindowGens && recoveredTime == 0)
+        return false;
+
+      // if (recoveredTime > params->minStableInterval) {
+      //   std::cout << "It happened" << std::endl;
+      //   ReportSolution();
+      //   exit(0);
+      //   return false;
+      // }
+    }
+
     LifeState active = current.ActiveComparedTo(stable);
     everActive |= active;
 
@@ -206,22 +236,29 @@ bool SearchState::TryAdvance() {
 
     if (!CheckConditionsOn(currentGen, current, active, everActive, activeTimer))
       return false;
-
-    if(!hasInteracted && currentGen > params->maxFirstActiveGen)
-      return false;
-
-    if (hasInteracted && currentGen > interactionStart + params->maxActiveWindowGens && recoveredTime == 0)
-      return false;
-
-    if (hasInteracted && currentGen < params->minFirstActiveGen)
-      return false;
-
-    if (hasInteracted && recoveredTime > params->minStableInterval) {
-      ReportSolution();
-      return false;
-    }
   }
 
+  return true;
+}
+
+// See whether the current stable is a successful catalyst on its own
+bool SearchState::TestRecovered() {
+  for (int i = 1; i < params->minStableInterval; i++) {
+    LifeState active = stable.state ^ current.state;
+    LifeState toClear = active.ZOI().MooreZOI() & stable.unknownStable;
+
+    current.unknown &= ~toClear;
+    current.unknownStable &= ~toClear;
+    stable.unknownStable &= ~toClear;
+    CountNeighbourhood(stable.unknownStable, stable.unknown3, stable.unknown2, stable.unknown1, stable.unknown0);
+
+    LifeUnknownState next = current.UncertainStepMaintaining(stable);
+    current = next;
+
+    bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
+    if (!isRecovered)
+      return false;
+  }
   return true;
 }
 
