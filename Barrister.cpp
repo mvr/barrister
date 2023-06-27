@@ -89,12 +89,12 @@ public:
   void TransferStableToCurrentColumn(unsigned column);
   bool TryAdvance();
   bool TestRecovered();
-  std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> PopulateLookahead();
 
-  FocusSet FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const;
+  std::pair<bool, FocusSet> FindFocuses();
 
-  bool CheckConditionsOn(unsigned gen, const LifeUnknownState &state, const LifeState &active, const LifeState &everActive, LifeCountdown<maxAncientGens> &activeTimer) const;
-  bool CheckConditions(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize);
+  bool CheckConditionsOn(unsigned gen, const LifeUnknownState &state, const LifeState &active, const LifeState &everActive, const LifeCountdown<maxAncientGens> &activeTimer) const;
+  LifeState ForcedInactiveCells(unsigned gen, const LifeUnknownState &state, const LifeState &active, const LifeState &everActive,
+                            const LifeCountdown<maxAncientGens> &activeTimer) const;
 
   void Search();
   void SearchStep();
@@ -161,6 +161,110 @@ void SearchState::TransferStableToCurrentColumn(unsigned column) {
   }
 }
 
+bool SearchState::CheckConditionsOn(unsigned gen, const LifeUnknownState &state, const LifeState &active, const LifeState &everActive, const LifeCountdown<maxAncientGens> &activeTimer) const {
+  auto activePop = active.GetPop();
+
+  if (gen < params->minFirstActiveGen && activePop > 0)
+    return false;
+
+  if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
+    return false;
+
+  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
+    return false;
+
+  if (params->maxCellActiveWindowGens != -1 && currentGen > (unsigned)params->maxCellActiveWindowGens && !(active & activeTimer.finished).IsEmpty())
+    return false;
+
+  if(params->activeBounds.first != -1) {
+    auto wh = active.WidthHeight();
+    if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
+      return false;
+  }
+
+  if (params->maxEverActiveCells != -1 && everActive.GetPop() > (unsigned)params->maxEverActiveCells)
+    return false;
+
+  if(params->everActiveBounds.first != -1) {
+    auto wh = everActive.WidthHeight();
+    if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
+      return false;
+  }
+
+  if (params->hasStator && !(~state.state & params->stator & ~state.unknown).IsEmpty())
+      return false;
+
+  if (params->filterGen != -1 && gen == (unsigned)params->filterGen) {
+    if (!((state.state ^ params->filterPattern) & params->filterMask &
+          ~state.unknown)
+             .IsEmpty()) {
+      return false;
+    }
+  }
+
+
+  return true;
+}
+
+// Cells that must be inactive or CheckConditions will fail
+// So, it should be that CheckConditionsOn == !(ForcedInactiveCells &
+// active).IsEmpty()
+LifeState
+SearchState::ForcedInactiveCells(unsigned gen, const LifeUnknownState &state,
+                            const LifeState &active,
+                            const LifeState &everActive,
+                            const LifeCountdown<maxAncientGens> &activeTimer) const {
+  if (gen < params->minFirstActiveGen) {
+    return ~LifeState();
+  }
+
+  auto activePop = active.GetPop();
+
+  if (hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0) {
+    return ~LifeState();
+  }
+
+  LifeState result;
+
+  if (params->maxActiveCells != -1 &&
+      activePop == (unsigned)params->maxActiveCells)
+    result |= ~active; // Or maybe just return
+
+  if (params->maxCellActiveWindowGens != -1 &&
+      currentGen > (unsigned)params->maxCellActiveWindowGens)
+    result |= activeTimer.finished;
+
+  // TODO: These could be much faster just by calculating the appropriate
+  // rectangle dimensions
+  if (params->activeBounds.first != -1) {
+    LifeState activeRect = ~LifeState::SolidRect(
+        -params->activeBounds.first + 1, -params->activeBounds.second + 1,
+        2 * params->activeBounds.first - 1,
+        2 * params->activeBounds.second - 1);
+
+    result |= active.Convolve(activeRect);
+  }
+
+  if (params->maxEverActiveCells != -1 &&
+      everActive.GetPop() == (unsigned)params->maxEverActiveCells) {
+    result |= ~everActive; // Or maybe just return
+  }
+
+  if (params->everActiveBounds.first != -1) {
+    LifeState everActiveRect =
+        ~LifeState::SolidRect(-params->everActiveBounds.first + 1,
+                              -params->everActiveBounds.second + 1,
+                              2 * params->everActiveBounds.first - 1,
+                              2 * params->everActiveBounds.second - 1);
+    result |= everActive.Convolve(everActiveRect);
+  }
+
+  if (params->hasStator)
+    result |= params->stator;
+
+  return result;
+}
+
 bool SearchState::TryAdvance() {
   while (true) {
     LifeUnknownState next = current.UncertainStepMaintaining(stable);
@@ -220,13 +324,6 @@ bool SearchState::TryAdvance() {
 
       if (currentGen > interactionStart + params->maxActiveWindowGens)
         return false;
-
-      // if (recoveredTime > params->minStableInterval) {
-      //   std::cout << "It happened" << std::endl;
-      //   ReportSolution();
-      //   exit(0);
-      //   return false;
-      // }
     }
 
     LifeState active = current.ActiveComparedTo(stable);
@@ -265,57 +362,68 @@ bool SearchState::TestRecovered() {
   return true;
 }
 
-FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens> &lookahead, unsigned lookaheadSize) const {
-  LifeState activeRect(false);
-  if (params->activeBounds.first == -1) {
-    activeRect= LifeState();
-  } else {
-    activeRect = ~LifeState::SolidRect(
-      -params->activeBounds.first + 1, -params->activeBounds.second + 1,
-      2 * params->activeBounds.first - 1, 2 * params->activeBounds.second - 1);
-  }
-
-  LifeState everActiveForcedInactive(false);
-  if (params->everActiveBounds.first == -1) {
-    everActiveForcedInactive = LifeState();
-  } else {
-    LifeState everActiveRect = ~LifeState::SolidRect(
-      -params->everActiveBounds.first + 1, -params->everActiveBounds.second + 1,
-      2 * params->everActiveBounds.first - 1, 2 * params->everActiveBounds.second - 1);
-    everActiveForcedInactive = everActive.Convolve(everActiveRect);
-  }
+std::pair<bool, FocusSet> SearchState::FindFocuses() {
+  auto lookahead = std::array<LifeUnknownState, maxLookaheadGens>();
+  unsigned lookaheadSize;
 
   std::array<LifeState, maxLookaheadGens> allFocusable;
   std::array<bool, maxLookaheadGens> genHasFocusable;
   std::array<LifeState, maxLookaheadGens> allForcedInactive;
-  for (unsigned i = 1; i < lookaheadSize; i++) {
+  auto lookaheadTimer = activeTimer;
+
+  lookahead[0] = current;
+  unsigned i;
+  for (i = 1; i < maxLookaheadGens; i++) {
+    lookahead[i] = lookahead[i - 1].UncertainStepMaintaining(stable);
+    lookaheadSize = i + 1;
     LifeUnknownState &gen = lookahead[i];
     LifeUnknownState &prev = lookahead[i-1];
+
+    LifeState active = gen.ActiveComparedTo(stable);
+
+    everActive |= active;
+    if (params->maxCellActiveWindowGens != -1) {
+      lookaheadTimer.Start(active);
+      lookaheadTimer.Tick();
+    }
+
+    LifeState forcedInactive = ForcedInactiveCells(currentGen + i, gen, active, everActive, lookaheadTimer);
+
+    if(!(forcedInactive & active).IsEmpty())
+      return {false, FocusSet()};
 
     LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~(prev.unknown & ~prev.unknownStable);
     LifeState nearActiveUnknown = (prev.unknown & ~prev.unknownStable).ZOI();
 
-    // TODO: This was already computed when populating the lookahead,
-    // shouldn't have to recompute
-    LifeState active = gen.ActiveComparedTo(stable);
-
     allFocusable[i] = becomeUnknown & ~nearActiveUnknown;
-
     genHasFocusable[i] = !allFocusable[i].IsEmpty();
+    allForcedInactive[i] = forcedInactive;
 
-    // IDEA: calculate 'forcedInactive' cells, where any cell that is
-    // active will break one of the constraints
+    if (active.IsEmpty())
+      break;
+  }
 
-    LifeState activeForcedInactive(false);
-    if (params->maxActiveCells != -1 && (active.GetPop() == (unsigned)params->maxActiveCells || currentGen + i < params->minFirstActiveGen)) {
-      activeForcedInactive = ~active;
-    } else if (params->activeBounds.first != -1) {
-      activeForcedInactive = active.Convolve(activeRect);
-    } else {
-      activeForcedInactive = LifeState();
+  // Continue the lookahead until we run out of active cells
+  if (hasInteracted && lookaheadSize == maxLookaheadGens) {
+    LifeUnknownState gen = lookahead[maxLookaheadGens - 1];
+    for(unsigned i = maxLookaheadGens; currentGen + i <= interactionStart + params->maxActiveWindowGens + 1; i++) {
+      gen = gen.UncertainStepFast(stable);
+      LifeState active = gen.ActiveComparedTo(stable);
+
+      if(active.IsEmpty())
+        break;
+
+      everActive |= active;
+
+      if (params->maxCellActiveWindowGens != -1) {
+        lookaheadTimer.Start(active);
+        lookaheadTimer.Tick();
+      }
+
+      bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive, lookaheadTimer);
+      if (!genResult)
+        return {false, FocusSet()};
     }
-
-    allForcedInactive[i] = activeForcedInactive | everActiveForcedInactive;
   }
 
   LifeState oneOrTwoUnknownNeighbours = (stable.unknown0 ^ stable.unknown1) & ~stable.unknown2 & ~stable.unknown3;
@@ -337,8 +445,9 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
       LifeState edgyPrioCandidates = oneOrTwoUnknownNeighbours & prioCandidates;
 
       if (!edgyPrioCandidates.IsEmpty()) {
-        return FocusSet(edgyPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, true);
+        return {true, FocusSet(edgyPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, true)};
       }
+
       if (bestPrioGen == -1 && !prioCandidates.IsEmpty()) {
         bestPrioGen = i;
         bestPrioCandidates = prioCandidates;
@@ -364,147 +473,21 @@ FocusSet SearchState::FindFocuses(std::array<LifeUnknownState, maxLookaheadGens>
 
   if (bestPrioGen != -1) {
     int i = bestPrioGen;
-    return FocusSet(bestPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, true);
+    return {true, FocusSet(bestPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, true)};
   }
 
   if (bestEdgyGen != -1) {
     int i = bestEdgyGen;
-    return FocusSet(bestEdgyCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, false);
+    return {true, FocusSet(bestEdgyCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, false)};
   }
 
   if (bestAnyGen != -1) {
     int i = bestAnyGen;
-    return FocusSet(bestAnyCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, false);
+    return {true, FocusSet(bestAnyCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, false)};
   }
 
   // This shouldn't be reached
-  return FocusSet();
-
-  // IDEA: look for focusable cells where all the unknown neighbours
-  // are unknownStable, that will stop us from wasting time on an
-  // expanding unknown region
-
-//   // LifeState oneStableUnknownNeighbour  =  stable.unknown0 & ~stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
-//   // LifeState twoStableUnknownNeighbours = ~stable.unknown0 &  stable.unknown1 & ~stable.unknown2 & ~stable.unknown3;
-//   LifeState oneOrTwoUnknownNeighbours  = (stable.unknown0 ^ stable.unknown1) & ~stable.unknown2 & ~stable.unknown3;
-//   // LifeState fewStableUnknownNeighbours = ~stable.unknown2 & ~stable.unknown3;
-
-// #define TRY_CHOOSE(exp, isprio)                                         \
-//   for (unsigned i = 1; i < lookaheadSize; i++) {                        \
-//     LifeState focusable = allFocusable[i];                              \
-//     LifeState forcedInactive = allForcedInactive[i];                    \
-//     focusable &= exp;                                                   \
-//     if (!focusable.IsEmpty())                                           \
-//       return {focusable, lookahead[i].glanceableUnknown,                \
-//               lookahead[i - 1], currentGen + i - 1, isprio};            \
-//   }
-
-//   TRY_CHOOSE(forcedInactive & oneOrTwoUnknownNeighbours, true);
-//   TRY_CHOOSE(forcedInactive, true);
-//   TRY_CHOOSE(oneOrTwoUnknownNeighbours, false);
-
-//   // TRY_CHOOSE(stable.stateZOI & forcedInactive & oneOrTwoUnknownNeighbours, true);
-//   // TRY_CHOOSE(forcedInactive & oneOrTwoUnknownNeighbours, true);
-//   // TRY_CHOOSE(stable.stateZOI & forcedInactive, true);
-//   // TRY_CHOOSE(forcedInactive, true);
-
-//   // TRY_CHOOSE(stable.stateZOI & oneOrTwoUnknownNeighbours, false);
-//   // TRY_CHOOSE(oneOrTwoUnknownNeighbours, false);
-//   // TRY_CHOOSE(stable.stateZOI, false);
-
-//   // Try anything at all
-//   TRY_CHOOSE(~LifeState(), false);
-
-// #undef TRY_CHOOSE
-
-//   // This shouldn't be reached
-//   return {LifeState(), LifeState(), LifeUnknownState(), 0, false};
-}
-
-bool SearchState::CheckConditionsOn(unsigned gen, const LifeUnknownState &state, const LifeState &active, const LifeState &everActive, LifeCountdown<maxAncientGens> &activeTimer) const {
-  auto activePop = active.GetPop();
-
-  if (gen < params->minFirstActiveGen && activePop > 0)
-    return false;
-
-  if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
-    return false;
-
-  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
-    return false;
-
-  if (params->maxCellActiveWindowGens != -1 && currentGen > (unsigned)params->maxCellActiveWindowGens && !(active & activeTimer.finished).IsEmpty())
-    return false;
-
-  if(params->activeBounds.first != -1) {
-    auto wh = active.WidthHeight();
-    if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
-      return false;
-  }
-
-  if (params->maxEverActiveCells != -1 && everActive.GetPop() > (unsigned)params->maxEverActiveCells)
-    return false;
-
-  if(params->everActiveBounds.first != -1) {
-    auto wh = everActive.WidthHeight();
-    if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
-      return false;
-  }
-
-  if (params->hasStator && !(~state.state & params->stator & ~state.unknown).IsEmpty())
-      return false;
-
-  if (params->filterGen != -1 && gen == (unsigned)params->filterGen && !((state.state ^ params->filterPattern) & params->filterMask & ~state.unknown).IsEmpty())
-    return false;
-
-  return true;
-}
-
-std::tuple<bool, std::array<LifeUnknownState, maxLookaheadGens>, int> SearchState::PopulateLookahead() {
-  auto lookahead = std::array<LifeUnknownState, maxLookaheadGens>();
-  auto lookaheadTimer = activeTimer;
-  lookahead[0] = current;
-  unsigned i;
-  for (i = 0; i < maxLookaheadGens-1; i++) {
-    lookahead[i+1] = lookahead[i].UncertainStepMaintaining(stable);
-
-    LifeState active = lookahead[i+1].ActiveComparedTo(stable);
-    everActive |= active;
-    if (params->maxCellActiveWindowGens != -1) {
-      lookaheadTimer.Start(active);
-      lookaheadTimer.Tick();
-    }
-
-    bool genResult = CheckConditionsOn(currentGen + i + 1, lookahead[i+1], active, everActive, lookaheadTimer);
-
-    if(!genResult)
-      return {false, lookahead, i+2};
-
-    if(active.IsEmpty())
-      return {true, lookahead, i+2};
-  }
-
-  if (hasInteracted) {
-    LifeUnknownState gen = lookahead[maxLookaheadGens - 1];
-    for(unsigned i = maxLookaheadGens; currentGen + i <= interactionStart + params->maxActiveWindowGens + 1; i++) {
-      gen = gen.UncertainStepFast(stable);
-      LifeState active = gen.ActiveComparedTo(stable);
-      everActive |= active;
-      if (params->maxCellActiveWindowGens != -1) {
-        lookaheadTimer.Start(active);
-        lookaheadTimer.Tick();
-      }
-
-      if(active.IsEmpty())
-        break;
-
-      bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive, lookaheadTimer);
-      if (!genResult)
-        return {false, lookahead, maxLookaheadGens};
-    }
-  }
-
-  return {true, lookahead, maxLookaheadGens};
+  return {false, FocusSet()};
 }
 
 void SearchState::SanityCheck() {
@@ -543,12 +526,11 @@ void SearchState::SearchStep() {
     if (!TryAdvance())
       return;
 
-    auto [passed, lookahead, lookaheadSize] = PopulateLookahead();
+    bool passed;
+    std::tie(passed, pendingFocuses) = FindFocuses();
 
     if (!passed)
       return;
-
-    pendingFocuses = FindFocuses(lookahead, lookaheadSize);
 
     // SanityCheck();
   }
