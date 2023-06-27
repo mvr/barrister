@@ -429,6 +429,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
   LifeState oneOrTwoUnknownNeighbours = (stable.unknown0 ^ stable.unknown1) & ~stable.unknown2 & ~stable.unknown3;
 
   int bestPrioGen = -1;
+  int bestPrioDistance = -1;
   LifeState bestPrioCandidates(false);
 
   int bestEdgyGen = -1;
@@ -445,11 +446,12 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
       LifeState edgyPrioCandidates = oneOrTwoUnknownNeighbours & prioCandidates;
 
       if (!edgyPrioCandidates.IsEmpty()) {
-        return {true, FocusSet(edgyPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, true)};
+        return {true, FocusSet(edgyPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, l == 0)};
       }
 
       if (bestPrioGen == -1 && !prioCandidates.IsEmpty()) {
         bestPrioGen = i;
+        bestPrioDistance = l;
         bestPrioCandidates = prioCandidates;
       }
 
@@ -473,7 +475,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
 
   if (bestPrioGen != -1) {
     int i = bestPrioGen;
-    return {true, FocusSet(bestPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, true)};
+    return {true, FocusSet(bestPrioCandidates, lookahead[i].glanceableUnknown, lookahead[i - 1], currentGen + i - 1, bestPrioDistance == 0)};
   }
 
   if (bestEdgyGen != -1) {
