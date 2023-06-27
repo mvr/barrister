@@ -239,15 +239,21 @@ SearchState::ForcedInactiveCells(unsigned gen, const LifeUnknownState &state,
       currentGen > (unsigned)params->maxCellActiveWindowGens)
     result |= activeTimer.finished;
 
-  // TODO: These could be much faster just by calculating the appropriate
-  // rectangle dimensions
-  if (params->activeBounds.first != -1) {
-    LifeState activeRect = ~LifeState::SolidRect(
-        -params->activeBounds.first + 1, -params->activeBounds.second + 1,
-        2 * params->activeBounds.first - 1,
-        2 * params->activeBounds.second - 1);
+  if (params->activeBounds.first != -1 && activePop > 0) {
+    auto bounds = active.XYBounds();
+    int width = bounds[2] - bounds[0] + 1;
+    int height = bounds[3] - bounds[1] + 1;
 
-    result |= active.Convolve(activeRect);
+    int remainingwidth = params->activeBounds.first - width;
+    int remainingheight = params->activeBounds.second - height;
+
+    if (remainingwidth < 0 || remainingheight < 0)
+      result |= ~LifeState();
+    else
+      result |= ~LifeState::SolidRectXY(bounds[0] - remainingwidth,
+                                        bounds[1] - remainingheight,
+                                        bounds[2] + remainingwidth,
+                                        bounds[3] + remainingheight);
   }
 
   if (params->maxEverActiveCells != -1 &&
@@ -255,13 +261,21 @@ SearchState::ForcedInactiveCells(unsigned gen, const LifeUnknownState &state,
     result |= ~everActive; // Or maybe just return
   }
 
-  if (params->everActiveBounds.first != -1) {
-    LifeState everActiveRect =
-        ~LifeState::SolidRect(-params->everActiveBounds.first + 1,
-                              -params->everActiveBounds.second + 1,
-                              2 * params->everActiveBounds.first - 1,
-                              2 * params->everActiveBounds.second - 1);
-    result |= everActive.Convolve(everActiveRect);
+  if (params->everActiveBounds.first != -1 && activePop > 0) {
+    auto bounds = everActive.XYBounds();
+    int width = bounds[2] - bounds[0] + 1;
+    int height = bounds[3] - bounds[1] + 1;
+
+    int remainingwidth = params->everActiveBounds.first - width;
+    int remainingheight = params->everActiveBounds.second - height;
+
+    if (remainingwidth < 0 || remainingheight < 0)
+      result |= ~LifeState();
+    else
+      result |= ~LifeState::SolidRectXY(bounds[0] - remainingwidth,
+                                        bounds[1] - remainingheight,
+                                        bounds[2] + remainingwidth,
+                                        bounds[3] + remainingheight);
   }
 
   if (params->hasStator)

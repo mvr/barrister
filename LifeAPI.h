@@ -1033,36 +1033,45 @@ public:
     return result;
   }
 
+  static LifeState SolidRectXY(int x1, int y1, int x2, int y2) {
+    return SolidRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
+  }
+
   std::array<int, 4> XYBounds() const {
-    int minCol = -(N/2);
-    int maxCol = (N/2)-1;
+#if N == 64
+    uint64_t popCols = PopulatedColumns();
+    popCols = __builtin_rotateright64(popCols, 32);
+    int leftMargin  = __builtin_ctzll(popCols);
+    int rightMargin = __builtin_clzll(popCols);
+#elif N == 32
+    uint32_t popCols = PopulatedColumns();
+    popCols = __builtin_rotateright32(popCols, 16);
+    int leftMargin  = __builtin_ctz(popCols);
+    int rightMargin = __builtin_clz(popCols);
+#else
+#error "XYBounds cannot handle N"
+#endif
 
-    for (int i = -(N/2); i <= (N/2)-1; i++) {
-      if (state[(i + N) % N] != 0) {
-        minCol = i;
-        break;
-      }
-    }
+    uint64_t orOfCols = 0;
+    for (unsigned i = 0; i < N; ++i)
+      orOfCols |= state[i];
 
-    for (int i = (N/2)-1; i >= -(N/2); i--) {
-      if (state[(i + N) % N] != 0) {
-        maxCol = i;
-        break;
-      }
-    }
-
-    uint64_t orOfCols(0);
-    for (int i = minCol; i <= maxCol; ++i) {
-      orOfCols = orOfCols | state[(i + N) % N];
-    }
     if (orOfCols == 0ULL) {
       return std::array<int, 4>({0, 0, 0, 0});
     }
+
     orOfCols = __builtin_rotateright64(orOfCols, 32);
     int topMargin = __builtin_ctzll(orOfCols);
     int bottomMargin = __builtin_clzll(orOfCols);
+
+#if N == 64
     return std::array<int, 4>(
-        {minCol, topMargin - 32, maxCol, 31 - bottomMargin});
+        {leftMargin - 32, topMargin - 32, 31 - rightMargin, 31 - bottomMargin});
+#elif N == 32
+    return std::array<int, 4>(
+        {leftMargin - 16, topMargin - 32, 15 - rightMargin, 31 - bottomMargin});
+#endif
+
   }
 
 #if N > 64
