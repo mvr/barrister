@@ -74,6 +74,7 @@ public:
 
   unsigned currentGen;
   bool hasInteracted;
+  bool hasReported;
   unsigned interactionStart;
   unsigned recoveredTime;
 
@@ -114,7 +115,7 @@ public:
 // }
 
 SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions)
-  : currentGen{0}, hasInteracted{false}, interactionStart{0}, recoveredTime{0} {
+  : currentGen{0}, hasInteracted{false}, hasReported{false}, interactionStart{0}, recoveredTime{0} {
 
   params = &inparams;
   allSolutions = &outsolutions;
@@ -196,7 +197,7 @@ bool SearchState::TryAdvance() {
     if (hasInteracted) {
       bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
 
-      if (isRecovered && recoveredTime == 0) {
+      if (!hasReported && isRecovered && recoveredTime == 0) {
         // See whether this is already a solution with no additional ON cells
 
         // TODO: This could definitely be done without copying the
@@ -206,7 +207,9 @@ bool SearchState::TryAdvance() {
         bool succeeded = testState.TestRecovered();
         if (succeeded) {
           testState.ReportSolution();
-          return false;
+          hasReported = true;
+          if(!params->continueAfterSuccess)
+            return false;
         }
       }
 
@@ -215,7 +218,7 @@ bool SearchState::TryAdvance() {
       else
         recoveredTime = 0;
 
-      if (currentGen > interactionStart + params->maxActiveWindowGens && recoveredTime == 0)
+      if (currentGen > interactionStart + params->maxActiveWindowGens)
         return false;
 
       // if (recoveredTime > params->minStableInterval) {
@@ -595,6 +598,8 @@ void SearchState::SearchStep() {
   {
     bool which = true;
     SearchState nextState = *this;
+
+    nextState.hasReported = false;
 
     nextState.stable.state.SetCellUnsafe(cell, which);
     nextState.stable.unknownStable.Erase(cell);
