@@ -592,21 +592,39 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
-    bool consistent = nextState.stable.PropagateColumn(cell.first);
-    if(consistent) {
+    bool doRecurse = true;
+
+    if (doRecurse) {
+      bool consistent = nextState.stable.PropagateColumn(cell.first);
+      doRecurse = consistent;
+    }
+
+    if (doRecurse && pendingFocuses.isForcedInactive) {
+      // See whether this choice keeps the focus stable in the next generation
+      auto [focusNext, focusUnknown] =
+          nextState.pendingFocuses.currentState.NextForCell(focus);
+      doRecurse = focusUnknown || focusNext == nextState.stable.state.Get(focus);
+    }
+
+    if (doRecurse) {
       nextState.TransferStableToCurrentColumn(cell.first);
-      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
+      LifeUnknownState quicklook =
+          nextState.pendingFocuses.currentState.UncertainStepFast(
+              nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
-      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive, activeTimer);
-
-      if(conditionsPassed)
-        nextState.SearchStep();
+      bool conditionsPassed =
+          CheckConditionsOn(pendingFocuses.currentGen + 1, quicklook,
+                            quickactive, quickeveractive, activeTimer);
+      doRecurse = conditionsPassed;
     }
+
+    if (doRecurse)
+      nextState.SearchStep();
   }
   {
     bool which = false;
-    SearchState &nextState = *this;
+    SearchState &nextState = *this; // Does not copy
 
     nextState.stable.state.SetCellUnsafe(cell, which);
     nextState.stable.unknownStable.Erase(cell);
@@ -615,18 +633,36 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
-    bool consistent = nextState.stable.PropagateColumn(cell.first);
-    if(consistent) {
+    bool doRecurse = true;
+
+    if (doRecurse) {
+      bool consistent = nextState.stable.PropagateColumn(cell.first);
+      doRecurse = consistent;
+    }
+
+    if (doRecurse && pendingFocuses.isForcedInactive) {
+      // See whether this choice keeps the focus stable in the next generation
+      auto [focusNext, focusUnknown] =
+          nextState.pendingFocuses.currentState.NextForCell(focus);
+      doRecurse = focusUnknown || focusNext == nextState.stable.state.Get(focus);
+    }
+
+    if (doRecurse) {
       nextState.TransferStableToCurrentColumn(cell.first);
-      LifeUnknownState quicklook = nextState.pendingFocuses.currentState.UncertainStepFast(nextState.stable);
+      LifeUnknownState quicklook =
+          nextState.pendingFocuses.currentState.UncertainStepFast(
+              nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
-      bool conditionsPassed = CheckConditionsOn(pendingFocuses.currentGen+1, quicklook, quickactive, quickeveractive, activeTimer);
-
-      if(conditionsPassed)
-        [[clang::musttail]]
-        return nextState.SearchStep();
+      bool conditionsPassed =
+          CheckConditionsOn(pendingFocuses.currentGen + 1, quicklook,
+                            quickactive, quickeveractive, activeTimer);
+      doRecurse = conditionsPassed;
     }
+
+    if (doRecurse)
+      [[clang::musttail]]
+      return nextState.SearchStep();
   }
 }
 
