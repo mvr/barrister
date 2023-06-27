@@ -34,6 +34,7 @@ public:
 
   bool stabiliseResults;
   bool skipGlancing;
+  bool continueAfterSuccess;
   bool forbidEater2;
   bool printSummary;
   bool pipeResults;
@@ -74,6 +75,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", true);
   params.skipGlancing = toml::find_or(toml, "skip-glancing", true);
+  params.continueAfterSuccess = toml::find_or(toml, "continue-after-success", false);
   params.forbidEater2 = toml::find_or(toml, "forbid-eater2", false);
   params.printSummary = toml::find_or(toml, "print-summary", true);
   params.pipeResults = toml::find_or(toml, "pipe-results", false);
