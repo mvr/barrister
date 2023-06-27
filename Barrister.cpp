@@ -13,6 +13,8 @@ const unsigned maxLookaheadGens = 3;
 const unsigned maxLightspeedDistance = maxLookaheadGens;
 //const unsigned maxAncientGens = 16 - 1;
 const unsigned maxAncientGens = 0;
+const unsigned maxLookaheadKnownPop = 16;
+static_assert(maxLookaheadKnownPop > maxLookaheadGens);
 
 struct FocusSet {
   LifeState focuses;
@@ -68,6 +70,8 @@ public:
 
   FocusSet pendingFocuses;
 
+  // Monotonically increasing as cells are set, until a step is taken.
+  std::array<uint16_t, maxLookaheadKnownPop> lookaheadKnownPop;
   LifeCountdown<maxAncientGens> activeTimer;
 
   std::pair<int, int> focus;
@@ -128,6 +132,7 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   current.unknownStable = stable.unknownStable;
 
   everActive = LifeState();
+  lookaheadKnownPop = {0};
   focus = {-1, -1};
   pendingFocuses.focuses = LifeState();
   activeTimer = LifeCountdown<maxAncientGens>(params->maxCellActiveWindowGens);
@@ -296,6 +301,7 @@ bool SearchState::TryAdvance() {
 
     current = next;
     currentGen++;
+    lookaheadKnownPop = {0};
 
     // Test recovery
     if (hasInteracted) {
@@ -343,7 +349,7 @@ bool SearchState::TryAdvance() {
 
 // See whether the current stable is a successful catalyst on its own
 bool SearchState::TestRecovered() {
-  for (int i = 1; i < params->minStableInterval; i++) {
+  for (unsigned i = 1; i < params->minStableInterval; i++) {
     LifeState active = stable.state ^ current.state;
     LifeState toClear = active.ZOI().MooreZOI() & stable.unknownStable;
 
@@ -387,9 +393,9 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
       lookaheadTimer.Tick();
     }
 
-    LifeState forcedInactive = ForcedInactiveCells(currentGen + i, gen, active, everActive, lookaheadTimer);
+    allForcedInactive[i] = ForcedInactiveCells(currentGen + i, gen, active, everActive, lookaheadTimer);
 
-    if(!(forcedInactive & active).IsEmpty())
+    if(!(allForcedInactive[i] & active).IsEmpty())
       return {false, FocusSet()};
 
     LifeState becomeUnknown = (gen.unknown & ~gen.unknownStable) & ~(prev.unknown & ~prev.unknownStable);
@@ -397,10 +403,11 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
 
     allFocusable[i] = becomeUnknown & ~nearActiveUnknown;
     genHasFocusable[i] = !allFocusable[i].IsEmpty();
-    allForcedInactive[i] = forcedInactive;
 
-    if (active.IsEmpty())
+    unsigned knownPop = (~gen.unknown & ~stable.unknownStable & stable.stateZOI).GetPop();
+    if (knownPop == lookaheadKnownPop[i])
       break;
+    lookaheadKnownPop[i] = knownPop;
   }
 
   // Continue the lookahead until we run out of active cells
@@ -410,8 +417,15 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
       gen = gen.UncertainStepFast(stable);
       LifeState active = gen.ActiveComparedTo(stable);
 
-      if(active.IsEmpty())
-        break;
+      if (i < maxLookaheadKnownPop) {
+        unsigned knownPop = (~gen.unknown & ~stable.unknownStable & stable.stateZOI).GetPop();
+        if (knownPop == lookaheadKnownPop[i])
+          break;
+        lookaheadKnownPop[i] = knownPop;
+      } else {
+        if(active.IsEmpty())
+          break;
+      }
 
       everActive |= active;
 
