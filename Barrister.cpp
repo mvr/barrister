@@ -795,16 +795,19 @@ void SearchState::ReportFullSolution() {
 }
 
 void SearchState::ReportPipeSolution() {
-    LifeState completed = stable.CompleteStable();
+  if (params->forbidEater2 && ContainsEater2(stable.state, everActive))
+    return;
 
-    if(completed.IsEmpty())
-      return;
+  LifeState completed = stable.CompleteStable();
 
-    LifeState starting = params->startingPattern;
-    LifeState startingStableOff = params->startingStable & ~params->startingPattern;
+  if(completed.IsEmpty())
+    return;
 
-    std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
-    std::cout << ((completed & ~startingStableOff) | starting).RLE() << "!" << std::endl << std::endl;
+  LifeState starting = params->startingPattern;
+  LifeState startingStableOff = params->startingStable & ~params->startingPattern;
+
+  std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
+  std::cout << ((completed & ~startingStableOff) | starting).RLE() << "!" << std::endl << std::endl;
 }
 
 
