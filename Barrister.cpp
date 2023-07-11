@@ -627,7 +627,7 @@ void SearchState::SearchStep() {
       doRecurse = consistent;
     }
 
-    if (doRecurse && pendingFocuses.isForcedInactive) {
+    if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
       // See whether this choice keeps the focus stable in the next generation
       auto [focusNext, focusUnknown] =
           nextState.pendingFocuses.currentState.NextForCell(focus);
@@ -668,7 +668,7 @@ void SearchState::SearchStep() {
       doRecurse = consistent;
     }
 
-    if (doRecurse && pendingFocuses.isForcedInactive) {
+    if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
       // See whether this choice keeps the focus stable in the next generation
       auto [focusNext, focusUnknown] =
           nextState.pendingFocuses.currentState.NextForCell(focus);
