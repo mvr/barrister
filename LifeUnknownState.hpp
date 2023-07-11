@@ -93,10 +93,8 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
   LifeState state3(false), state2(false), state1(false), state0(false);
   LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
 
-
   CountNeighbourhood(state, state3, state2, state1, state0);
   CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
-
 
   #pragma clang loop unroll(full)
   for (int i = 0; i < N; i++) {
@@ -151,23 +149,14 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
     result.unknown[i] &= ~(glanceSafe & stable.glanced[i]);
   }
 
-  LifeState unknownStable3(false), unknownStable2(false), unknownStable1(false), unknownStable0(false);
-  CountNeighbourhood(unknownStable, unknownStable3, unknownStable2, unknownStable1, unknownStable0);
-
   #pragma clang loop unroll(full)
   for (int i = 0; i < N; i++) {
-    uint64_t any_unstable_unknown =
-      (unknownStable3[i] ^ unknown3[i]) | (unknownStable2[i] ^ unknown2[i]) |
-      (unknownStable1[i] ^ unknown1[i]) | (unknownStable0[i] ^ unknown0[i]);
-
     uint64_t unequal_stable =
         (state[i] ^ stable.state[i]) | (unknownStable[i] ^ stable.unknownStable[i]) |
          state3[i]                     | (state2[i] ^ stable.state2[i]) |
         (state1[i] ^ stable.state1[i]) | (state0[i] ^ stable.state0[i]) |
-        (unknownStable3[i] ^ stable.unknown3[i]) | (unknownStable2[i] ^ stable.unknown2[i]) |
-        (unknownStable1[i] ^ stable.unknown1[i]) | (unknownStable0[i] ^ stable.unknown0[i]) |
-        // If any of the unknown are not unknownStable, we can't use this trick.
-        any_unstable_unknown;
+        (unknown3[i] ^ stable.unknown3[i]) | (unknown2[i] ^ stable.unknown2[i]) |
+        (unknown1[i] ^ stable.unknown1[i]) | (unknown0[i] ^ stable.unknown0[i]);
 
     uint64_t toRestore = ~unequal_stable & result.unknown[i];
 
