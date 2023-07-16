@@ -1,0 +1,16 @@
+first-active-range = [0, 10]
+active-window-range = [0, 30]
+min-stable-interval = 4
+
+ever-active-bounds = [9, 5]
+
+stabilise-results = true
+skip-glancing = true
+forbid-eater2 = true
+
+pattern-center = [14, 14]
+pattern = '''
+x = 28, y = 28, rule = LifeHistory
+7B$7B$7B$7B$7B.A3.A$7B2.3A$7B$28B$28B$28B$28B$28B$28B$28B$28B$28B$28B
+$28B$28B$28B$28B$28B$28B$28B$28B$28B$28B$28B!
+'''
