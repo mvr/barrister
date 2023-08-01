@@ -229,6 +229,10 @@ SearchState::ForcedInactiveCells(unsigned gen, const LifeUnknownState &state,
     return ~LifeState();
   }
 
+  if (params->maxActiveCells != -1 &&
+      activePop > (unsigned)params->maxActiveCells)
+    return ~LifeState();
+
   LifeState result;
 
   if (params->maxActiveCells != -1 &&
