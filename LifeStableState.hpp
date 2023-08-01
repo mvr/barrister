@@ -23,6 +23,7 @@ public:
 
   // NOTE: doesn't update the counts
   std::pair<bool, bool> PropagateColumnStep(int column);
+  void UpdateZOIColumn(int column);
   bool PropagateColumn(int column);
 
   // std::pair<bool, bool> SimplePropagateStableStep();
@@ -240,6 +241,30 @@ signal_on |= stateon & (~on1) & on0 & (~unk0) ;
   return { true, unknownChanges == 0 };
 }
 
+void LifeStableState::UpdateZOIColumn(int column) {
+  std::array<uint64_t, 4> temp {0};
+  for (int i = 0; i < 4; i++) {
+    int c = (column + i - 1 + N) % N;
+    uint64_t col = state[c];
+    temp[i] = col | RotateLeft(col) | RotateRight(col);
+  }
+
+  {
+    int i = 0;
+    int c = (column + i - 1 + N) % N;
+    stateZOI[c] |= temp[i] | temp[i+1];
+  }
+  for (int i = 1; i < 3; i++) {
+    int c = (column + i - 1 + N) % N;
+    stateZOI[c] |= temp[i-1] | temp[i] | temp[i+1];
+  }
+  {
+    int i = 3;
+    int c = (column + i - 1 + N) % N;
+    stateZOI[c] |= temp [i-1] | temp[i];
+  }
+}
+
 bool LifeStableState::PropagateColumn(int column) {
   bool done = false;
   while (!done) {
@@ -249,6 +274,7 @@ bool LifeStableState::PropagateColumn(int column) {
     }
     done = result.second;
   }
+  UpdateZOIColumn(column);
   return true;
 }
 
