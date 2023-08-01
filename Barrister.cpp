@@ -423,7 +423,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
     genHasFocusable[i] = !allFocusable[i].IsEmpty();
 
     unsigned knownPop = (~gen.unknown & ~stable.unknownStable & stable.stateZOI).GetPop();
-    if (knownPop == lookaheadKnownPop[i])
+    if (currentGen + i > pendingFocuses.currentGen && knownPop == lookaheadKnownPop[i])
       break;
     lookaheadKnownPop[i] = knownPop;
   }
