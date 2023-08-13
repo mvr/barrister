@@ -33,6 +33,7 @@ public:
   LifeState filterPattern;
 
   bool stabiliseResults;
+  bool reportOscillators;
   bool skipGlancing;
   bool continueAfterSuccess;
   bool forbidEater2;
@@ -74,6 +75,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", true);
+  params.reportOscillators = toml::find_or(toml, "report-oscillators", true);
   params.skipGlancing = toml::find_or(toml, "skip-glancing", true);
   params.continueAfterSuccess = toml::find_or(toml, "continue-after-success", false);
   params.forbidEater2 = toml::find_or(toml, "forbid-eater2", false);

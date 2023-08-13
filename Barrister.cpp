@@ -1,4 +1,5 @@
 #include <cassert>
+#include <stack>
 
 #include "toml/toml.hpp"
 
@@ -84,8 +85,9 @@ public:
 
   SearchParams *params;
   std::vector<LifeState> *allSolutions;
+  std::vector<uint64_t> *seenRotors;
 
-  SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions);
+  SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions, std::vector<uint64_t> &outrotors);
   SearchState ( const SearchState & ) = default;
   SearchState &operator= ( const SearchState & ) = default;
 
@@ -93,6 +95,8 @@ public:
   void TransferStableToCurrentColumn(unsigned column);
   bool TryAdvance();
   bool TestRecovered();
+  unsigned TestOscillating();
+  std::vector<uint64_t> ClassifyRotors(unsigned period);
 
   std::pair<bool, FocusSet> FindFocuses();
 
@@ -118,11 +122,12 @@ public:
 //   return LifeBellmanRLEFor(state, marked);
 // }
 
-SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions)
+SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions, std::vector<uint64_t> &outrotors)
   : currentGen{0}, hasInteracted{false}, hasReported{false}, interactionStart{0}, recoveredTime{0} {
 
   params = &inparams;
   allSolutions = &outsolutions;
+  seenRotors = &outrotors;
 
   stable.state = inparams.startingStable;
   stable.unknownStable = inparams.searchArea;
@@ -346,8 +351,27 @@ bool SearchState::TryAdvance() {
       else
         recoveredTime = 0;
 
-      if (currentGen > interactionStart + params->maxActiveWindowGens)
+      if (currentGen > interactionStart + params->maxActiveWindowGens) {
+        if(params->reportOscillators) {
+          unsigned period = TestOscillating();
+          if (period > 3) {
+            auto rotors = ClassifyRotors(period);
+            bool anyNew = false;
+            for(uint64_t r : rotors) {
+              if(std::find(seenRotors->begin(), seenRotors->end(), r) == seenRotors->end()) {
+                anyNew = true;
+                seenRotors->push_back(r);
+              }
+            }
+            if(anyNew) {
+              std::cout << "Oscillating! Period: " << period << std::endl;
+              ReportSolution();
+            }
+          }
+        }
+
         return false;
+      }
     }
 
     LifeState active = current.ActiveComparedTo(stable);
@@ -384,6 +408,72 @@ bool SearchState::TestRecovered() {
       return false;
   }
   return true;
+}
+
+unsigned SearchState::TestOscillating() {
+  // We can trample `current`, because we only do this when we are
+  // going to bail out of the branch anyway.
+
+  std::stack<std::pair<uint64_t, int>> minhashes;
+
+  // TODO: is 60 reasonable?
+  for (unsigned i = 1; i < 60; i++) {
+    LifeState active = stable.state ^ current.state;
+
+    uint64_t newhash = active.GetHash();
+
+    while(true) {
+      if(minhashes.empty())
+        break;
+      if(minhashes.top().first < newhash)
+        break;
+
+      if(minhashes.top().first == newhash) {
+        unsigned p = i - minhashes.top().second;
+        return p;
+      }
+
+      if(minhashes.top().first > newhash)
+        minhashes.pop();
+    }
+
+    minhashes.push({newhash, i});
+
+    current = current.UncertainStepMaintaining(stable);
+  }
+  return 0;
+}
+
+std::vector<uint64_t> SearchState::ClassifyRotors(unsigned period) {
+  // We shouldn't use the stable state in here, because at this point
+  // we don't care what the original background of the rotor was
+  LifeState startState = current.state;
+
+  LifeState allRotorCells;
+  for(unsigned i = 0; i < period; i++) {
+    LifeState active = startState ^ current.state;
+    allRotorCells |= active;
+    current = current.UncertainStepMaintaining(stable);
+  }
+
+  std::vector<uint64_t> result;
+
+  auto rotorLocations = allRotorCells.Components();
+  for(auto &rotorLocation : rotorLocations) {
+    LifeState rotorZOI = rotorLocation.ZOI();
+    LifeState rotorStart = current.state & rotorZOI;
+
+    uint64_t rotorHash = 0;
+    for(unsigned i = 0; i < period; i++) {
+      LifeState rotorState = rotorZOI & ~(current.state & allRotorCells);
+      rotorHash ^= rotorState.GetOctoHash();
+      current = current.UncertainStepMaintaining(stable);
+      if((current.state & rotorZOI) == rotorStart)
+        break;
+    }
+    result.push_back(rotorHash);
+  }
+  return result;
 }
 
 std::pair<bool, FocusSet> SearchState::FindFocuses() {
@@ -830,8 +920,9 @@ int main(int, char *argv[]) {
   SearchParams params = SearchParams::FromToml(toml);
 
   std::vector<LifeState> allSolutions;
+  std::vector<uint64_t> seenRotors;
 
-  SearchState search(params, allSolutions);
+  SearchState search(params, allSolutions, seenRotors);
   search.Search();
 
   if (params.printSummary)
