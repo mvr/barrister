@@ -19,6 +19,7 @@ public:
   std::pair<int, int> everActiveBounds;
 
   int maxCellActiveWindowGens;
+  int maxCellActiveStreakGens;
 
   LifeState startingPattern;
   LifeState activePattern;
@@ -73,6 +74,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   // params.maxChanges = toml::find_or(toml, "max-changed-cells", 100);
 
   params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
+  params.maxCellActiveStreakGens = toml::find_or(toml, "max-cell-active-streak", -1);
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", true);
   params.reportOscillators = toml::find_or(toml, "report-oscillators", true);
