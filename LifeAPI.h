@@ -1158,6 +1158,30 @@ public:
     return {width, height};
   }
 
+  LifeState BufferAround(std::pair<int, int> size) const {
+    auto bounds = XYBounds();
+    int width = bounds[2] - bounds[0] + 1;
+    int height = bounds[3] - bounds[1] + 1;
+
+    int remainingwidth = size.first - width;
+    int remainingheight = size.second - height;
+
+    if (remainingwidth < 0 || remainingheight < 0)
+      return LifeState();
+    else
+      return LifeState::SolidRectXY(bounds[0] - remainingwidth,
+                                    bounds[1] - remainingheight,
+                                    bounds[2] + remainingwidth,
+                                    bounds[3] + remainingheight);
+  }
+
+  std::pair<int, int> CenterPoint() {
+    auto bounds = XYBounds();
+    auto w = bounds[2] - bounds[0];
+    auto h = bounds[3] - bounds[1];
+    return {bounds[0] + w/2, bounds[1] + h/2};
+  }
+
   LifeState ComponentContaining(const LifeState &seed, const LifeState &corona) const {
     LifeState result;
     LifeState tocheck = seed;

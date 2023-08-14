@@ -270,20 +270,7 @@ LifeState SearchState::ForcedInactiveCells(
     result |= streakTimer.finished;
 
   if (params->activeBounds.first != -1 && activePop > 0) {
-    auto bounds = active.XYBounds();
-    int width = bounds[2] - bounds[0] + 1;
-    int height = bounds[3] - bounds[1] + 1;
-
-    int remainingwidth = params->activeBounds.first - width;
-    int remainingheight = params->activeBounds.second - height;
-
-    if (remainingwidth < 0 || remainingheight < 0)
-      result |= ~LifeState();
-    else
-      result |= ~LifeState::SolidRectXY(bounds[0] - remainingwidth,
-                                        bounds[1] - remainingheight,
-                                        bounds[2] + remainingwidth,
-                                        bounds[3] + remainingheight);
+    result |= ~active.BufferAround(params->activeBounds);
   }
 
   if (params->maxEverActiveCells != -1 &&
@@ -292,20 +279,7 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->everActiveBounds.first != -1 && activePop > 0) {
-    auto bounds = everActive.XYBounds();
-    int width = bounds[2] - bounds[0] + 1;
-    int height = bounds[3] - bounds[1] + 1;
-
-    int remainingwidth = params->everActiveBounds.first - width;
-    int remainingheight = params->everActiveBounds.second - height;
-
-    if (remainingwidth < 0 || remainingheight < 0)
-      result |= ~LifeState();
-    else
-      result |= ~LifeState::SolidRectXY(bounds[0] - remainingwidth,
-                                        bounds[1] - remainingheight,
-                                        bounds[2] + remainingwidth,
-                                        bounds[3] + remainingheight);
+    result |= ~everActive.BufferAround(params->everActiveBounds);
   }
 
   if (params->hasStator)
