@@ -12,11 +12,13 @@ public:
   // std::pair<unsigned, unsigned> stableBounds;
 
   int maxActiveCells;
-  // unsigned maxChanges;
   std::pair<int, int> activeBounds;
 
   int maxEverActiveCells;
   std::pair<int, int> everActiveBounds;
+
+  int maxChanges;
+  std::pair<int, int> changesBounds;
 
   int maxCellActiveWindowGens;
   int maxCellActiveStreakGens;
@@ -71,7 +73,11 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.everActiveBounds.first = everActiveBounds[0];
   params.everActiveBounds.second = everActiveBounds[1];
 
-  // params.maxChanges = toml::find_or(toml, "max-changed-cells", 100);
+  params.maxChanges = toml::find_or(toml, "max-changes", -1);
+  std::vector<int> changesBounds = toml::find_or<std::vector<int>>(toml, "changes-bounds", {-1, -1});
+  params.changesBounds.first = changesBounds[0];
+  params.changesBounds.second = changesBounds[1];
+
 
   params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
   params.maxCellActiveStreakGens = toml::find_or(toml, "max-cell-active-streak", -1);

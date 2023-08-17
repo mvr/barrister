@@ -103,13 +103,14 @@ public:
   std::pair<bool, FocusSet> FindFocuses();
 
   bool CheckConditionsOn(
-      unsigned gen, const LifeUnknownState &state, const LifeState &active,
+      unsigned gen, const LifeUnknownState &state, const LifeStableState &stable, const LifeUnknownState &previous, const LifeState &active,
       const LifeState &everActive,
       const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
       const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const;
   LifeState ForcedInactiveCells(
-      unsigned gen, const LifeUnknownState &state, const LifeState &active,
-      const LifeState &everActive,
+      unsigned gen, const LifeUnknownState &state,
+      const LifeStableState &stable, const LifeUnknownState &previous,
+      const LifeState &active, const LifeState &everActive,
       const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
       const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const;
 
@@ -182,7 +183,8 @@ void SearchState::TransferStableToCurrentColumn(unsigned column) {
 }
 
 bool SearchState::CheckConditionsOn(
-    unsigned gen, const LifeUnknownState &state, const LifeState &active,
+    unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
+    const LifeUnknownState &previous, const LifeState &active,
     const LifeState &everActive,
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
     const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
@@ -193,6 +195,18 @@ bool SearchState::CheckConditionsOn(
 
   if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
     return false;
+
+  LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
+  if (params->maxChanges != -1) {
+    if (changes.GetPop() > params->maxChanges)
+      return false;
+  }
+
+  if (params->changesBounds.first != -1) {
+    auto wh = changes.WidthHeight();
+    if (wh.first > params->changesBounds.first || wh.second > params->changesBounds.second)
+      return false;
+  }
 
   if(hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
     return false;
@@ -237,7 +251,8 @@ bool SearchState::CheckConditionsOn(
 // So, it should be that CheckConditionsOn == !(ForcedInactiveCells &
 // active).IsEmpty()
 LifeState SearchState::ForcedInactiveCells(
-    unsigned gen, const LifeUnknownState &state, const LifeState &active,
+    unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
+    const LifeUnknownState &previous, const LifeState &active,
     const LifeState &everActive,
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
     const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
@@ -260,6 +275,22 @@ LifeState SearchState::ForcedInactiveCells(
   if (params->maxActiveCells != -1 &&
       activePop == (unsigned)params->maxActiveCells)
     result |= ~active; // Or maybe just return
+
+  LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
+  if (params->maxChanges != -1) {
+    unsigned changesPop = changes.GetPop();
+    if (changesPop > params->maxChanges)
+      return ~LifeState();
+    if (changesPop == params->maxChanges) {
+      LifeState prevactive = previous.ActiveComparedTo(stable);
+      result |= ~prevactive & ~active & ~changes;
+    }
+  }
+
+  if (params->changesBounds.first != -1) {
+    LifeState prevactive = previous.ActiveComparedTo(stable);
+    result |= ~prevactive & ~active & ~changes.BufferAround(params->changesBounds);
+  }
 
   if (params->maxCellActiveWindowGens != -1 &&
       currentGen > (unsigned)params->maxCellActiveWindowGens)
@@ -317,6 +348,7 @@ bool SearchState::TryAdvance() {
       }
     }
 
+    LifeUnknownState previous = current;
     current = next;
     currentGen++;
     lookaheadKnownPop = {0};
@@ -383,7 +415,7 @@ bool SearchState::TryAdvance() {
       streakTimer.Tick();
     }
 
-    if (!CheckConditionsOn(currentGen, current, active, everActive, activeTimer, streakTimer))
+    if (!CheckConditionsOn(currentGen, current, stable, previous, active, everActive, activeTimer, streakTimer))
       return false;
   }
 
@@ -508,7 +540,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
       lookaheadStreakTimer.Tick();
     }
 
-    allForcedInactive[i] = ForcedInactiveCells(currentGen + i, gen, active, everActive, lookaheadTimer, lookaheadStreakTimer);
+    allForcedInactive[i] = ForcedInactiveCells(currentGen + i, gen, stable, prev, active, everActive, lookaheadTimer, lookaheadStreakTimer);
 
     if(!(allForcedInactive[i] & active).IsEmpty())
       return {false, FocusSet()};
@@ -529,6 +561,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
   if (hasInteracted && lookaheadSize == maxLookaheadGens) {
     LifeUnknownState gen = lookahead[maxLookaheadGens - 1];
     for(unsigned i = maxLookaheadGens; currentGen + i <= interactionStart + params->maxActiveWindowGens + 1; i++) {
+      LifeUnknownState prev = gen;
       gen = gen.UncertainStepFast(stable);
       LifeState active = gen.ActiveComparedTo(stable);
 
@@ -554,7 +587,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
         lookaheadStreakTimer.Tick();
       }
 
-      bool genResult = CheckConditionsOn(currentGen + i, gen, active, everActive, lookaheadTimer, lookaheadStreakTimer);
+      bool genResult = CheckConditionsOn(currentGen + i, gen, stable, prev, active, everActive, lookaheadTimer, lookaheadStreakTimer);
       if (!genResult)
         return {false, FocusSet()};
     }
@@ -748,7 +781,7 @@ void SearchState::SearchStep() {
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
       bool conditionsPassed =
-          CheckConditionsOn(pendingFocuses.currentGen + 1, quicklook,
+        CheckConditionsOn(pendingFocuses.currentGen + 1, quicklook, nextState.stable, current,
                             quickactive, quickeveractive, activeTimer, streakTimer);
       doRecurse = conditionsPassed;
     }
@@ -789,7 +822,7 @@ void SearchState::SearchStep() {
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
       bool conditionsPassed =
-          CheckConditionsOn(pendingFocuses.currentGen + 1, quicklook,
+        CheckConditionsOn(pendingFocuses.currentGen + 1, quicklook, nextState.stable, current,
                             quickactive, quickeveractive, activeTimer, streakTimer);
       doRecurse = conditionsPassed;
     }
