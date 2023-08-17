@@ -194,7 +194,7 @@ bool SearchState::CheckConditionsOn(
   if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
     return false;
 
-  if(hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
+  if(hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
     return false;
 
   if (params->maxCellActiveWindowGens != -1 && currentGen > (unsigned)params->maxCellActiveWindowGens && !(active & activeTimer.finished).IsEmpty())
@@ -247,7 +247,7 @@ LifeState SearchState::ForcedInactiveCells(
 
   auto activePop = active.GetPop();
 
-  if (hasInteracted && gen > interactionStart + params->maxActiveWindowGens && activePop > 0) {
+  if (hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens && activePop > 0) {
     return ~LifeState();
   }
 
