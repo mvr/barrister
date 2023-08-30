@@ -96,6 +96,12 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
   CountNeighbourhood(state, state3, state2, state1, state0);
   CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
 
+  LifeState unequal_stable = (state ^ stable.state) | (unknownStable ^ stable.unknownStable) |
+         state3                     | (state2 ^ stable.state2) |
+        (state1 ^ stable.state1) | (state0 ^ stable.state0) |
+        (unknown3 ^ stable.unknown3) | (unknown2 ^ stable.unknown2) |
+        (unknown1 ^ stable.unknown1) | (unknown0 ^ stable.unknown0);
+
   #pragma clang loop unroll(full)
   for (int i = 0; i < N; i++) {
     uint64_t on3 = state3[i];
@@ -147,20 +153,9 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
     // Remove unknown cells that we have decided were glancing
     uint64_t glanceSafe = common_part & ~stable.state0[i] & ~on1;
     result.unknown[i] &= ~(glanceSafe & stable.glanced[i]);
-  }
 
-  #pragma clang loop unroll(full)
-  for (int i = 0; i < N; i++) {
-    uint64_t unequal_stable =
-        (state[i] ^ stable.state[i]) | (unknownStable[i] ^ stable.unknownStable[i]) |
-         state3[i]                     | (state2[i] ^ stable.state2[i]) |
-        (state1[i] ^ stable.state1[i]) | (state0[i] ^ stable.state0[i]) |
-        (unknown3[i] ^ stable.unknown3[i]) | (unknown2[i] ^ stable.unknown2[i]) |
-        (unknown1[i] ^ stable.unknown1[i]) | (unknown0[i] ^ stable.unknown0[i]);
+    uint64_t toRestore = ~unequal_stable[i] & result.unknown[i];
 
-    uint64_t toRestore = ~unequal_stable & result.unknown[i];
-
-    // Prevent unknown region from expanding
     result.state[i] = (result.state[i] & ~toRestore) | (stable.state[i] & toRestore);
     result.unknown[i] = (result.unknown[i] & ~toRestore) | (stable.unknownStable[i] & toRestore);
     result.unknownStable[i] = stable.unknownStable[i] & toRestore;
