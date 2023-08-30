@@ -927,7 +927,6 @@ public:
   void Step(int numIters) {
     for (int i = 0; i < numIters; i++) {
       Step();
-      // RemoveGliders();
     }
   }
 

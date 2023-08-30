@@ -26,8 +26,6 @@ public:
   void UpdateZOIColumn(int column);
   bool PropagateColumn(int column);
 
-  // std::pair<bool, bool> SimplePropagateStableStep();
-  // bool SimplePropagateStable();
   std::pair<bool, bool> PropagateStableStep();
   bool PropagateStable();
 
@@ -523,10 +521,6 @@ bool LifeStableState::TestUnknowns(const LifeState &cells) {
 }
 
 bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, unsigned &maxPop, LifeState &best) {
-  if (state.GetPop() >= maxPop) {
-    return false;
-  }
-
   auto currentTime = std::chrono::system_clock::now();
   if(currentTime > timeLimit)
     return false;
@@ -542,10 +536,6 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
   // bool result = TestUnknowns();
   // if (!result)
   //   return false;
-
-  if (state.GetPop() >= maxPop) {
-    return false;
-  }
 
   LifeState next = state;
   next.Step();
