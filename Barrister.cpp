@@ -764,6 +764,8 @@ void SearchState::SearchStep() {
     if (doRecurse) {
       bool consistent = nextState.stable.PropagateColumn(cell.first);
       doRecurse = consistent;
+      if(consistent)
+        nextState.TransferStableToCurrentColumn(cell.first);
     }
 
     if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
@@ -774,7 +776,7 @@ void SearchState::SearchStep() {
     }
 
     if (doRecurse) {
-      nextState.TransferStableToCurrentColumn(cell.first);
+
       LifeUnknownState quicklook =
           nextState.pendingFocuses.currentState.UncertainStepFast(
               nextState.stable);
@@ -805,6 +807,8 @@ void SearchState::SearchStep() {
     if (doRecurse) {
       bool consistent = nextState.stable.PropagateColumn(cell.first);
       doRecurse = consistent;
+      if(consistent)
+        nextState.TransferStableToCurrentColumn(cell.first);
     }
 
     if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
@@ -815,7 +819,6 @@ void SearchState::SearchStep() {
     }
 
     if (doRecurse) {
-      nextState.TransferStableToCurrentColumn(cell.first);
       LifeUnknownState quicklook =
           nextState.pendingFocuses.currentState.UncertainStepFast(
               nextState.stable);
