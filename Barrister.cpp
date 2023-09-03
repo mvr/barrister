@@ -366,7 +366,8 @@ bool SearchState::TryAdvance() {
 
         bool succeeded = testState.TestRecovered();
         if (succeeded) {
-          testState.ReportSolution();
+          if(!params->reportOscillators)
+            testState.ReportSolution();
           hasReported = true;
           if(!params->continueAfterSuccess)
             return false;
