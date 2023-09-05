@@ -368,7 +368,7 @@ bool SearchState::TryAdvance() {
 
         bool succeeded = testState.TestRecovered();
         if (succeeded) {
-          if(!params->reportOscillators)
+          if(currentGen >= interactionStart + params->minActiveWindowGens && !params->reportOscillators)
             testState.ReportSolution();
           hasReported = true;
           if(!params->continueAfterSuccess)

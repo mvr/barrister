@@ -10,7 +10,7 @@ struct SearchParams {
 public:
   unsigned minFirstActiveGen;
   unsigned maxFirstActiveGen;
-  // unsigned minActiveWindowGens;
+  unsigned minActiveWindowGens;
   unsigned maxActiveWindowGens;
   unsigned minStableInterval;
 
@@ -62,7 +62,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxFirstActiveGen = firstRange[1];
 
   std::vector<int> windowRange = toml::find_or<std::vector<int>>(toml, "active-window-range", {0, 100});
-  // params.minActiveWindowGens = windowRange[0];
+  params.minActiveWindowGens = windowRange[0];
   params.maxActiveWindowGens = windowRange[1];
 
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 4);
