@@ -4,8 +4,6 @@
 #include "toml/toml.hpp"
 
 #include "LifeAPI.h"
-#include "Parsing.hpp"
-#include "Bits.hpp"
 #include "LifeStableState.hpp"
 #include "LifeUnknownState.hpp"
 #include "Params.hpp"
@@ -967,6 +965,15 @@ void PrintSummary(std::vector<LifeState> &pats) {
 int main(int, char *argv[]) {
   auto toml = toml::parse(argv[1]);
   SearchParams params = SearchParams::FromToml(toml);
+
+  if (params.maxCellActiveWindowGens != -1 && params.maxCellActiveWindowGens > maxCellActiveWindowGens) {
+    std::cout << "max-cell-active-window is higher than allowed by the hardcoded value!" << std::endl;
+    exit(1);
+  }
+  if (params.maxCellActiveStreakGens != -1 && params.maxCellActiveStreakGens > maxCellActiveStreakGens) {
+    std::cout << "max-cell-active-streak is higher than allowed by the hardcoded value!" << std::endl;
+    exit(1);
+  }
 
   std::vector<LifeState> allSolutions;
   std::vector<uint64_t> seenRotors;

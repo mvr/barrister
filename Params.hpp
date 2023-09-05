@@ -1,4 +1,10 @@
+#pragma once
+
+#include "toml/toml.hpp"
+
 #include "LifeAPI.h"
+#include "LifeHistoryState.hpp"
+#include "Parsing.hpp"
 
 struct SearchParams {
 public:
@@ -99,12 +105,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   std::string rle = toml::find<std::string>(toml, "pattern");
   LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
 
-  std::vector<int> patternCenter = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
+  std::vector<int> patternCenterVec = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
+  std::pair<int, int> patternCenter = {-patternCenterVec[0], -patternCenterVec[1]};
 
-  pat.state.Move(-patternCenter[0], -patternCenter[1]);
-  pat.marked.Move(-patternCenter[0], -patternCenter[1]);
-  pat.history.Move(-patternCenter[0], -patternCenter[1]);
-  pat.original.Move(-patternCenter[0], -patternCenter[1]);
+  pat.Move(patternCenter);
 
   params.startingPattern = pat.state;
   params.activePattern = pat.state & ~pat.marked;
@@ -118,11 +122,9 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     std::string rle = toml::find_or<std::string>(toml, "filter", "");
     LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
 
-    std::vector<int> patternCenter = toml::find_or<std::vector<int>>(toml, "filter-pos", {0, 0});
-    pat.state.Move(patternCenter[0], patternCenter[1]);
-    pat.marked.Move(patternCenter[0], patternCenter[1]);
-    pat.history.Move(patternCenter[0], patternCenter[1]);
-    pat.original.Move(patternCenter[0], patternCenter[1]);
+    std::vector<int> patternCenterVec =
+        toml::find_or<std::vector<int>>(toml, "filter-pos", {0, 0});
+    pat.Move(patternCenterVec[0], patternCenterVec[1]);
 
     params.filterMask = pat.marked;
     params.filterPattern = pat.state;
