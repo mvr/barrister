@@ -914,21 +914,21 @@ void SearchState::ReportFullSolution() {
     LifeState completed = stable.CompleteStable();
 
     if(!completed.IsEmpty()){
-      std::cout << "Completed:" << std::endl;
-      std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-      LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
-      LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
-      LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
-      std::cout << history.RLE() << std::endl;
+      // std::cout << "Completed:" << std::endl;
+      // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+      // LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
+      // LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
+      // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
+      // std::cout << history.RLE() << std::endl;
 
       std::cout << "Completed Plain:" << std::endl;
       std::cout << ((completed & ~startingStableOff) | starting).RLE() << std::endl;
       allSolutions->push_back((completed & ~startingStableOff) | starting);
     } else {
-      std::cout << "Completion failed!" << std::endl;
-      std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-      LifeHistoryState history;
-      std::cout << history.RLE() << std::endl;
+      // std::cout << "Completion failed!" << std::endl;
+      // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+      // LifeHistoryState history;
+      // std::cout << history.RLE() << std::endl;
       std::cout << "Completed Plain:" << std::endl;
       std::cout << LifeState().RLE() << std::endl;
     }
