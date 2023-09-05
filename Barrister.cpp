@@ -194,16 +194,18 @@ bool SearchState::CheckConditionsOn(
   if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
     return false;
 
-  LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
-  if (params->maxChanges != -1) {
-    if (changes.GetPop() > params->maxChanges)
-      return false;
-  }
+  if (params->maxChanges != -1 || params->changesBounds.first != -1) {
+    LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
+    if (params->maxChanges != -1) {
+      if (changes.GetPop() > params->maxChanges)
+        return false;
+    }
 
-  if (params->changesBounds.first != -1) {
-    auto wh = changes.WidthHeight();
-    if (wh.first > params->changesBounds.first || wh.second > params->changesBounds.second)
-      return false;
+    if (params->changesBounds.first != -1) {
+      auto wh = changes.WidthHeight();
+      if (wh.first > params->changesBounds.first || wh.second > params->changesBounds.second)
+        return false;
+    }
   }
 
   if(hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens && activePop > 0)
@@ -274,20 +276,22 @@ LifeState SearchState::ForcedInactiveCells(
       activePop == (unsigned)params->maxActiveCells)
     result |= ~active; // Or maybe just return
 
-  LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
-  if (params->maxChanges != -1) {
-    unsigned changesPop = changes.GetPop();
-    if (changesPop > params->maxChanges)
-      return ~LifeState();
-    if (changesPop == params->maxChanges) {
-      LifeState prevactive = previous.ActiveComparedTo(stable);
-      result |= ~prevactive & ~active & ~changes;
+  if (params->maxChanges != -1 || params->changesBounds.first != -1) {
+    LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
+    if (params->maxChanges != -1) {
+      unsigned changesPop = changes.GetPop();
+      if (changesPop > params->maxChanges)
+        return ~LifeState();
+      if (changesPop == params->maxChanges) {
+        LifeState prevactive = previous.ActiveComparedTo(stable);
+        result |= ~prevactive & ~active & ~changes;
+      }
     }
-  }
 
-  if (params->changesBounds.first != -1) {
-    LifeState prevactive = previous.ActiveComparedTo(stable);
-    result |= ~prevactive & ~active & ~changes.BufferAround(params->changesBounds);
+    if (params->changesBounds.first != -1) {
+      LifeState prevactive = previous.ActiveComparedTo(stable);
+      result |= ~prevactive & ~active & ~changes.BufferAround(params->changesBounds);
+    }
   }
 
   if (params->maxCellActiveWindowGens != -1 &&
