@@ -195,7 +195,7 @@ bool SearchState::CheckConditionsOn(
     return false;
 
   if (params->maxChanges != -1 || params->changesBounds.first != -1) {
-    LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
+    LifeState changes = (state.state ^ previous.state) & ~state.unknown & ~previous.unknown & stable.stateZOI;
     if (params->maxChanges != -1) {
       if (changes.GetPop() > params->maxChanges)
         return false;
@@ -277,7 +277,7 @@ LifeState SearchState::ForcedInactiveCells(
     result |= ~active; // Or maybe just return
 
   if (params->maxChanges != -1 || params->changesBounds.first != -1) {
-    LifeState changes = (state.state ^ previous.state) & ~state.unknown & stable.stateZOI;
+    LifeState changes = (state.state ^ previous.state) & ~state.unknown & ~previous.unknown & stable.stateZOI;
     if (params->maxChanges != -1) {
       unsigned changesPop = changes.GetPop();
       if (changesPop > params->maxChanges)
