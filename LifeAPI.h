@@ -1085,6 +1085,15 @@ public:
     return SolidRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
   }
 
+  static LifeState NZOIAround(std::pair<int, int> cell, unsigned distance) {
+    unsigned size = 2 * distance + 1;
+    return LifeState::SolidRect(cell.first - distance, cell.second - distance,
+                                size, size);
+  }
+  static LifeState CellZOI(std::pair<int, int> cell) {
+    return NZOIAround(cell, 1);
+  }
+
   std::array<int, 4> XYBounds() const {
 #if N == 64
     uint64_t popCols = PopulatedColumns();

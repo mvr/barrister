@@ -24,10 +24,10 @@ public:
   // NOTE: doesn't update the counts
   std::pair<bool, bool> PropagateColumnStep(int column);
   void UpdateZOIColumn(int column);
-  bool PropagateColumn(int column);
+  std::pair<bool, bool> PropagateColumn(int column);
 
   std::pair<bool, bool> PropagateStableStep();
-  bool PropagateStable();
+  std::pair<bool, bool> PropagateStable();
 
   std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell) const;
 
@@ -35,8 +35,7 @@ public:
   //   // TODO, probably just need to re-count.
   // }
 
-  bool TestUnknowns();
-  bool TestUnknowns(const LifeState &cells);
+  std::pair<bool, bool> TestUnknowns(const LifeState &cells);
   bool CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, unsigned &maxPop, LifeState &best);
   LifeState CompleteStable();
 
@@ -263,17 +262,19 @@ void LifeStableState::UpdateZOIColumn(int column) {
   }
 }
 
-bool LifeStableState::PropagateColumn(int column) {
+std::pair<bool, bool> LifeStableState::PropagateColumn(int column) {
   bool done = false;
+  bool changes = false;
   while (!done) {
     auto result = PropagateColumnStep(column);
-    if (!result.first) {
-      return false;
-    }
+    if (!result.first)
+      return {false, false};
+    if (!result.second)
+      changes = true;
     done = result.second;
   }
   UpdateZOIColumn(column);
-  return true;
+  return {true, changes};
 }
 
 std::pair<bool, bool> LifeStableState::PropagateStableStep() {
@@ -393,101 +394,49 @@ signal_on |= stateon & (~on1) & on0 & (~unk0) ;
   return std::make_pair(has_abort == 0, unknownStable == startUnknownStable);
 }
 
-bool LifeStableState::PropagateStable() {
+std::pair<bool, bool> LifeStableState::PropagateStable() {
   bool done = false;
+  bool changes = false;
   while (!done) {
     auto result = PropagateStableStep();
-    if (!result.first) {
-      return false;
-    }
+    if (!result.first)
+      return {false, false};
+    if (!result.second)
+      changes = true;
     done = result.second;
   }
 
   stateZOI = state.ZOI();
-  return true;
+  return {true, changes};
 }
 
 std::pair<int, int> LifeStableState::UnknownNeighbour(std::pair<int, int> cell) const {
   return unknownStable.FindSetNeighbour(cell);
 }
 
-bool LifeStableState::TestUnknowns() {
-  LifeState next = state;
-  next.Step();
-
-  LifeState changes = state ^ next;
-  if (changes.IsEmpty()) {
-    // We win
-    return true;
-  }
-
-  // Try all the nearby changes to see if any are forced
-  LifeState newPlacements = changes.ZOI() & unknownStable;
-  while (!newPlacements.IsEmpty()) {
-    auto newPlacement = newPlacements.FirstOn();
-    newPlacements.Erase(newPlacement.first, newPlacement.second);
-
-    LifeStableState onSearch;
-    LifeStableState offSearch;
-    bool onConsistent;
-    bool offConsistent;
-
-    // Try on
-    {
-      onSearch = *this;
-      onSearch.state.Set(newPlacement.first, newPlacement.second);
-      onSearch.unknownStable.Erase(newPlacement.first, newPlacement.second);
-      onConsistent = onSearch.PropagateStable();
-    }
-
-    // Try off
-    {
-      offSearch = *this;
-      offSearch.state.Erase(newPlacement.first, newPlacement.second);
-      offSearch.unknownStable.Erase(newPlacement.first, newPlacement.second);
-      offConsistent = offSearch.PropagateStable();
-    }
-
-    if(!onConsistent && !offConsistent) {
-      return false;
-    }
-
-    if(onConsistent && !offConsistent) {
-      *this = onSearch;
-    }
-
-    if (!onConsistent && offConsistent) {
-      *this = offSearch;
-    }
-
-    newPlacements &= unknownStable;
-  }
-  return true;
-}
-
-bool LifeStableState::TestUnknowns(const LifeState &cells) {
+std::pair<bool, bool> LifeStableState::TestUnknowns(const LifeState &cells) {
   // Try all the nearby changes to see if any are forced
   LifeState remainingCells = cells;
   bool change = false;
   while (!remainingCells.IsEmpty()) {
     auto cell = remainingCells.FirstOn();
-    remainingCells.Erase(cell.first, cell.second);
+    remainingCells.Erase(cell);
 
     // Try on
 
     LifeStableState onSearch = *this;
-    onSearch.state.SetCell(cell.first, cell.second, true);
-    onSearch.unknownStable.Erase(cell.first, cell.second);
-    bool onConsistent = onSearch.PropagateColumn(cell.first);
+    onSearch.state.SetCell(cell, true);
+    onSearch.unknownStable.Erase(cell);
+    auto [onConsistent, onChanges] = onSearch.PropagateColumn(cell.first);
 
     // Try off
     LifeStableState offSearch = *this;
-    offSearch.state.SetCell(cell.first, cell.second, false);
-    offSearch.unknownStable.Erase(cell.first, cell.second);
-    bool offConsistent = offSearch.PropagateColumn(cell.first);
+    offSearch.state.SetCell(cell, false);
+    offSearch.unknownStable.Erase(cell);
+    auto [offConsistent, offChanges] = offSearch.PropagateColumn(cell.first);
 
     if(!onConsistent && !offConsistent) {
-      return false;
+      return {false, false};
     }
 
     if(onConsistent && !offConsistent) {
@@ -500,13 +449,12 @@ bool LifeStableState::TestUnknowns(const LifeState &cells) {
       change = true;
     }
 
-    if (onConsistent && offConsistent) {
+    if (onConsistent && offConsistent && onChanges && offChanges) {
       // Copy over common cells
       LifeState agreement = unknownStable & ~onSearch.unknownStable & ~offSearch.unknownStable & ~(onSearch.state ^ offSearch.state);
-      if(!agreement.IsEmpty()) {
+      if (!agreement.IsEmpty()) {
         state |= agreement & onSearch.state;
         unknownStable &= ~agreement;
-
         change = true;
       }
     }
@@ -514,10 +462,10 @@ bool LifeStableState::TestUnknowns(const LifeState &cells) {
     remainingCells &= unknownStable;
   }
 
-  if(change)
-    return PropagateStable();
+  if (change)
+    return {PropagateStable().first, true};
   else
-    return true;
+    return {true, false};
 }
 
 bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, unsigned &maxPop, LifeState &best) {
@@ -525,53 +473,52 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
   if(currentTime > timeLimit)
     return false;
 
-  bool consistent = PropagateStable();
+  bool consistent = PropagateStable().first;
   if (!consistent)
     return false;
 
-  if (state.GetPop() >= maxPop) {
+  unsigned currentPop = state.GetPop();
+
+  if (currentPop >= maxPop) {
     return false;
   }
 
-  // bool result = TestUnknowns();
-  // if (!result)
-  //   return false;
+  auto [result, changes] = TestUnknowns(unknownStable & ~unknown3 & ~unknown2 & (unknown1 | unknown0));
+  if (!result)
+    return false;
+
+  if (changes) {
+    currentPop = state.GetPop();
+    if(currentPop >= maxPop)
+      return false;
+  }
 
   LifeState next = state;
   next.Step();
 
-  LifeState changes = state ^ next;
-  if (changes.IsEmpty()) {
+  LifeState instabilities = state ^ next;
+  if (instabilities.IsEmpty()) {
     // We win
     best = state;
     maxPop = state.GetPop();
-    // std::cout << maxPop << std::endl;
-    // std::cout << best.RLE() << std::endl;
-
     return true;
   }
 
-  CountNeighbourhood(unknownStable, unknown3, unknown2, unknown1, unknown0);
-  LifeState oneNeighbour = unknown0 & ~unknown1 & ~unknown2 & ~unknown3;
-  LifeState twoNeighbours = ~unknown0 & unknown1 & ~unknown2 & ~unknown3;
-
-  LifeState settable = changes.ZOI() & unknownStable;
-  // Now make a guess
-  LifeState newPlacements;
-  newPlacements = settable & oneNeighbour;
-  if(newPlacements.IsEmpty())
-    newPlacements = settable & twoNeighbours;
-  if(newPlacements.IsEmpty())
-    newPlacements = settable;
-  if(newPlacements.IsEmpty())
+  // CHEAT!
+  if (instabilities.GetPop() + currentPop >= maxPop)
     return false;
 
-  // std::cout << "x = 0, y = 0, rule = PropagateStable" << std::endl;
-  // std::cout << UnknownRLE() << std::endl;
-  // std::cout << newPlacements.RLE() << std::endl;
-  // std::cin.get();
+  LifeState settable = instabilities.ZOI() & unknownStable;
+  // Now make a guess
+  std::pair<int, int> newPlacement = {-1, -1};
 
-  auto newPlacement = newPlacements.FirstOn();
+  newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & ~unknown0)).FirstOn();
+  if(newPlacement.first == -1)
+    newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & unknown0)).FirstOn();
+  if(newPlacement.first == -1)
+    newPlacement = settable.FirstOn();
+  if(newPlacement.first == -1)
+    return false;
 
   bool onresult = false;
   bool offresult = false;
@@ -580,16 +527,22 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
   {
     bool which = false;
     LifeStableState nextState = *this;
-    nextState.state.SetCell(newPlacement.first, newPlacement.second, which);
-    nextState.unknownStable.Erase(newPlacement.first, newPlacement.second);
+    nextState.state.SetCell(newPlacement, which);
+    nextState.unknownStable.Erase(newPlacement);
     offresult = nextState.CompleteStableStep(timeLimit, maxPop, best);
   }
   // Then must be on
   {
     bool which = true;
     LifeStableState &nextState = *this;
-    nextState.state.SetCell(newPlacement.first, newPlacement.second, which);
-    nextState.unknownStable.Erase(newPlacement.first, newPlacement.second);
+    nextState.state.SetCell(newPlacement, which);
+    nextState.unknownStable.Erase(newPlacement);
+
+    if (currentPop == maxPop - 2) {
+      // All remaining unknown cells must be off
+      nextState.unknownStable = LifeState();
+    }
+
     onresult = nextState.CompleteStableStep(timeLimit, maxPop, best);
   }
 

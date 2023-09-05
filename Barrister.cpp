@@ -685,12 +685,12 @@ void SearchState::Search() {
 
 void SearchState::SearchStep() {
   if (focus == std::pair(-1, -1) && pendingFocuses.focuses.IsEmpty()) {
-    bool consistent = stable.PropagateStable();
+    bool consistent = stable.PropagateStable().first;
     if (!consistent)
       return;
 
     LifeState cells = stable.Vulnerable() & stable.unknownStable;
-    bool testconsistent = stable.TestUnknowns(cells);
+    bool testconsistent = stable.TestUnknowns(cells).first;
     if (!testconsistent)
       return;
     TransferStableToCurrent();
@@ -765,9 +765,9 @@ void SearchState::SearchStep() {
     bool doRecurse = true;
 
     if (doRecurse) {
-      bool consistent = nextState.stable.PropagateColumn(cell.first);
+      auto [consistent, changes] = nextState.stable.PropagateColumn(cell.first);
       doRecurse = consistent;
-      if(consistent)
+      if(consistent && changes)
         nextState.TransferStableToCurrentColumn(cell.first);
     }
 
@@ -808,9 +808,9 @@ void SearchState::SearchStep() {
     bool doRecurse = true;
 
     if (doRecurse) {
-      bool consistent = nextState.stable.PropagateColumn(cell.first);
+      auto [consistent, changes] = nextState.stable.PropagateColumn(cell.first);
       doRecurse = consistent;
-      if(consistent)
+      if(consistent && changes)
         nextState.TransferStableToCurrentColumn(cell.first);
     }
 
