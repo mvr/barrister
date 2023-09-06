@@ -343,74 +343,6 @@ public:
 public:
   void Print() const;
 
-  void Copy(const LifeState &delta, CopyType op) {
-    if (op == COPY) {
-      for (int i = 0; i < N; i++)
-        state[i] = delta[i];
-      return;
-    }
-    if (op == OR) {
-      for (int i = 0; i < N; i++)
-        state[i] |= delta[i];
-      return;
-    }
-    if (op == AND) {
-      for (int i = 0; i < N; i++)
-        state[i] &= delta[i];
-    }
-    if (op == ANDNOT) {
-      for (int i = 0; i < N; i++)
-        state[i] &= ~delta[i];
-    }
-    if (op == ORNOT) {
-      for (int i = 0; i < N; i++)
-        state[i] |= ~delta[i];
-    }
-    if (op == XOR) {
-      for (int i = 0; i < N; i++)
-        state[i] ^= delta[i];
-    }
-  }
-
-  void Copy(const LifeState &delta) { Copy(delta, COPY); }
-
-  inline void Copy(const LifeState &delta, int x, int y) {
-    uint64_t temp1[N] = {0};
-
-    if (x < 0)
-      x += N;
-    if (y < 0)
-      y += 64;
-
-    for (int i = 0; i < N; i++)
-      temp1[i] = RotateLeft(delta[i], y);
-
-    memmove(state, temp1 + (N - x), x * sizeof(uint64_t));
-    memmove(state + x, temp1, (N - x) * sizeof(uint64_t));
-
-  }
-
-  void Join(const LifeState &delta) { Copy(delta, OR); }
-
-  void Join(const LifeState &delta, int x, int y) {
-    uint64_t temp[2*N] = {0};
-
-    if (x < 0)
-      x += N;
-    if (y < 0)
-      y += 64;
-
-    for (int i = 0; i < N; i++) {
-      temp[i]   = RotateLeft(delta[i], y);
-      temp[i+N] = RotateLeft(delta[i], y);
-    }
-
-    const int shift = N - x;
-    for (int i = 0; i < N; i++) {
-      state[i] |= temp[i+shift];
-    }
-  }
-
   void JoinWSymChain(const LifeState &state, int x, int y,
                      const std::vector<SymmetryTransform> &symChain) {
     // instead of passing in the symmetry group {id, g_1, g_2,...g_n} and
@@ -425,9 +357,9 @@ public:
     for (auto sym : symChain) {
       LifeState soFar = transformed;
       soFar.Transform(sym);
-      transformed.Join(soFar);
+      transformed |= soFar;
     }
-    Join(transformed);
+    *this |= transformed;
   }
 
   void JoinWSymChain(const LifeState &state,
@@ -437,9 +369,9 @@ public:
     for (auto sym : symChain) {
       LifeState soFar = transformed;
       soFar.Transform(sym);
-      transformed.Join(soFar);
+      transformed |= soFar;
     }
-    Join(transformed);
+    *this |= transformed;
   }
 
   unsigned GetPop() const {
@@ -739,9 +671,7 @@ public:
 
 
   LifeState GetBoundary() const {
-    LifeState boundary = ZOI();
-    boundary.Copy(*this, ANDNOT);
-    return boundary;
+    return ZOI() & ~*this;
   }
 
   LifeState BigZOI() const {
