@@ -847,17 +847,17 @@ bool SearchState::ContainsEater2(LifeState &stable, LifeState &everActive) const
   blockMatch[N-1] = stable[N-1] & RotateRight(stable[N-1]) &
     stable[0] & RotateRight(stable[0]);
 
-  std::vector<LifeState> shouldBeActive = {
-      LifeState::Parse("bo$o!", 1, 1),
-      LifeState::Parse("o$bo!", -1, 1),
-      LifeState::Parse("bo$o!", -1, -1),
-      LifeState::Parse("o$bo!", 1, -1),
+  const std::array<LifeState, 4> shouldBeActive = {
+      LifeState::ConstantParse("bo$o!", 1, 1),
+      LifeState::ConstantParse("o$bo!", -1, 1),
+      LifeState::ConstantParse("bo$o!", -1, -1),
+      LifeState::ConstantParse("o$bo!", 1, -1),
   };
-  std::vector<LifeState> shouldNotBeActive = {
-    LifeState::Parse("2bo2$obo!", 0, 0),
-    LifeState::Parse("o2$obo!", -1, 0),
-    LifeState::Parse("obo2$o!", -1, -1),
-    LifeState::Parse("obo2$2bo!", 0, -1),
+  const std::array<LifeState, 4> shouldNotBeActive = {
+    LifeState::ConstantParse("2bo2$obo!", 0, 0),
+    LifeState::ConstantParse("o2$obo!", -1, 0),
+    LifeState::ConstantParse("obo2$o!", -1, -1),
+    LifeState::ConstantParse("obo2$2bo!", 0, -1),
   };
 
   while (!blockMatch.IsEmpty()) {

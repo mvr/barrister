@@ -1,5 +1,5 @@
 CC = clang++
-CFLAGS = -std=c++17 -Wall -Wextra -pedantic -O3 -march=native -mtune=native -flto -fno-stack-protector -fomit-frame-pointer -g
+CFLAGS = -std=c++20 -Wall -Wextra -pedantic -O3 -march=native -mtune=native -flto -fno-stack-protector -fomit-frame-pointer -g3
 LDFLAGS =
 
 # CC = /usr/local/opt/llvm/bin/clang++

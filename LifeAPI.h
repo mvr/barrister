@@ -32,7 +32,7 @@
 #ifndef __clang__
 #include <x86intrin.h>
 
-uint64_t reverse_uint64_t(uint64_t x) {
+constexpr uint64_t reverse_uint64_t(uint64_t x) {
   const uint64_t h1 = 0x5555555555555555ULL;
   const uint64_t h2 = 0x3333333333333333ULL;
   const uint64_t h4 = 0x0F0F0F0F0F0F0F0FULL;
@@ -60,14 +60,14 @@ uint64_t reverse_uint64_t(uint64_t x) {
 #define __builtin_rotateleft64 _rotl64
 #define __builtin_rotateright64 _rotr64
 
-inline int __builtin_ctzll(uint64_t x) {
+constexpr int __builtin_ctzll(uint64_t x) {
   unsigned long log2;
   _BitScanReverse64(&log2, x);
   return log2;
 }
 #endif
 
-inline unsigned longest_run_uint64_t(uint64_t x) {
+constexpr unsigned longest_run_uint64_t(uint64_t x) {
   if(x == 0)
     return 0;
 
@@ -86,7 +86,7 @@ inline unsigned longest_run_uint64_t(uint64_t x) {
   return count + 1;
 }
 
-inline unsigned populated_width_uint64_t(uint64_t x) {
+constexpr unsigned populated_width_uint64_t(uint64_t x) {
   if (x == 0)
     return 0;
 
@@ -103,7 +103,7 @@ inline unsigned populated_width_uint64_t(uint64_t x) {
   return 64 - longest_run_uint64_t(~x);
 }
 
-inline unsigned longest_run_uint32_t(uint32_t x) {
+constexpr unsigned longest_run_uint32_t(uint32_t x) {
   if(x == 0)
     return 0;
 
@@ -122,7 +122,7 @@ inline unsigned longest_run_uint32_t(uint32_t x) {
   return count + 1;
 }
 
-inline unsigned populated_width_uint32_t(uint32_t x) {
+constexpr unsigned populated_width_uint32_t(uint32_t x) {
   if (x == 0)
     return 0;
 
@@ -138,7 +138,7 @@ inline unsigned populated_width_uint32_t(uint32_t x) {
   return 32 - longest_run_uint32_t(~x);
 }
 
-inline uint64_t convolve_uint64_t(uint64_t x, uint64_t y) {
+constexpr uint64_t convolve_uint64_t(uint64_t x, uint64_t y) {
   if(y == 0)
     return 0;
 
@@ -261,16 +261,16 @@ enum StaticSymmetry {
   D8even,
 };
 
-inline uint64_t RotateLeft(uint64_t x, unsigned int k) {
+constexpr uint64_t RotateLeft(uint64_t x, unsigned int k) {
   return __builtin_rotateleft64(x, k);
 }
 
-inline uint64_t RotateRight(uint64_t x, unsigned int k) {
+constexpr uint64_t RotateRight(uint64_t x, unsigned int k) {
   return __builtin_rotateright64(x, k);
 }
 
-inline uint64_t RotateLeft(uint64_t x) { return RotateLeft(x, 1); }
-inline uint64_t RotateRight(uint64_t x) { return RotateRight(x, 1); }
+constexpr uint64_t RotateLeft(uint64_t x) { return RotateLeft(x, 1); }
+constexpr uint64_t RotateRight(uint64_t x) { return RotateRight(x, 1); }
 
 class LifeTarget;
 
@@ -278,7 +278,7 @@ class LifeState {
 public:
   uint64_t state[N];
 
-  LifeState() : state{0} {}
+  constexpr LifeState() : state{0} {}
   LifeState(bool dummy) {}
 
   void Set(int x, int y) { state[x] |= (1ULL << (y)); }
@@ -308,8 +308,8 @@ public:
   void SetCellUnsafe(std::pair<int, int> xy, int val) { SetCellUnsafe(xy.first, xy.second, val); };
   int GetCell(std::pair<int, int> xy) const { return GetCell(xy.first, xy.second); };
 
-  uint64_t& operator[](unsigned i) { return state[i]; }
-  const uint64_t& operator[](unsigned i) const { return state[i]; }
+  constexpr uint64_t& operator[](unsigned i) { return state[i]; }
+  constexpr const uint64_t& operator[](unsigned i) const { return state[i]; }
 
   uint64_t GetHash() const {
     uint64_t result = 0;
@@ -646,6 +646,21 @@ public:
     Move(vec.first, vec.second);
   }
 
+  constexpr LifeState Moved(int x, int y) {
+    LifeState result;
+
+    if (x < 0)
+      x += N;
+    if (y < 0)
+      y += 64;
+
+    for (int i = 0; i < N; i++) {
+      int newi = (i + x) % 64;
+      result[newi] = RotateLeft(state[i], y);
+    }
+    return result;
+  }
+  
   void BitReverse() {
     for (int i = 0; i < N; i++) {
       state[i] = __builtin_bitreverse64(state[i]);
@@ -930,48 +945,69 @@ public:
     }
   }
 
-  static int Parse(LifeState &state, const char *rle, int starti);
-
-  static int Parse(LifeState &state, const char *rle, int dx, int dy) {
-    if (Parse(state, rle, 0) == -1) {
-      state.Move(dx, dy);
-      return SUCCESS;
-    } else {
-      return FAIL;
-    }
-  }
-
-  static int Parse(LifeState &state, const char *rle) {
-    return Parse(state, rle, 0, 0);
-  }
-
-  static int Parse(LifeState &state, const char *rle, int dx, int dy,
-                   SymmetryTransform transf) {
-    int result = Parse(state, rle);
-
-    if (result == SUCCESS)
-      state.Transform(dx, dy, transf);
-
-    return result;
-  }
-
-  static LifeState Parse(const char *rle, int dx, int dy,
-                         SymmetryTransform trans) {
-    LifeState result;
-    Parse(result, rle);
-    result.Transform(dx, dy, trans);
-
-    return result;
-  }
+  static LifeState Parse(const char *rle);
 
   static LifeState Parse(const char *rle, int dx, int dy) {
+    LifeState result = LifeState::Parse(rle);
+    result.Move(dx, dy);
+    return result;
+  }
+
+  consteval static LifeState ConstantParse(const char *rle) {
     LifeState result;
-    Parse(result, rle, dx, dy);
+
+    char ch = 0;
+    int cnt = 0;
+    int x = 0;
+    int y = 0;
+    int i = 0;
+
+    while ((ch = rle[i]) != '\0') {
+      if (ch >= '0' && ch <= '9') {
+        cnt *= 10;
+        cnt += (ch - '0');
+      } else if (ch == 'o') {
+        if (cnt == 0)
+          cnt = 1;
+
+        for (int j = 0; j < cnt; j++) {
+          result.state[x] |= (1ULL << (y));
+          x++;
+        }
+
+        cnt = 0;
+      } else if (ch == 'b') {
+        if (cnt == 0)
+          cnt = 1;
+
+        x += cnt;
+        cnt = 0;
+
+      } else if (ch == '$') {
+        if (cnt == 0)
+          cnt = 1;
+
+        if (cnt == 129)
+          return LifeState();
+
+        y += cnt;
+        x = 0;
+        cnt = 0;
+      } else if (ch == '!') {
+        break;
+      } else {
+        return LifeState();
+      }
+
+      i++;
+    }
 
     return result;
   }
 
-  static LifeState Parse(const char *rle) { return Parse(rle, 0, 0); }
+  consteval static LifeState ConstantParse(const char *rle, int dx, int dy) {
+    return LifeState::ConstantParse(rle).Moved(dx, dy);
+  }
 
   std::string RLE() const;
 
@@ -1203,8 +1239,7 @@ public:
   }
 
   LifeState ComponentContaining(const LifeState &seed) const {
-    LifeState corona = LifeState::Parse("b3o$5o$5o$5o$b3o!");
-    corona.Move(-2, -2);
+    constexpr LifeState corona = LifeState::ConstantParse("b3o$5o$5o$5o$b3o!", -2, -2);
     return ComponentContaining(seed, corona);
   }
 
@@ -1219,8 +1254,7 @@ public:
     return result;
   }
   std::vector<LifeState> Components() const {
-    LifeState corona = LifeState::Parse("b3o$5o$5o$5o$b3o!");
-    corona.Move(-2, -2);
+    constexpr LifeState corona = LifeState::ConstantParse("b3o$5o$5o$5o$b3o!", -2, -2);
     return Components(corona);
   }
 
@@ -1367,7 +1401,9 @@ void LifeState::Print() const {
   printf("\n\n\n\n\n\n");
 }
 
-int LifeState::Parse(LifeState &state, const char *rle, int starti) {
+LifeState LifeState::Parse(const char *rle) {
+  LifeState result;
+
   char ch;
   int cnt, i, j;
   int x, y;
@@ -1375,7 +1411,7 @@ int LifeState::Parse(LifeState &state, const char *rle, int starti) {
   y = 0;
   cnt = 0;
 
-  i = starti;
+  i = 0;
 
   while ((ch = rle[i]) != '\0') {
 
@@ -1388,7 +1424,7 @@ int LifeState::Parse(LifeState &state, const char *rle, int starti) {
         cnt = 1;
 
       for (j = 0; j < cnt; j++) {
-        state.SetCell(x, y, 1);
+        result.SetCell(x, y, 1);
         x++;
       }
 
@@ -1405,7 +1441,7 @@ int LifeState::Parse(LifeState &state, const char *rle, int starti) {
         cnt = 1;
 
       if (cnt == 129)
-        return i + 1;
+        return LifeState();
 
       y += cnt;
       x = 0;
@@ -1413,13 +1449,13 @@ int LifeState::Parse(LifeState &state, const char *rle, int starti) {
     } else if (ch == '!') {
       break;
     } else {
-      return -2;
+      return LifeState();
     }
 
     i++;
   }
 
-  return -1;
+  return result;
 }
 
 std::string LifeState::RLE() const {
@@ -1528,33 +1564,6 @@ public:
     wanted.Transform(transf);
     unwanted.Transform(transf);
   }
-
-  static int Parse(LifeTarget &target, const char *rle, int x, int y,
-                   SymmetryTransform transf) {
-    LifeState Temp;
-    int result = LifeState::Parse(Temp, rle, x, y, transf);
-
-    if (result == SUCCESS) {
-      target.wanted = Temp;
-      target.unwanted = Temp.GetBoundary();
-      return SUCCESS;
-    }
-
-    return FAIL;
-  }
-
-  static LifeTarget Parse(const char *rle, int x, int y,
-                          SymmetryTransform transf) {
-    LifeTarget target;
-    Parse(target, rle, x, y, transf);
-    return target;
-  }
-
-  static LifeTarget Parse(const char *rle, int x, int y) {
-    return Parse(rle, x, y, Identity);
-  }
-
-  static LifeTarget Parse(const char *rle) { return Parse(rle, 0, 0); }
 };
 
 inline bool LifeState::Contains(const LifeTarget &target, int dx,
