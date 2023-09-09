@@ -685,12 +685,12 @@ void SearchState::Search() {
 
 void SearchState::SearchStep() {
   if (focus == std::pair(-1, -1) && pendingFocuses.focuses.IsEmpty()) {
-    bool consistent = stable.PropagateStable().first;
+    bool consistent = stable.PropagateStable().consistent;
     if (!consistent)
       return;
 
     LifeState cells = stable.Vulnerable() & stable.unknownStable;
-    bool testconsistent = stable.TestUnknowns(cells).first;
+    bool testconsistent = stable.TestUnknowns(cells).consistent;
     if (!testconsistent)
       return;
 
@@ -777,10 +777,14 @@ void SearchState::SearchStep() {
     bool doRecurse = true;
 
     if (doRecurse) {
-      auto [consistent, changes] = nextState.stable.PropagateColumn(cell.first);
-      doRecurse = consistent;
-      if(consistent && changes)
+      auto result = nextState.stable.PropagateColumn(cell.first);
+      bool columnChanged = result.changed;
+      // if(result.consistent && result.edgesChanged)
+      //   result = nextState.stable.PropagateStable();
+      if(result.consistent && (columnChanged || result.changed))
         nextState.TransferStableToCurrentColumn(cell.first);
+
+      doRecurse = result.consistent;
     }
 
     if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
@@ -791,7 +795,6 @@ void SearchState::SearchStep() {
     }
 
     if (doRecurse) {
-
       LifeUnknownState quicklook =
           nextState.pendingFocuses.currentState.UncertainStepFast(
               nextState.stable);
@@ -820,10 +823,14 @@ void SearchState::SearchStep() {
     bool doRecurse = true;
 
     if (doRecurse) {
-      auto [consistent, changes] = nextState.stable.PropagateColumn(cell.first);
-      doRecurse = consistent;
-      if(consistent && changes)
+      auto result = nextState.stable.PropagateColumn(cell.first);
+      bool columnChanged = result.changed;
+      // if(result.consistent && result.edgesChanged)
+      //   result = nextState.stable.PropagateStable();
+      if(result.consistent && (columnChanged || result.changed))
         nextState.TransferStableToCurrentColumn(cell.first);
+
+      doRecurse = result.consistent;
     }
 
     if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
@@ -927,7 +934,7 @@ void SearchState::ReportFullSolution() {
   std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
 
   if(params->stabiliseResults) {
-    LifeState completed = stable.CompleteStable();
+    LifeState completed = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
 
     if(!completed.IsEmpty()){
       // std::cout << "Completed:" << std::endl;
@@ -955,7 +962,7 @@ void SearchState::ReportPipeSolution() {
   if (params->forbidEater2 && ContainsEater2(stable.state, everActive))
     return;
 
-  LifeState completed = stable.CompleteStable();
+  LifeState completed = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
 
   if(completed.IsEmpty())
     return;

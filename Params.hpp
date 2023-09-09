@@ -50,6 +50,8 @@ public:
   std::vector<Forbidden> forbiddens;
 
   bool stabiliseResults;
+  unsigned stabiliseResultsTimeout;
+  bool minimiseResults;
   bool reportOscillators;
   bool skipGlancing;
   bool continueAfterSuccess;
@@ -97,14 +99,19 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.maxCellActiveStreakGens = toml::find_or(toml, "max-cell-active-streak", -1);
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", true);
+  params.stabiliseResultsTimeout = toml::find_or(toml, "stabilise-results-timeout", 3);
+  params.minimiseResults = toml::find_or(toml, "minimise-results", false);
   params.reportOscillators = toml::find_or(toml, "report-oscillators", false);
   params.skipGlancing = toml::find_or(toml, "skip-glancing", true);
   params.continueAfterSuccess = toml::find_or(toml, "continue-after-success", false);
   params.forbidEater2 = toml::find_or(toml, "forbid-eater2", false);
   params.printSummary = toml::find_or(toml, "print-summary", true);
+
   params.pipeResults = toml::find_or(toml, "pipe-results", false);
   if(params.pipeResults) {
     params.stabiliseResults = true;
+    params.stabiliseResultsTimeout = 1;
+    params.minimiseResults = false;
     params.printSummary = false;
   }
 
