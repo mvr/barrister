@@ -6,6 +6,11 @@
 #include "LifeHistoryState.hpp"
 #include "Parsing.hpp"
 
+struct Forbidden {
+  LifeState mask;
+  LifeState state;
+};
+
 struct SearchParams {
 public:
   unsigned minFirstActiveGen;
@@ -40,6 +45,9 @@ public:
   int filterGen;
   LifeState filterMask;
   LifeState filterPattern;
+
+  bool hasForbidden;
+  std::vector<Forbidden> forbiddens;
 
   bool stabiliseResults;
   bool reportOscillators;
@@ -129,5 +137,24 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     params.filterMask = pat.marked;
     params.filterPattern = pat.state;
   }
+
+  if(toml.contains("forbidden")) {
+    params.hasForbidden = true;
+
+    auto forbiddens = toml::find<std::vector<toml::value>>(toml, "forbidden");
+    for(auto &f : forbiddens) {
+      std::string rle = toml::find_or<std::string>(f, "forbidden", "");
+      std::vector<int> forbiddenCenterVec =
+        toml::find_or<std::vector<int>>(f, "forbidden-pos", {0, 0});
+      LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
+
+      pat.Move(forbiddenCenterVec[0], forbiddenCenterVec[1]);
+
+      params.forbiddens.push_back({pat.marked, pat.state});
+    }
+  } else {
+    params.hasForbidden = false;
+  }
+
   return params;
 }

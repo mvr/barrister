@@ -693,6 +693,18 @@ void SearchState::SearchStep() {
     bool testconsistent = stable.TestUnknowns(cells).first;
     if (!testconsistent)
       return;
+
+    if (params->hasForbidden) {
+      for(auto &f : params->forbiddens) {
+        bool allKnown = (f.mask & stable.unknownStable).IsEmpty();
+        if (!allKnown)
+          continue;
+        bool matches = ((stable.state ^ f.state) & f.mask).IsEmpty();
+        if (allKnown && matches)
+          return;
+      }
+    }
+
     TransferStableToCurrent();
 
     if (!TryAdvance())
