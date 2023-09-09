@@ -279,7 +279,7 @@ public:
   uint64_t state[N];
 
   constexpr LifeState() : state{0} {}
-  LifeState(bool dummy) {}
+  LifeState(__attribute__((unused)) bool dummy) {}
 
   void Set(int x, int y) { state[x] |= (1ULL << (y)); }
   void Erase(int x, int y) { state[x] &= ~(1ULL << (y)); }
@@ -592,7 +592,7 @@ public:
     }
     return result;
   }
-  
+
   void BitReverse() {
     for (int i = 0; i < N; i++) {
       state[i] = __builtin_bitreverse64(state[i]);
@@ -1120,7 +1120,7 @@ public:
       orOfCols |= state[i];
 
     if (orOfCols == 0ULL) // empty grid.
-      return std::make_pair(0,0);
+      return std::make_pair(0, 0);
 
 
     uint64_t cols = PopulatedColumns();
@@ -1465,7 +1465,7 @@ std::string LifeState::RLE() const {
 std::pair<int, int> LifeState::FindSetNeighbour(std::pair<int, int> cell) const {
   // This could obviously be done faster by extracting the result
   // directly from the columns, but this is probably good enough for now
-  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(0,0), {-1, 0}, {1, 0}, {0,1}, {0, -1}, {-1,-1}, {-1,1}, {1, -1}, {1, 1}};
+  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(0, 0), {-1, 0}, {1, 0}, {0,1}, {0, -1}, {-1,-1}, {-1,1}, {1, -1}, {1, 1}};
   for (auto d : directions) {
     int x = (cell.first + d.first + N) % N;
     int y = (cell.second + d.second + 64) % 64;
