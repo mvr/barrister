@@ -23,16 +23,25 @@ public:
   // std::pair<unsigned, unsigned> stableBounds;
 
   int maxActiveCells;
+  int maxComponentActiveCells;
   std::pair<int, int> activeBounds;
 
   int maxEverActiveCells;
   std::pair<int, int> everActiveBounds;
 
+  int changesGrace;
   int maxChanges;
   std::pair<int, int> changesBounds;
+  int maxComponentChanges;
+  std::pair<int, int> componentChangesBounds;
+
+  bool usesChanges;
 
   int maxCellActiveWindowGens;
   int maxCellActiveStreakGens;
+
+  int maxCellStationaryDistance;
+  int maxCellStationaryStreakGens;
 
   LifeState startingPattern;
   LifeState activePattern;
@@ -78,7 +87,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 4);
 
   params.maxActiveCells = toml::find_or(toml, "max-active-cells", -1);
-
+  params.maxComponentActiveCells = toml::find_or(toml, "max-component-active-cells", -1);
   std::vector<int> activeBounds = toml::find_or<std::vector<int>>(toml, "active-bounds", {-1, -1});
   params.activeBounds.first = activeBounds[0];
   params.activeBounds.second = activeBounds[1];
@@ -89,14 +98,28 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.everActiveBounds.first = everActiveBounds[0];
   params.everActiveBounds.second = everActiveBounds[1];
 
+  params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
+  params.maxCellActiveStreakGens = toml::find_or(toml, "max-cell-active-streak", -1);
+
+  params.changesGrace = toml::find_or(toml, "changes-grace", 0);
   params.maxChanges = toml::find_or(toml, "max-changes", -1);
   std::vector<int> changesBounds = toml::find_or<std::vector<int>>(toml, "changes-bounds", {-1, -1});
   params.changesBounds.first = changesBounds[0];
   params.changesBounds.second = changesBounds[1];
+  params.maxComponentChanges = toml::find_or(toml, "max-component-changes", -1);
+  std::vector<int> componentChangesBounds = toml::find_or<std::vector<int>>(toml, "component-changes-bounds", {-1, -1});
+  params.componentChangesBounds.first = componentChangesBounds[0];
+  params.componentChangesBounds.second = componentChangesBounds[1];
 
+  params.maxCellStationaryDistance = toml::find_or(toml, "max-cell-stationary-distance", -1);
+  params.maxCellStationaryStreakGens = toml::find_or(toml, "max-cell-stationary-streak", -1);
 
-  params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
-  params.maxCellActiveStreakGens = toml::find_or(toml, "max-cell-active-streak", -1);
+  params.usesChanges = params.maxChanges != -1 ||
+                       params.changesBounds.first != -1 ||
+                       params.maxComponentChanges != -1 ||
+                       params.componentChangesBounds.first != -1 ||
+                       params.maxCellStationaryDistance != -1 ||
+                       params.maxCellStationaryStreakGens != -1;
 
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", true);
   params.stabiliseResultsTimeout = toml::find_or(toml, "stabilise-results-timeout", 3);

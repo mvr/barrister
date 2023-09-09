@@ -194,17 +194,47 @@ bool SearchState::CheckConditionsOn(
   if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
     return false;
 
-  if (params->maxChanges != -1 || params->changesBounds.first != -1) {
+  if (params->maxComponentActiveCells != -1 && activePop > (unsigned)params->maxComponentActiveCells)
+    for (auto &c : active.Components())
+      if(c.GetPop() > (unsigned)params->maxComponentActiveCells)
+        return false;
+
+  if (gen >= (unsigned)params->changesGrace && params->usesChanges) {
     LifeState changes = (state.state ^ previous.state) & ~state.unknown & ~previous.unknown & stable.stateZOI;
     if (params->maxChanges != -1) {
-      if (changes.GetPop() > params->maxChanges)
+      if (changes.GetPop() > (unsigned)params->maxChanges)
         return false;
+    }
+
+    if (params->maxComponentChanges != -1) {
+      for (auto &c : changes.Components())
+        if (c.GetPop() > (unsigned)params->maxComponentChanges)
+          return false;
     }
 
     if (params->changesBounds.first != -1) {
       auto wh = changes.WidthHeight();
       if (wh.first > params->changesBounds.first || wh.second > params->changesBounds.second)
         return false;
+    }
+
+    if (params->componentChangesBounds.first != -1) {
+      auto wh = changes.WidthHeight();
+      if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second) {
+        for (auto &c : changes.Components()) {
+          auto wh = c.WidthHeight();
+          if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
+            return false;
+        }
+      }
+    }
+
+    if (params->maxCellStationaryDistance != -1) {
+      LifeState stationary = active & ~changes;
+      LifeState unknownActive = state.unknown & ~state.unknownStable;
+      if (!stationary.IsEmpty() && (stationary.NZOI(params->maxCellStationaryDistance) & (changes | unknownActive)).IsEmpty()) {
+        return false;
+      }
     }
   }
 
@@ -276,21 +306,60 @@ LifeState SearchState::ForcedInactiveCells(
       activePop == (unsigned)params->maxActiveCells)
     result |= ~active; // Or maybe just return
 
-  if (params->maxChanges != -1 || params->changesBounds.first != -1) {
+  if (params->maxComponentActiveCells != -1 && activePop >= (unsigned)params->maxComponentActiveCells)
+    for (auto &c : active.Components()) {
+      auto componentPop = c.GetPop();
+      if(componentPop > (unsigned)params->maxComponentActiveCells)
+        return ~LifeState();
+      if(componentPop == (unsigned)params->maxComponentActiveCells)
+        result |= ~active & c.BigZOI();
+    }
+
+  if (gen >= (unsigned)params->changesGrace && params->usesChanges) {
+    LifeState changesForbidden;
+
     LifeState changes = (state.state ^ previous.state) & ~state.unknown & ~previous.unknown & stable.stateZOI;
+
     if (params->maxChanges != -1) {
       unsigned changesPop = changes.GetPop();
-      if (changesPop > params->maxChanges)
+      if (changesPop > (unsigned)params->maxChanges)
         return ~LifeState();
-      if (changesPop == params->maxChanges) {
-        LifeState prevactive = previous.ActiveComparedTo(stable);
-        result |= ~prevactive & ~active & ~changes;
+      if (changesPop == (unsigned)params->maxChanges) {
+        changesForbidden |= ~changes;
+      }
+    }
+
+    if (params->maxComponentChanges != -1) {
+      for (auto &c : changes.Components()) {
+        unsigned changesPop = c.GetPop();
+        if (changesPop > (unsigned)params->maxComponentChanges)
+          return ~LifeState();
+        if (changesPop == (unsigned)params->maxComponentChanges) {
+          changesForbidden |= ~changes & c.BigZOI();
+        }
       }
     }
 
     if (params->changesBounds.first != -1) {
-      LifeState prevactive = previous.ActiveComparedTo(stable);
-      result |= ~prevactive & ~active & ~changes.BufferAround(params->changesBounds);
+      changesForbidden |= ~changes.BufferAround(params->changesBounds);
+    }
+
+    if (params->componentChangesBounds.first != -1) {
+      for (auto &c : changes.Components()) {
+        auto wh = c.WidthHeight();
+        if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
+          return ~LifeState();
+        // TODO: This could be better, if we are up against the bounds then forbid changes horizontally or vertically
+      }
+    }
+
+    LifeState prevactive = previous.ActiveComparedTo(stable);
+
+    result |= changesForbidden & ~previous.unknown & ~prevactive;
+
+    if (params->maxCellStationaryDistance != -1) {
+      LifeState unchanging = ~(changes | (state.unknown & ~state.unknownStable));
+      result |= prevactive & unchanging.MatchLive(LifeState::NZOIAround({0, 0}, params->maxCellStationaryDistance));
     }
   }
 
@@ -898,11 +967,11 @@ bool SearchState::ContainsEater2(LifeState &stable, LifeState &everActive) const
 }
 
 bool SearchState::PassesFilter() const {
-  if(currentGen > params->filterGen)
+  if(currentGen > (unsigned)params->filterGen)
     return true;
 
   LifeUnknownState lookahead = current;
-  for (unsigned lookaheadGen = currentGen; lookaheadGen < params->filterGen; lookaheadGen++) {
+  for (unsigned lookaheadGen = currentGen; lookaheadGen < (unsigned)params->filterGen; lookaheadGen++) {
     lookahead = lookahead.UncertainStepMaintaining(stable);
   }
 
@@ -989,11 +1058,11 @@ int main(int, char *argv[]) {
   auto toml = toml::parse(argv[1]);
   SearchParams params = SearchParams::FromToml(toml);
 
-  if (params.maxCellActiveWindowGens != -1 && params.maxCellActiveWindowGens > maxCellActiveWindowGens) {
+  if (params.maxCellActiveWindowGens != -1 && (unsigned)params.maxCellActiveWindowGens > maxCellActiveWindowGens) {
     std::cout << "max-cell-active-window is higher than allowed by the hardcoded value!" << std::endl;
     exit(1);
   }
-  if (params.maxCellActiveStreakGens != -1 && params.maxCellActiveStreakGens > maxCellActiveStreakGens) {
+  if (params.maxCellActiveStreakGens != -1 && (unsigned)params.maxCellActiveStreakGens > maxCellActiveStreakGens) {
     std::cout << "max-cell-active-streak is higher than allowed by the hardcoded value!" << std::endl;
     exit(1);
   }

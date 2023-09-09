@@ -1056,8 +1056,13 @@ public:
     return LifeState::SolidRect(cell.first - distance, cell.second - distance,
                                 size, size);
   }
+
   static LifeState CellZOI(std::pair<int, int> cell) {
-    return NZOIAround(cell, 1);
+    return LifeState::NZOIAround(cell, 1);
+  }
+
+  LifeState NZOI(unsigned distance) {
+    return Convolve(LifeState::NZOIAround({0, 0}, distance));
   }
 
   std::array<int, 4> XYBounds() const {
@@ -1080,7 +1085,7 @@ public:
       orOfCols |= state[i];
 
     if (orOfCols == 0ULL) {
-      return std::array<int, 4>({0, 0, 0, 0});
+      return std::array<int, 4>({-1, -1, -1, -1});
     }
 
     orOfCols = __builtin_rotateright64(orOfCols, 32);
@@ -1134,6 +1139,10 @@ public:
 
   LifeState BufferAround(std::pair<int, int> size) const {
     auto bounds = XYBounds();
+
+    if(bounds[0] == -1)
+      return ~LifeState();
+
     int width = bounds[2] - bounds[0] + 1;
     int height = bounds[3] - bounds[1] + 1;
 
