@@ -199,7 +199,7 @@ bool SearchState::CheckConditionsOn(
       if(c.GetPop() > (unsigned)params->maxComponentActiveCells)
         return false;
 
-  if (gen >= (unsigned)params->changesGrace && params->usesChanges) {
+  if (gen > interactionStart + params->changesGrace && params->usesChanges) {
     LifeState changes = (state.state ^ previous.state) & ~state.unknown & ~previous.unknown & stable.stateZOI;
     if (params->maxChanges != -1) {
       if (changes.GetPop() > (unsigned)params->maxChanges)
@@ -315,7 +315,7 @@ LifeState SearchState::ForcedInactiveCells(
         result |= ~active & c.BigZOI();
     }
 
-  if (gen >= (unsigned)params->changesGrace && params->usesChanges) {
+  if (gen > interactionStart + params->changesGrace && params->usesChanges) {
     LifeState changesForbidden;
 
     LifeState changes = (state.state ^ previous.state) & ~state.unknown & ~previous.unknown & stable.stateZOI;
