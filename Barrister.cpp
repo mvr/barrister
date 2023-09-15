@@ -349,7 +349,8 @@ LifeState SearchState::ForcedInactiveCells(
         auto wh = c.WidthHeight();
         if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
           return ~LifeState();
-        // TODO: This could be better, if we are up against the bounds then forbid changes horizontally or vertically
+
+        changesForbidden |= ~active.BufferAround(params->componentChangesBounds) & c.BigZOI();
       }
     }
 
