@@ -23,11 +23,14 @@ public:
   // std::pair<unsigned, unsigned> stableBounds;
 
   int maxActiveCells;
-  int maxComponentActiveCells;
   std::pair<int, int> activeBounds;
+  int maxComponentActiveCells;
+  std::pair<int, int> componentActiveBounds;
 
   int maxEverActiveCells;
   std::pair<int, int> everActiveBounds;
+  int maxComponentEverActiveCells;
+  std::pair<int, int> componentEverActiveBounds;
 
   int changesGrace;
   int maxChanges;
@@ -87,16 +90,22 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.minStableInterval = toml::find_or(toml, "min-stable-interval", 4);
 
   params.maxActiveCells = toml::find_or(toml, "max-active-cells", -1);
-  params.maxComponentActiveCells = toml::find_or(toml, "max-component-active-cells", -1);
   std::vector<int> activeBounds = toml::find_or<std::vector<int>>(toml, "active-bounds", {-1, -1});
   params.activeBounds.first = activeBounds[0];
   params.activeBounds.second = activeBounds[1];
+  params.maxComponentActiveCells = toml::find_or(toml, "max-component-active-cells", -1);
+  std::vector<int> componentActiveBounds = toml::find_or<std::vector<int>>(toml, "component-active-bounds", {-1, -1});
+  params.componentActiveBounds.first = componentActiveBounds[0];
+  params.componentActiveBounds.second = componentActiveBounds[1];
 
   params.maxEverActiveCells = toml::find_or(toml, "max-ever-active-cells", -1);
-
   std::vector<int> everActiveBounds = toml::find_or<std::vector<int>>(toml, "ever-active-bounds", {-1, -1});
   params.everActiveBounds.first = everActiveBounds[0];
   params.everActiveBounds.second = everActiveBounds[1];
+  params.maxComponentEverActiveCells = toml::find_or(toml, "max-component-ever-active-cells", -1);
+  std::vector<int> componentEverActiveBounds = toml::find_or<std::vector<int>>(toml, "component-ever-active-bounds", {-1, -1});
+  params.componentEverActiveBounds.first = componentEverActiveBounds[0];
+  params.componentEverActiveBounds.second = componentEverActiveBounds[1];
 
   params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
   params.maxCellActiveStreakGens = toml::find_or(toml, "max-cell-active-streak", -1);

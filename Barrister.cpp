@@ -306,7 +306,7 @@ LifeState SearchState::ForcedInactiveCells(
       activePop == (unsigned)params->maxActiveCells)
     result |= ~active; // Or maybe just return
 
-  if (params->maxComponentActiveCells != -1 && activePop >= (unsigned)params->maxComponentActiveCells)
+  if (params->maxComponentActiveCells != -1 && activePop >= (unsigned)params->maxComponentActiveCells) {
     for (auto &c : active.Components()) {
       auto componentPop = c.GetPop();
       if(componentPop > (unsigned)params->maxComponentActiveCells)
@@ -314,6 +314,7 @@ LifeState SearchState::ForcedInactiveCells(
       if(componentPop == (unsigned)params->maxComponentActiveCells)
         result |= ~active & c.BigZOI();
     }
+  }
 
   if (gen > interactionStart + params->changesGrace && params->usesChanges) {
     LifeState changesForbidden;
@@ -376,13 +377,45 @@ LifeState SearchState::ForcedInactiveCells(
     result |= ~active.BufferAround(params->activeBounds);
   }
 
+  if (params->componentActiveBounds.first != -1) {
+    for (auto &c : active.Components()) {
+      auto wh = c.WidthHeight();
+
+      if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
+        return ~LifeState();
+
+      result |= ~active.BufferAround(params->componentActiveBounds) & c.BigZOI();
+    }
+  }
+
   if (params->maxEverActiveCells != -1 &&
       everActive.GetPop() == (unsigned)params->maxEverActiveCells) {
     result |= ~everActive; // Or maybe just return
   }
 
+  if (params->maxComponentEverActiveCells != -1 && everActive.GetPop() >= (unsigned)params->maxComponentEverActiveCells) {
+    for (auto &c : everActive.Components()) {
+      auto componentPop = c.GetPop();
+      if(componentPop > (unsigned)params->maxComponentEverActiveCells)
+        return ~LifeState();
+      if(componentPop == (unsigned)params->maxComponentEverActiveCells)
+        result |= ~everActive & c.BigZOI();
+    }
+  }
+
   if (params->everActiveBounds.first != -1 && activePop > 0) {
     result |= ~everActive.BufferAround(params->everActiveBounds);
+  }
+
+  if (params->componentEverActiveBounds.first != -1) {
+    for (auto &c : everActive.Components()) {
+      auto wh = c.WidthHeight();
+
+      if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
+        return ~LifeState();
+
+      result |= ~everActive.BufferAround(params->componentEverActiveBounds) & c.BigZOI();
+    }
   }
 
   if (params->hasStator)
