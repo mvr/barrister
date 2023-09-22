@@ -253,13 +253,40 @@ bool SearchState::CheckConditionsOn(
       return false;
   }
 
+  if (params->componentActiveBounds.first != -1) {
+    auto wh = active.WidthHeight();
+    if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second) {
+      for (auto &c : active.Components()) {
+        auto wh = c.WidthHeight();
+        if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
+          return false;
+      }
+    }
+  }
+
   if (params->maxEverActiveCells != -1 && everActive.GetPop() > (unsigned)params->maxEverActiveCells)
     return false;
+
+  if (params->maxComponentEverActiveCells != -1 && everActive.GetPop() > (unsigned)params->maxComponentEverActiveCells)
+    for (auto &c : everActive.Components())
+      if(c.GetPop() > (unsigned)params->maxComponentEverActiveCells)
+        return false;
 
   if(params->everActiveBounds.first != -1) {
     auto wh = everActive.WidthHeight();
     if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
       return false;
+  }
+
+  if (params->componentEverActiveBounds.first != -1) {
+    auto wh = everActive.WidthHeight();
+    if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second) {
+      for (auto &c : everActive.Components()) {
+        auto wh = c.WidthHeight();
+        if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
+          return false;
+      }
+    }
   }
 
   if (params->hasStator && !(~state.state & params->stator & ~state.unknown).IsEmpty())
