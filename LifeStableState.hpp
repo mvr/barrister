@@ -27,6 +27,9 @@ public:
   LifeState unknown1;
   LifeState unknown0;
 
+  // Must be unknown previously!
+  void SetCell(std::pair<int, int> cell, bool which);
+
   // NOTE: doesn't update the counts
   PropagateResult PropagateColumnStep(int column);
   void UpdateZOIColumn(int column);
@@ -46,6 +49,47 @@ public:
 
   LifeState Vulnerable() const;
 };
+
+void LifeStableState::SetCell(std::pair<int, int> cell, bool which) {
+  state.SetCellUnsafe(cell, which);
+  unknownStable.Erase(cell);
+
+  const std::array<std::pair<int, int>, 9> neighbours = LifeState::NeighbourhoodCells(cell);
+  for (auto n : neighbours) {
+    // Decrement unknown counts
+    if (unknown0.Get(n)) {
+      unknown0.Erase(n);
+    } else if (unknown1.Get(n)) {
+      unknown1.Erase(n);
+      unknown0.Set(n);
+    } else if (unknown2.Get(n)) {
+      unknown2.Erase(n);
+      unknown1.Set(n);
+      unknown0.Set(n);
+    } else if (unknown3.Get(n)) {
+      unknown3.Erase(n);
+      unknown2.Set(n);
+      unknown1.Set(n);
+      unknown0.Set(n);
+    }
+  }
+
+  // Increment state counts
+  if (which) {
+    for (auto n : neighbours) {
+      if (!state0.Get(n)) {
+        state0.Set(n);
+      } else if (!state1.Get(n)) {
+        state1.Set(n);
+        state0.Erase(n);
+      } else if (!state2.Get(n)) {
+        state2.Set(n);
+        state1.Erase(n);
+        state0.Erase(n);
+      }
+    }
+  }
+}
 
 PropagateResult LifeStableState::PropagateColumnStep(int column) {
   std::array<uint64_t, 6> nearbyStable;

@@ -668,7 +668,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
     LifeUnknownState gen = lookahead[maxLookaheadGens - 1];
     for(unsigned i = maxLookaheadGens; currentGen + i <= interactionStart + params->maxActiveWindowGens + 1; i++) {
       LifeUnknownState prev = gen;
-      gen = gen.UncertainStepFast(stable);
+      gen = gen.UncertainStepMaintaining(stable);
       LifeState active = gen.ActiveComparedTo(stable);
 
       if (i < maxLookaheadKnownPop) {
@@ -853,7 +853,7 @@ void SearchState::SearchStep() {
     }
   }
 
-  bool focusIsDetermined = pendingFocuses.currentState.KnownNext(focus);
+  bool focusIsDetermined = pendingFocuses.currentState.KnownNext(stable, focus);
 
   auto cell = stable.UnknownNeighbour(focus);
   if (focusIsDetermined || cell == std::pair(-1, -1)) {
@@ -870,8 +870,7 @@ void SearchState::SearchStep() {
 
     nextState.hasReported = false;
 
-    nextState.stable.state.SetCellUnsafe(cell, which);
-    nextState.stable.unknownStable.Erase(cell);
+    nextState.stable.SetCell(cell, which);
 
     nextState.pendingFocuses.currentState.state.SetCellUnsafe(cell, which);
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
@@ -892,14 +891,14 @@ void SearchState::SearchStep() {
 
     if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
       // See whether this choice keeps the focus stable in the next generation
-      auto [focusNext, focusUnknown] =
-          nextState.pendingFocuses.currentState.NextForCell(focus);
-      doRecurse = focusUnknown || focusNext == nextState.stable.state.Get(focus);
+      auto [focusNext, focusUnknown, focusUnknownStable] =
+        nextState.pendingFocuses.currentState.NextForCell(nextState.stable, focus);
+      doRecurse = !focusUnknownStable && (focusUnknown || focusNext == nextState.stable.state.Get(focus));
     }
 
     if (doRecurse) {
       LifeUnknownState quicklook =
-          nextState.pendingFocuses.currentState.UncertainStepFast(
+          nextState.pendingFocuses.currentState.UncertainStepMaintaining(
               nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
@@ -916,8 +915,7 @@ void SearchState::SearchStep() {
     bool which = false;
     SearchState &nextState = *this; // Does not copy
 
-    nextState.stable.state.SetCellUnsafe(cell, which);
-    nextState.stable.unknownStable.Erase(cell);
+    nextState.stable.SetCell(cell, which);
 
     nextState.pendingFocuses.currentState.state.SetCellUnsafe(cell, which);
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
@@ -938,14 +936,14 @@ void SearchState::SearchStep() {
 
     if (doRecurse && pendingFocuses.isForcedInactive && stable.stateZOI.Get(focus)) {
       // See whether this choice keeps the focus stable in the next generation
-      auto [focusNext, focusUnknown] =
-          nextState.pendingFocuses.currentState.NextForCell(focus);
-      doRecurse = focusUnknown || focusNext == nextState.stable.state.Get(focus);
+      auto [focusNext, focusUnknown, focusUnknownStable] =
+        nextState.pendingFocuses.currentState.NextForCell(nextState.stable, focus);
+      doRecurse = !focusUnknownStable && (focusUnknown || focusNext == nextState.stable.state.Get(focus));
     }
 
     if (doRecurse) {
       LifeUnknownState quicklook =
-          nextState.pendingFocuses.currentState.UncertainStepFast(
+          nextState.pendingFocuses.currentState.UncertainStepMaintaining(
               nextState.stable);
       LifeState quickactive = quicklook.ActiveComparedTo(nextState.stable);
       LifeState quickeveractive = everActive | quickactive;
