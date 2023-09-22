@@ -283,7 +283,7 @@ public:
 
   void Set(int x, int y) { state[x] |= (1ULL << (y)); }
   void Erase(int x, int y) { state[x] &= ~(1ULL << (y)); }
-  int Get(int x, int y) const { return (state[x] & (1ULL << y)) >> y; }
+  bool Get(int x, int y) const { return (state[x] & (1ULL << y)) >> y; }
   void SetCell(int x, int y, int val) {
     if (val == 1) {
       Set((x + N) % N, (y + 64) % 64);
@@ -297,16 +297,16 @@ public:
     if (val == 0)
       Erase(x, y);
   }
-  int GetCell(int x, int y) const {
+  bool GetCell(int x, int y) const {
     return Get((x + N) % N, (y + 64) % 64);
   }
 
   void Set(std::pair<int, int> xy) { Set(xy.first, xy.second); };
   void Erase(std::pair<int, int> xy) { Erase(xy.first, xy.second); };
-  int Get(std::pair<int, int> xy) const { return Get(xy.first, xy.second); };
+  bool Get(std::pair<int, int> xy) const { return Get(xy.first, xy.second); };
   void SetCell(std::pair<int, int> xy, int val) { SetCell(xy.first, xy.second, val); };
   void SetCellUnsafe(std::pair<int, int> xy, int val) { SetCellUnsafe(xy.first, xy.second, val); };
-  int GetCell(std::pair<int, int> xy) const { return GetCell(xy.first, xy.second); };
+  bool GetCell(std::pair<int, int> xy) const { return GetCell(xy.first, xy.second); };
 
   constexpr uint64_t& operator[](unsigned i) { return state[i]; }
   constexpr const uint64_t& operator[](unsigned i) const { return state[i]; }
@@ -817,6 +817,7 @@ public:
   LifeState Match(const LifeTarget &target) const;
 
   std::pair<int, int> FindSetNeighbour(std::pair<int, int> cell) const;
+  static std::array<std::pair<int, int>, 9> NeighbourhoodCells(std::pair<int, int> cell);
   unsigned NeighbourhoodCount(std::pair<int, int> cell) const;
 
 private:
@@ -1475,14 +1476,20 @@ std::pair<int, int> LifeState::FindSetNeighbour(std::pair<int, int> cell) const 
   return std::make_pair(-1, -1);
 }
 
+std::array<std::pair<int, int>, 9> LifeState::NeighbourhoodCells(std::pair<int, int> cell){
+  std::array<std::pair<int, int>, 9> result = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0, 0}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
+  for (auto &r : result) {
+    r.first = (cell.first + r.first + N) % N;
+    r.second = (cell.second + r.second + 64) % 64;
+  }
+  return result;
+}
+
 unsigned LifeState::NeighbourhoodCount(std::pair<int, int> cell) const {
   unsigned result = 0;
-  // ditto
-  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0, 0}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
-  for (auto d : directions) {
-    int x = (cell.first + d.first + N) % N;
-    int y = (cell.second + d.second + 64) % 64;
-    if (Get(x, y))
+  const std::array<std::pair<int, int>, 9> neighbours = LifeState::NeighbourhoodCells(cell);
+  for (auto n : neighbours) {
+    if (Get(n))
       result++;
   }
   return result;

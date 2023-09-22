@@ -38,10 +38,6 @@ public:
 
   std::pair<int, int> UnknownNeighbour(std::pair<int, int> cell) const;
 
-  // void SetCell(std::pair<int, int> cell, bool value) {
-  //   // TODO, probably just need to re-count.
-  // }
-
   PropagateResult TestUnknowns(const LifeState &cells);
   PropagateResult TestUnknownNeighbourhood(std::pair<int, int> cell);
   PropagateResult TestUnknownNeighbourhoods(const LifeState &cells);
