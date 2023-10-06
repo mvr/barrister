@@ -187,6 +187,7 @@ bool SearchState::CheckConditionsOn(
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
     const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
   auto activePop = active.GetPop();
+  LifeState dom = LifeState::DomainFromChoice(params->fundDomain);
 
   if (gen < params->minFirstActiveGen && activePop > 0)
     return false;
@@ -248,15 +249,15 @@ bool SearchState::CheckConditionsOn(
     return false;
 
   if(params->activeBounds.first != -1) {
-    auto wh = active.WidthHeight();
+    auto wh = (active & dom).WidthHeight();
     if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
       return false;
   }
 
   if (params->componentActiveBounds.first != -1) {
-    auto wh = active.WidthHeight();
+    auto wh = (active & dom).WidthHeight();
     if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second) {
-      for (auto &c : active.Components()) {
+      for (auto &c : (active & dom).Components()) {
         auto wh = c.WidthHeight();
         if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
           return false;
@@ -268,18 +269,18 @@ bool SearchState::CheckConditionsOn(
     return false;
 
   if (params->maxComponentEverActiveCells != -1 && everActive.GetPop() > (unsigned)params->maxComponentEverActiveCells)
-    for (auto &c : everActive.Components())
+    for (auto &c : (everActive & dom).Components())
       if(c.GetPop() > (unsigned)params->maxComponentEverActiveCells)
         return false;
 
   if(params->everActiveBounds.first != -1) {
-    auto wh = everActive.WidthHeight();
+    auto wh = (everActive & dom).WidthHeight();
     if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
       return false;
   }
 
   if (params->componentEverActiveBounds.first != -1) {
-    auto wh = everActive.WidthHeight();
+    auto wh = (everActive & dom).WidthHeight();
     if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second) {
       for (auto &c : everActive.Components()) {
         auto wh = c.WidthHeight();
@@ -317,6 +318,7 @@ LifeState SearchState::ForcedInactiveCells(
     return ~LifeState();
   }
 
+  LifeState dom = LifeState::DomainFromChoice(params->fundDomain);
   auto activePop = active.GetPop();
 
   if (hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens && activePop > 0) {
@@ -331,7 +333,7 @@ LifeState SearchState::ForcedInactiveCells(
 
   if (params->maxActiveCells != -1 &&
       activePop == (unsigned)params->maxActiveCells)
-    result |= ~active; // Or maybe just return
+    result |= ~active & dom; // Or maybe just return
 
   if (params->maxComponentActiveCells != -1 && activePop >= (unsigned)params->maxComponentActiveCells) {
     for (auto &c : active.Components()) {
@@ -339,7 +341,7 @@ LifeState SearchState::ForcedInactiveCells(
       if(componentPop > (unsigned)params->maxComponentActiveCells)
         return ~LifeState();
       if(componentPop == (unsigned)params->maxComponentActiveCells)
-        result |= ~active & c.BigZOI();
+        result |= ~active & c.BigZOI() & dom;
     }
   }
 
@@ -369,7 +371,7 @@ LifeState SearchState::ForcedInactiveCells(
     }
 
     if (params->changesBounds.first != -1) {
-      changesForbidden |= ~changes.BufferAround(params->changesBounds);
+      changesForbidden |= ~(changes & dom).BufferAround(params->changesBounds) & dom;
     }
 
     if (params->componentChangesBounds.first != -1) {
@@ -378,30 +380,32 @@ LifeState SearchState::ForcedInactiveCells(
         if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
           return ~LifeState();
 
-        changesForbidden |= ~active.BufferAround(params->componentChangesBounds) & c.BigZOI();
+        changesForbidden |= ~(active & dom).BufferAround(params->componentChangesBounds) 
+                          & c.BigZOI() & dom;
       }
     }
 
     LifeState prevactive = previous.ActiveComparedTo(stable);
 
-    result |= changesForbidden & ~previous.unknown & ~prevactive;
+    result |= changesForbidden & ~previous.unknown & ~prevactive  & dom;
 
     if (params->maxCellStationaryDistance != -1) {
       LifeState unchanging = ~(changes | (state.unknown & ~state.unknownStable));
-      result |= prevactive & unchanging.MatchLive(LifeState::NZOIAround({0, 0}, params->maxCellStationaryDistance));
+      result |= prevactive & dom &
+          unchanging.MatchLive(LifeState::NZOIAround({0, 0}, params->maxCellStationaryDistance));
     }
   }
 
   if (params->maxCellActiveWindowGens != -1 &&
       currentGen > (unsigned)params->maxCellActiveWindowGens)
-    result |= activeTimer.finished;
+    result |= activeTimer.finished  & dom;
 
   if (params->maxCellActiveStreakGens != -1 &&
       currentGen > (unsigned)params->maxCellActiveStreakGens)
-    result |= streakTimer.finished;
+    result |= streakTimer.finished  & dom;
 
   if (params->activeBounds.first != -1 && activePop > 0) {
-    result |= ~active.BufferAround(params->activeBounds);
+    result |= ~(active & dom).BufferAround(params->activeBounds)  & dom;
   }
 
   if (params->componentActiveBounds.first != -1) {
@@ -411,7 +415,8 @@ LifeState SearchState::ForcedInactiveCells(
       if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
         return ~LifeState();
 
-      result |= ~active.BufferAround(params->componentActiveBounds) & c.BigZOI();
+      result |= ~(active & dom).BufferAround(params->componentActiveBounds)
+                 & c.BigZOI() & dom;
     }
   }
 
@@ -431,7 +436,7 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->everActiveBounds.first != -1 && activePop > 0) {
-    result |= ~everActive.BufferAround(params->everActiveBounds);
+    result |= ~(everActive & dom).BufferAround(params->everActiveBounds) & dom;
   }
 
   if (params->componentEverActiveBounds.first != -1) {
@@ -441,12 +446,17 @@ LifeState SearchState::ForcedInactiveCells(
       if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
         return ~LifeState();
 
-      result |= ~everActive.BufferAround(params->componentEverActiveBounds) & c.BigZOI();
+      result |= ~(everActive & dom).BufferAround(params->componentEverActiveBounds)
+                & c.BigZOI() & dom;
     }
   }
 
   if (params->hasStator)
     result |= params->stator;
+
+  LifeState resultCopy = result;
+  resultCopy.Transform(params->symTransf);
+  result |= resultCopy;
 
   return result;
 }
@@ -862,17 +872,21 @@ void SearchState::SearchStep() {
 
     if(focusIsGlancing) {
       pendingFocuses.Erase(focus);
+      pendingFocuses.Erase(TransformedBy(params->symTransf, focus));
 
       if (!pendingFocuses.isForcedInactive || stable.unknown2.Get(focus) ||
           stable.unknown3.Get(focus)) { // TODO: handle overpopulation better
 
         SearchState nextState = *this;
         nextState.stable.glancedON.Set(focus);
+        nextState.stable.glancedON.Set(TransformedBy(params->symTransf, focus));
         nextState.SearchStep();
       }
 
       stable.glanced.Set(focus);
+      stable.glanced.Set(TransformedBy(params->symTransf, focus));
       pendingFocuses.Erase(focus);
+      pendingFocuses.Erase(TransformedBy(params->symTransf, focus));
       focus = {-1, -1};
 
       [[clang::musttail]]
@@ -885,6 +899,7 @@ void SearchState::SearchStep() {
   auto cell = stable.UnknownNeighbour(focus);
   if (focusIsDetermined || cell == std::pair(-1, -1)) {
     pendingFocuses.Erase(focus);
+    pendingFocuses.Erase(TransformedBy(params->symTransf, focus));
     focus = {-1, -1};
 
     [[clang::musttail]]
@@ -903,15 +918,30 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
+    
+    auto transformed = TransformedBy(params->symTransf, cell);
+
+    nextState.stable.SetCell(transformed, which);
+
+    nextState.pendingFocuses.currentState.state.SetCellUnsafe(transformed, which);
+    nextState.pendingFocuses.currentState.unknown.Erase(transformed);
+    nextState.pendingFocuses.currentState.unknownStable.Erase(transformed);
+
     bool doRecurse = true;
 
     if (doRecurse) {
+      // ought to make nextState.stable symmetric here.
+      // more efficient way besides running propagate stable twice?
       auto result = nextState.stable.PropagateColumn(cell.first);
+      if (result.consistent && transformed.first != cell.first)
+        nextState.stable.PropagateColumn(transformed.first);
       bool columnChanged = result.changed;
       // if(result.consistent && result.edgesChanged)
       //   result = nextState.stable.PropagateStable();
-      if(result.consistent && (columnChanged || result.changed))
+      if(result.consistent && (columnChanged || result.changed)){
         nextState.TransferStableToCurrentColumn(cell.first);
+        nextState.TransferStableToCurrentColumn(transformed.first);
+      }
 
       doRecurse = result.consistent;
     }
@@ -948,15 +978,27 @@ void SearchState::SearchStep() {
     nextState.pendingFocuses.currentState.unknown.Erase(cell);
     nextState.pendingFocuses.currentState.unknownStable.Erase(cell);
 
+    auto transformed = TransformedBy(params->symTransf, cell);
+    
+    nextState.stable.SetCell(transformed, which);
+
+    nextState.pendingFocuses.currentState.state.SetCellUnsafe(transformed, which);
+    nextState.pendingFocuses.currentState.unknown.Erase(transformed);
+    nextState.pendingFocuses.currentState.unknownStable.Erase(transformed);
+
     bool doRecurse = true;
 
     if (doRecurse) {
       auto result = nextState.stable.PropagateColumn(cell.first);
+      if (result.consistent && transformed.first != cell.first)
+        nextState.stable.PropagateColumn(transformed.first);
       bool columnChanged = result.changed;
       // if(result.consistent && result.edgesChanged)
       //   result = nextState.stable.PropagateStable();
-      if(result.consistent && (columnChanged || result.changed))
+      if(result.consistent && (columnChanged || result.changed)){
         nextState.TransferStableToCurrentColumn(cell.first);
+        nextState.TransferStableToCurrentColumn(transformed.first);
+      }
 
       doRecurse = result.consistent;
     }
