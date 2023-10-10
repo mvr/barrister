@@ -255,6 +255,10 @@ std::pair<int,int> TransformedBy(SymmetryTransform transf, std::pair<int,int> co
       return std::make_pair(coord.first, (64-coord.second)%64);
     case(SymmetryTransform::ReflectAcrossXEven):
       return std::make_pair(coord.first, 63-coord.second);
+    case(SymmetryTransform::ReflectAcrossYeqX):
+      return std::make_pair(coord.second, coord.first);
+    case(SymmetryTransform::ReflectAcrossYeqNegXP1):
+      return std::make_pair((64-coord.second)%64, (64-coord.first)%64);
     default:
       return coord;
   }
@@ -284,7 +288,7 @@ enum StaticSymmetry {
   D8even,
 };
 
-enum DomainChoice {LEFTRIGHT, TOPBOTTOM, NONE};
+enum DomainChoice {LEFTRIGHT, TOPBOTTOM, BOTTOMLEFTDIAG, NONE};
 
 constexpr uint64_t RotateLeft(uint64_t x, unsigned int k) {
   return __builtin_rotateleft64(x, k);
@@ -1044,6 +1048,47 @@ public:
     return result;
   }
 
+#if N == 64
+
+  static LifeState DiagRect(int posDiagStart, int negDiagStart,
+                              int posDiagWidth, int negDiagWidth){
+    // intersects diagonal stripes in each direction.
+    // rule of thumb: DiagRect(0,0, n, m) gives a diagonal region
+    // with top vertex at (0,0), dimensions (n+1)/2 by (m+1)/2
+    // with respect to the tilted axes, measuring (0,0) to (1,1) as 1 unit.
+    // the diagonal stripes intersect on the far side of the torus too.
+  
+
+    if (negDiagWidth <= 0 || posDiagWidth <= 0)
+      return LifeState();
+    if (negDiagWidth > 64) negDiagWidth = 64;
+    if (posDiagWidth > 64) posDiagWidth = 64;
+
+    // x = u - v, y = u + v
+    auto topCorner = std::array<int,2>({posDiagStart-negDiagStart,
+                                        posDiagStart+negDiagStart});
+    for (unsigned i = 0; i < 2; ++i)
+      topCorner[i] = ((topCorner[i] % 64) + 64) % 64;
+
+    LifeState to_return(false);
+    uint64_t diagCol = negDiagWidth == 64 ? ~uint64_t(0) 
+                    : (uint64_t(1) << negDiagWidth) - uint64_t(1);
+    diagCol = __builtin_rotateleft64(diagCol, topCorner[1]);
+    diagCol = __builtin_rotateright64(diagCol, topCorner[0]);
+    // when i is topCorner[0], the first 1 of diagCol should be at topCorner[1]
+    for (unsigned i = 0; i < 64; ++i)
+      to_return.state[i] = __builtin_rotateleft64(diagCol, i);
+    diagCol = posDiagWidth == 64 ? ~uint64_t(0) 
+                    : (uint64_t(1) << posDiagWidth) - uint64_t(1);
+    diagCol = __builtin_rotateleft64(diagCol, topCorner[1]);
+    diagCol = __builtin_rotateleft64(diagCol, topCorner[0]);
+    // same comment applies.
+    for (unsigned i = 0; i < 64; ++i)
+      to_return.state[i] &= __builtin_rotateright64(diagCol, i);
+    return to_return;
+  }
+#endif
+
   static LifeState SolidRect(int x, int y, int w, int h) {
     uint64_t column;
     if (h < 64)
@@ -1090,6 +1135,24 @@ public:
   LifeState NZOI(unsigned distance) {
     return Convolve(LifeState::NZOIAround({0, 0}, distance));
   }
+
+#if N == 64
+  std::array<int, 4> DiagBounds() const {
+    uint64_t orOfPosDiags = 0; // top-left to bottom-right
+    for (unsigned i = 0; i < 64; ++i)
+      orOfPosDiags |= __builtin_rotateleft64(state[i], i+32);
+    if (orOfPosDiags == 0)
+      return std::array<int, 4>({-1, -1, -1, -1});
+    uint64_t orOfNegDiags = 0; // top-right to bottom-left
+    for (unsigned i = 0; i < 64; ++i)
+      orOfNegDiags |= __builtin_rotateright64(state[i], i+32);
+    int tr_margin = __builtin_ctzll(orOfNegDiags);
+    int bl_margin = __builtin_clzll(orOfNegDiags);
+    int tl_margin = __builtin_ctzll(orOfPosDiags);
+    int br_margin = __builtin_clzll(orOfPosDiags);
+    return std::array<int,4>({-31+tl_margin , -31+tr_margin, 32-bl_margin , 32-br_margin});
+  }
+#endif
 
   std::array<int, 4> XYBounds() const {
 #if N == 64
@@ -1139,6 +1202,20 @@ public:
         result |= 1ULL << i;
     return result;
   }
+#if N == 64
+  std::pair<int,int> DiagWidthHeight() const {
+    uint64_t orOfPosDiags = 0; // top-left to bottom-right
+    for (unsigned i = 0; i < 64; ++i)
+      orOfPosDiags |= __builtin_rotateleft64(state[i], i);
+    if(orOfPosDiags == 0)
+      return std::make_pair(0,0);
+    uint64_t orOfNegDiags = 0; // top-right to bottom-left
+    for (unsigned i = 0; i < 64; ++i)
+      orOfNegDiags |= __builtin_rotateright64(state[i], i);
+    return std::make_pair(populated_width_uint64_t(orOfNegDiags),
+                          populated_width_uint64_t(orOfPosDiags));
+  }
+#endif
 
   std::pair<int,int> WidthHeight() const {
     uint64_t orOfCols = 0;
@@ -1162,7 +1239,34 @@ public:
 
     return {width, height};
   }
+#if N == 64
 
+  LifeState DiagBufferAround(std::pair<int,int> size) const {
+    auto bounds = DiagBounds();
+    if (bounds[0] == -1)
+      return ~LifeState();
+    int widthAlongPosDiag = bounds[2] - bounds[0] + 1;
+    int widthAlongNegDiag = bounds[3] - bounds[1] + 1;
+    int remainingPosWidth = size.second - widthAlongPosDiag;
+    int remainingNegWidth = size.first - widthAlongNegDiag;
+    
+    if (remainingPosWidth < 0 || remainingNegWidth < 0)
+      return LifeState();
+    else
+      return LifeState::DiagRect(bounds[0] - remainingPosWidth,
+                                    bounds[1] - remainingNegWidth,
+                                    bounds[2] + remainingPosWidth,
+                                    bounds[3] + remainingNegWidth);
+  }
+
+
+  /*LifeState  EffBufferAround(SymmetryTransform transf, std::pair<int,int> dims) const {
+    if (transf == ReflectAcrossYeqX)
+      return DiagBufferAround(dims);
+    else
+      return BufferAround(dims);
+  }*/
+#endif
   LifeState BufferAround(std::pair<int, int> size) const {
     auto bounds = XYBounds();
 
@@ -1225,6 +1329,7 @@ public:
 
 
   // for priority stuff with reflection symmetries.
+  // currently seems to be unused.
   static LifeState WithinDistOfAxis(SymmetryTransform sym, std::pair<int,int> dims) {
     if (sym == SymmetryTransform::ReflectAcrossY ||
              sym == SymmetryTransform::ReflectAcrossYEven)
@@ -1232,7 +1337,10 @@ public:
     else if (sym == SymmetryTransform::ReflectAcrossX ||
               sym == SymmetryTransform::ReflectAcrossXEven)
       return LifeState::SolidRect(0, -(dims.second/2), N, dims.second);
-    else
+    else if (sym == SymmetryTransform::ReflectAcrossYeqNegXP1){
+      std::cout << "oh so this is used after all" << std::endl;
+      exit(1);
+    } else
       return ~LifeState();
   }
 
@@ -1242,6 +1350,23 @@ public:
       return LifeState::SolidRect(0,0,N/2, 64);
     if (choice == DomainChoice::TOPBOTTOM)
       return LifeState::SolidRect(0,0,N, 32);
+#if N == 64
+    if (choice == DomainChoice::BOTTOMLEFTDIAG){
+      LifeState to_return(false);
+      uint64_t allOnes = ~uint64_t(0);
+      for(unsigned i = 0; i < 64; ++i)
+        to_return.state[i] = allOnes << i;
+      to_return.Move(32,32);
+      return to_return;
+      // equivalent to setting state[i] = allOnes << i then
+      // recenter via Move(32,32), but move isn't static.
+      /*for(unsigned i = 0; i < 32; ++i)
+        to_return[i+32] = __builtin_rotateleft64(allOnes << i, 32);
+      for(unsigned i = 0; i < 32; ++i)
+        to_return[i] = __builtin_rotateleft64(allOnes << (i+32), 32);
+      return to_return;*/
+    }
+#endif
     else
       return ~LifeState();
   }

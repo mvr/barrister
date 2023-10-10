@@ -159,6 +159,8 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     params.symTransf = SymmetryTransform::ReflectAcrossX;
   else if (symName.compare("D2-even") == 0)
     params.symTransf = SymmetryTransform::ReflectAcrossXEven;
+  else if (symName.compare("D2\\") == 0)
+    params.symTransf = SymmetryTransform::ReflectAcrossYeqX;
   else if (symName.compare("C2botheven") == 0 || symName.compare("C2evenboth") == 0)
     params.symTransf = SymmetryTransform::Rotate180EvenBoth;
   else if (symName.compare("C2horizontaleven") == 0 || symName.compare("C2|even") == 0)
@@ -234,10 +236,16 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
       std::cout << " based off search area" << std::endl;
       exit(1);
     }
-  } else
+  } else if (params.symTransf == ReflectAcrossYeqX)
+    params.fundDomain = DomainChoice::BOTTOMLEFTDIAG;
+  else if (params.symTransf == ReflectAcrossX ||
+            params.symTransf == ReflectAcrossXEven)
+    params.fundDomain = DomainChoice::TOPBOTTOM;
+  else if (params.symTransf == ReflectAcrossY ||
+            params.symTransf == ReflectAcrossYEven)
+    params.fundDomain = DomainChoice::LEFTRIGHT;
+  else
     params.fundDomain = DomainChoice::NONE;
-
-  params.fundDomain = DomainChoice::TOPBOTTOM;
 
   return params;
 }

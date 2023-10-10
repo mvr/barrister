@@ -180,6 +180,14 @@ void SearchState::TransferStableToCurrentColumn(unsigned column) {
   }
 }
 
+
+/*std::pair<int,int>  EffectiveWidthHeight(SymmetryTransform transf, const LifeState & state){
+  if (transf == ReflectAcrossYeqX)
+    return state.DiagWidthHeight();
+  else
+    return state.WidthHeight();
+}*/
+
 bool SearchState::CheckConditionsOn(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
     const LifeUnknownState &previous, const LifeState &active,
@@ -214,16 +222,19 @@ bool SearchState::CheckConditionsOn(
     }
 
     if (params->changesBounds.first != -1) {
-      auto wh = changes.WidthHeight();
+      // auto wh = EffectiveWidthHeight(params->symTransf, changes & dom);
+      auto wh = (changes & dom).WidthHeight();
       if (wh.first > params->changesBounds.first || wh.second > params->changesBounds.second)
         return false;
     }
 
     if (params->componentChangesBounds.first != -1) {
-      auto wh = changes.WidthHeight();
+      // auto wh =  EffectiveWidthHeight(params->symTransf, changes & dom);
+      auto wh =  (changes & dom).WidthHeight();
       if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second) {
         for (auto &c : changes.Components()) {
-          auto wh = c.WidthHeight();
+          // auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
+          auto wh = (c & dom).WidthHeight();
           if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
             return false;
         }
@@ -249,16 +260,19 @@ bool SearchState::CheckConditionsOn(
     return false;
 
   if(params->activeBounds.first != -1) {
+    // auto wh = EffectiveWidthHeight(params->symTransf,active & dom);
     auto wh = (active & dom).WidthHeight();
     if (wh.first > params->activeBounds.first || wh.second > params->activeBounds.second)
       return false;
   }
 
   if (params->componentActiveBounds.first != -1) {
+    // auto wh = EffectiveWidthHeight(params->symTransf,active & dom);
     auto wh = (active & dom).WidthHeight();
     if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second) {
       for (auto &c : (active & dom).Components()) {
-        auto wh = c.WidthHeight();
+        // auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
+        auto wh = (c & dom).WidthHeight();
         if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
           return false;
       }
@@ -274,16 +288,19 @@ bool SearchState::CheckConditionsOn(
         return false;
 
   if(params->everActiveBounds.first != -1) {
+    // auto wh = EffectiveWidthHeight(params->symTransf, everActive & dom);
     auto wh = (everActive & dom).WidthHeight();
     if (wh.first > params->everActiveBounds.first || wh.second > params->everActiveBounds.second)
       return false;
   }
 
   if (params->componentEverActiveBounds.first != -1) {
+    // auto wh = EffectiveWidthHeight(params->symTransf, everActive & dom);
     auto wh = (everActive & dom).WidthHeight();
     if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second) {
       for (auto &c : everActive.Components()) {
-        auto wh = c.WidthHeight();
+        // auto wh = EffectiveWidthHeight(params->symTransf, c & dom);
+        auto wh = (c & dom).WidthHeight();
         if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
           return false;
       }
@@ -371,17 +388,20 @@ LifeState SearchState::ForcedInactiveCells(
     }
 
     if (params->changesBounds.first != -1) {
+      //changesForbidden |= ~(changes & dom).EffBufferAround(params->symTransf, params->changesBounds) & dom;
       changesForbidden |= ~(changes & dom).BufferAround(params->changesBounds) & dom;
     }
 
     if (params->componentChangesBounds.first != -1) {
       for (auto &c : changes.Components()) {
-        auto wh = c.WidthHeight();
+        // auto wh = EffectiveWidthHeight(params->symTransf, c & dom);
+        auto wh = (c & dom).WidthHeight();
         if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
           return ~LifeState();
 
-        changesForbidden |= ~(active & dom).BufferAround(params->componentChangesBounds) 
-                          & c.BigZOI() & dom;
+        //changesForbidden |= ~(active & dom).EffBufferAround(params->symTransf, params->componentChangesBounds) & c.BigZOI() & dom;
+        changesForbidden |= ~(active & dom).BufferAround(params->componentChangesBounds) & c.BigZOI() & dom;
+      
       }
     }
 
@@ -405,18 +425,20 @@ LifeState SearchState::ForcedInactiveCells(
     result |= streakTimer.finished  & dom;
 
   if (params->activeBounds.first != -1 && activePop > 0) {
+    //result |= ~(active & dom).EffBufferAround(params->symTransf, params->activeBounds)  & dom;
     result |= ~(active & dom).BufferAround(params->activeBounds)  & dom;
   }
 
   if (params->componentActiveBounds.first != -1) {
     for (auto &c : active.Components()) {
-      auto wh = c.WidthHeight();
+      //auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
+      auto wh = (c & dom).WidthHeight();
 
       if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
         return ~LifeState();
 
-      result |= ~(active & dom).BufferAround(params->componentActiveBounds)
-                 & c.BigZOI() & dom;
+      //result |= ~(active & dom).EffBufferAround(params->symTransf, params->componentActiveBounds) & c.BigZOI() & dom;
+      result |= ~(active & dom).BufferAround(params->componentActiveBounds) & c.BigZOI() & dom;
     }
   }
 
@@ -436,18 +458,21 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->everActiveBounds.first != -1 && activePop > 0) {
+    //result |= ~(everActive & dom).EffBufferAround(params->symTransf,params->everActiveBounds) & dom;
     result |= ~(everActive & dom).BufferAround(params->everActiveBounds) & dom;
   }
 
   if (params->componentEverActiveBounds.first != -1) {
     for (auto &c : everActive.Components()) {
-      auto wh = c.WidthHeight();
+      // auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
+      auto wh = (c & dom).WidthHeight();
 
       if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
         return ~LifeState();
 
-      result |= ~(everActive & dom).BufferAround(params->componentEverActiveBounds)
-                & c.BigZOI() & dom;
+      // result |= ~(everActive & dom).EffBufferAround(params->symTransf,params->componentEverActiveBounds) & c.BigZOI() & dom;
+      result |= ~(everActive & dom).BufferAround(params->componentEverActiveBounds) & c.BigZOI() & dom;
+    
     }
   }
 
@@ -494,7 +519,7 @@ bool SearchState::TryAdvance() {
     current = next;
     currentGen++;
     lookaheadKnownPop = {0};
-
+    
     // Test recovery
     if (hasInteracted) {
       bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
@@ -557,6 +582,7 @@ bool SearchState::TryAdvance() {
       streakTimer.Start(active);
       streakTimer.Tick();
     }
+
 
     if (!CheckConditionsOn(currentGen, current, stable, previous, active, everActive, activeTimer, streakTimer))
       return false;
@@ -671,6 +697,7 @@ std::pair<bool, FocusSet> SearchState::FindFocuses() {
     LifeUnknownState &prev = lookahead[i-1];
 
     LifeState active = gen.ActiveComparedTo(stable);
+
 
     everActive |= active;
     if (params->maxCellActiveWindowGens != -1) {
