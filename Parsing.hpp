@@ -1,156 +1,21 @@
 #pragma once
 
 #include "LifeAPI.h"
-#include "LifeHistoryState.hpp"
 
-LifeHistoryState ParseLifeHistory(const std::string &rle) {
-  LifeHistoryState result;
-
-  int cnt;
-  int x, y;
-  x = 0;
-  y = 0;
-  cnt = 0;
-
-  for (char const ch : rle) {
-
-    if (ch >= '0' && ch <= '9') {
-      cnt *= 10;
-      cnt += (ch - '0');
-    } else if (ch == '$') {
-      if (cnt == 0)
-        cnt = 1;
-
-      if (cnt == 129)
-        // TODO: error
-        return result;
-
-      y += cnt;
-      x = 0;
-      cnt = 0;
-    } else if (ch == '!') {
-      break;
-    } else {
-      if (cnt == 0)
-        cnt = 1;
-
-      for (int j = 0; j < cnt; j++) {
-        switch(ch) {
-        case 'A':
-          result.state.Set(x, y);
-          break;
-        case 'B':
-          result.history.Set(x, y);
-          break;
-        case 'C':
-          result.state.Set(x, y);
-          result.marked.Set(x, y);
-          break;
-        case 'D':
-          result.marked.Set(x, y);
-          break;
-        case 'E':
-          result.state.Set(x, y);
-          result.original.Set(x, y);
-          break;
-        }
-        x++;
-      }
-
-      cnt = 0;
-    }
-  }
-  return result;
-}
-
-LifeHistoryState ParseLifeHistoryWHeader(const std::string &s) {
-  std::string rle;
-  std::istringstream iss(s);
-
-  for (std::string line; std::getline(iss, line); ) {
-    if(line[0] != 'x')
-      rle += line;
-  }
-
-  return ParseLifeHistory(rle);
-}
-
-void ParseTristate(const std::string &rle, LifeState &stateon, LifeState &statemarked) {
-  int cnt;
-  int x, y;
-  x = 0;
-  y = 0;
-  cnt = 0;
-
-  for (char const ch : rle) {
-
-    if (ch >= '0' && ch <= '9') {
-      cnt *= 10;
-      cnt += (ch - '0');
-    } else if (ch == '$') {
-      if (cnt == 0)
-        cnt = 1;
-
-      if (cnt == 129)
-        // TODO: error
-        return;
-
-      y += cnt;
-      x = 0;
-      cnt = 0;
-    } else if (ch == '!') {
-      break;
-    } else {
-      if (cnt == 0)
-        cnt = 1;
-
-      for (int j = 0; j < cnt; j++) {
-        switch(ch) {
-        case 'A':
-          stateon.Set(x, y);
-          break;
-        case 'B': case 'E': // For LifeBellman
-          statemarked.Set(x, y);
-          break;
-        case 'C':
-          stateon.Set(x, y);
-          statemarked.Set(x, y);
-          break;
-        }
-        x++;
-      }
-
-      cnt = 0;
-    }
-  }
-}
-
-void ParseTristateWHeader(const std::string &s, LifeState &stateon, LifeState &statemarked) {
-  std::string rle;
-  std::istringstream iss(s);
-
-  for (std::string line; std::getline(iss, line); ) {
-    if(line[0] != 'x')
-      rle += line;
-  }
-
-  ParseTristate(rle, stateon, statemarked);
-}
-
-std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &state, const LifeState &marked) {
+std::string GenericRLE(auto&& cellchar) {
   std::stringstream result;
 
   unsigned eol_count = 0;
 
   for (unsigned j = 0; j < 64; j++) {
-    unsigned last_val = (state.GetCell(0 - (N/2), j - 32) == 1) + ((marked.GetCell(0 - (N/2), j - 32) == 1) << 1);
+    char last_val = cellchar((0 - (N / 2) + N) % N, ((signed)j - 32 + 64) % 64);
     unsigned run_count = 0;
 
     for (unsigned i = 0; i < N; i++) {
-      unsigned val = (state.GetCell(i - (N/2), j - 32) == 1) + ((marked.GetCell(i - (N/2), j - 32) == 1) << 1);
+      char val = cellchar(((signed)i - (N / 2) + N) % N, ((signed)j - 32 + 64) % 64);
 
       // Flush linefeeds if we find a live cell
-      if (val && eol_count > 0) {
+      if (val != '.' && val != 'b' && eol_count > 0) {
         if (eol_count > 1)
           result << eol_count;
 
@@ -163,7 +28,7 @@ std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &stat
       if (val != last_val) {
         if (run_count > 1)
           result << run_count;
-        result << table[last_val];
+        result << last_val;
         run_count = 0;
       }
 
@@ -172,11 +37,11 @@ std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &stat
     }
 
     // Flush run of live cells at end of line
-    if (last_val) {
+    if (last_val != '.' && last_val != 'b') {
       if (run_count > 1)
         result << run_count;
 
-      result << table[last_val];
+      result << last_val;
 
       run_count = 0;
     }
@@ -193,16 +58,14 @@ std::string MultiStateRLE(const std::array<char, 4> table, const LifeState &stat
 
     eol_count = 0;
   }
-
   return result.str();
 }
 
-std::string UnknownRLEFor(const LifeState &stable, const LifeState &unknown) {
-  return MultiStateRLE({'.', 'A', 'B', 'Q'}, stable, unknown);
-}
-
 std::string LifeBellmanRLEFor(const LifeState &state, const LifeState &marked) {
-  return MultiStateRLE({'.', 'A', 'E', 'C'}, state, marked);
+  return GenericRLE([&](int x, int y) -> char {
+    const std::array<char, 4> table = {'.', 'A', 'E', 'C'};
+    return table[state.Get(x, y) + (marked.Get(x, y) << 1)];
+  });
 }
 
 std::string RowRLE(std::vector<LifeState> &row) {
@@ -215,7 +78,7 @@ std::string RowRLE(std::vector<LifeState> &row) {
   unsigned eol_count = 0;
   for (unsigned j = 0; j < spacing; j++) {
     if(j < 64)
-      last_val = row[0].GetCell(0 - N/2, j - 32);
+      last_val = row[0].GetSafe(0 - N/2, j - 32);
     else
       last_val = false;
     run_count = 0;
@@ -224,7 +87,7 @@ std::string RowRLE(std::vector<LifeState> &row) {
       for (unsigned i = 0; i < spacing; i++) {
         bool val = false;
         if(i < N && j < 64)
-          val = pat.GetCell(i - N/2, j - 32);
+          val = pat.GetSafe(i - N/2, j - 32);
 
         // Flush linefeeds if we find a live cell
         if (val && eol_count > 0) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LifeAPI.h"
+#include "Parsing.hpp"
 
 // This uses lifelib "layers" which do not match Golly's state names,
 // so the parsing has to adjust for this.
@@ -11,14 +12,22 @@ struct LifeHistoryState {
   LifeState original;
 
   LifeHistoryState() = default;
-  LifeHistoryState(LifeState state, LifeState history, LifeState marked, LifeState original)
-    : state{state},
-      history{history},
-      marked{marked},
-      original{original}
-  {};
+  LifeHistoryState(const LifeState &state, const LifeState &history,
+                   const LifeState &marked, const LifeState &original)
+      : state{state}, history{history}, marked{marked}, original{original} {};
+  LifeHistoryState(const LifeState &state, const LifeState &history, const LifeState &marked)
+      : state{state}, history{history}, marked{marked}, original{LifeState()} {};
+  LifeHistoryState(const LifeState &state, const LifeState &history)
+      : state{state}, history{history}, marked{LifeState()},
+        original{LifeState()} {};
 
   std::string RLE() const;
+  std::string RLEWHeader() const {
+    return "x = 0, y = 0, rule = LifeHistory\n" + RLE();
+  }
+
+  static LifeHistoryState Parse(const std::string &s);
+  static LifeHistoryState ParseWHeader(const std::string &s);
 
   void Move(int x, int y) {
     state.Move(x, y);
@@ -32,88 +41,98 @@ struct LifeHistoryState {
   }
 };
 
-inline char LifeHistoryChar(unsigned mask) {
+char LifeHistoryChar(unsigned mask) {
   switch (mask) {
-  case 0 + (0 << 1) + (0 << 2) + (0 << 3):
-    return '.';
-  case 1 + (0 << 1) + (0 << 2) + (0 << 3):
-    return 'A';
-  case 0 + (1 << 1) + (0 << 2) + (0 << 3):
-    return 'B';
-  case 1 + (0 << 1) + (1 << 2) + (0 << 3):
-    return 'C';
-  case 0 + (0 << 1) + (1 << 2) + (0 << 3):
-    return 'D';
-  case 1 + (0 << 1) + (0 << 2) + (1 << 3):
-    return 'E';
-  default:
-    return 'F';
+  case 0b0000: return '.';
+  case 0b0001: return 'A';
+  case 0b0010: return 'B';
+  case 0b0101: return 'C';
+  case 0b0100: return 'D';
+  case 0b1001: return 'E';
+  default:     return 'F';
   }
 }
 
 std::string LifeHistoryState::RLE() const {
-  std::stringstream result;
+  return GenericRLE([&](int x, int y) -> char {
+    bool statecell = state.Get(x, y) == 1;
+    bool historycell = history.Get(x, y) == 1;
+    bool markedcell = marked.Get(x, y) == 1;
+    bool originalcell = original.Get(x, y) == 1;
+    unsigned val = statecell + (historycell << 1) + (markedcell << 2) + (originalcell << 3);
 
-  unsigned eol_count = 0;
+    return LifeHistoryChar(val);
+  });
+}
 
-  for (unsigned j = 0; j < 64; j++) {
-    unsigned last_val;
-    unsigned run_count = 0;
+LifeHistoryState LifeHistoryState::Parse(const std::string &rle) {
+  LifeHistoryState result;
 
-    for (unsigned i = 0; i < N; i++) {
-      bool statecell = state.GetCell(i - (N/2), j - 32) == 1;
-      bool historycell = history.GetCell(i - (N/2), j - 32) == 1;
-      bool markedcell = marked.GetCell(i - (N/2), j - 32) == 1;
-      bool originalcell = original.GetCell(i - (N/2), j - 32) == 1;
-      unsigned val = statecell + (historycell << 1) + (markedcell << 2) + (originalcell << 3);
+  int cnt;
+  int x, y;
+  x = 0;
+  y = 0;
+  cnt = 0;
 
-      if (i == 0)
-        last_val = val;
+  for (char const ch : rle) {
 
-      // Flush linefeeds if we find a live cell
-      if (val && eol_count > 0) {
-        if (eol_count > 1)
-          result << eol_count;
+    if (ch >= '0' && ch <= '9') {
+      cnt *= 10;
+      cnt += (ch - '0');
+    } else if (ch == '$') {
+      if (cnt == 0)
+        cnt = 1;
 
-        result << "$";
+      if (cnt == 129)
+        // TODO: error
+        return result;
 
-        eol_count = 0;
+      y += cnt;
+      x = 0;
+      cnt = 0;
+    } else if (ch == '!') {
+      break;
+    } else {
+      if (cnt == 0)
+        cnt = 1;
+
+      for (int j = 0; j < cnt; j++) {
+        switch(ch) {
+        case 'A':
+          result.state.Set(x, y);
+          break;
+        case 'B':
+          result.history.Set(x, y);
+          break;
+        case 'C':
+          result.state.Set(x, y);
+          result.marked.Set(x, y);
+          break;
+        case 'D':
+          result.marked.Set(x, y);
+          break;
+        case 'E':
+          result.state.Set(x, y);
+          result.original.Set(x, y);
+          break;
+        }
+        x++;
       }
 
-      // Flush current run if val changes
-      if (val != last_val) {
-        if (run_count > 1)
-          result << run_count;
-        result << LifeHistoryChar(last_val);
-        run_count = 0;
-      }
-
-      run_count++;
-      last_val = val;
+      cnt = 0;
     }
+  }
+  return result;
+}
 
-    // Flush run of live cells at end of line
-    if (last_val) {
-      if (run_count > 1)
-        result << run_count;
+LifeHistoryState LifeHistoryState::ParseWHeader(const std::string &s) {
+  std::string rle;
+  std::istringstream iss(s);
 
-      result << LifeHistoryChar(last_val);
-
-      run_count = 0;
-    }
-
-    eol_count++;
+  for (std::string line; std::getline(iss, line); ) {
+    if(line[0] != 'x')
+      rle += line;
   }
 
-  // Flush trailing linefeeds
-  if (eol_count > 0) {
-    if (eol_count > 1)
-      result << eol_count;
-
-    result << "$";
-
-    eol_count = 0;
-  }
-
-  return result.str();
+  return Parse(rle);
 }

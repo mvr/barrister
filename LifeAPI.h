@@ -200,20 +200,6 @@ namespace HASH {
   }
 } // namespace HASH
 
-// void fastMemcpy(void *pvDest, void *pvSrc, size_t nBytes) {
-//   assert(nBytes % 32 == 0);
-//   assert((intptr_t(pvDest) & 31) == 0);
-//   assert((intptr_t(pvSrc) & 31) == 0);
-//   const __m256i *pSrc = reinterpret_cast<const __m256i*>(pvSrc);
-//   __m256i *pDest = reinterpret_cast<__m256i*>(pvDest);
-//   int64_t nVects = nBytes / sizeof(*pSrc);
-//   for (; nVects > 0; nVects--, pSrc++, pDest++) {
-//     const __m256i loaded = _mm256_stream_load_si256(pSrc);
-//     _mm256_stream_si256(pDest, loaded);
-//   }
-//   _mm_sfence();
-// }
-
 enum CopyType { COPY, OR, XOR, AND, ANDNOT, ORNOT };
 
 enum SymmetryTransform {
@@ -281,32 +267,32 @@ public:
   constexpr LifeState() : state{0} {}
   LifeState(__attribute__((unused)) bool dummy) {}
 
-  void Set(int x, int y) { state[x] |= (1ULL << (y)); }
-  void Erase(int x, int y) { state[x] &= ~(1ULL << (y)); }
-  int Get(int x, int y) const { return (state[x] & (1ULL << y)) >> y; }
-  void SetCell(int x, int y, int val) {
-    if (val == 1) {
-      Set((x + N) % N, (y + 64) % 64);
-    }
-    if (val == 0)
-      Erase((x + N) % N, (y + 64) % 64);
-  }
-  void SetCellUnsafe(int x, int y, int val) {
-    if (val == 1)
+  void Set(unsigned x, unsigned y) { state[x] |= (1ULL << y); }
+  void Erase(unsigned x, unsigned y) { state[x] &= ~(1ULL << y); }
+  bool Get(unsigned x, unsigned y) const { return (state[x] & (1ULL << y)) != 0; }
+  void Set(unsigned x, unsigned y, bool val) {
+    if(val)
       Set(x, y);
-    if (val == 0)
+    else
       Erase(x, y);
   }
-  int GetCell(int x, int y) const {
+
+  void SetSafe(int x, int y, bool val) {
+    if (val)
+      Set((x + N) % N, (y + 64) % 64);
+    else
+      Erase((x + N) % N, (y + 64) % 64);
+  }
+  bool GetSafe(int x, int y) const {
     return Get((x + N) % N, (y + 64) % 64);
   }
 
-  void Set(std::pair<int, int> xy) { Set(xy.first, xy.second); };
-  void Erase(std::pair<int, int> xy) { Erase(xy.first, xy.second); };
-  int Get(std::pair<int, int> xy) const { return Get(xy.first, xy.second); };
-  void SetCell(std::pair<int, int> xy, int val) { SetCell(xy.first, xy.second, val); };
-  void SetCellUnsafe(std::pair<int, int> xy, int val) { SetCellUnsafe(xy.first, xy.second, val); };
-  int GetCell(std::pair<int, int> xy) const { return GetCell(xy.first, xy.second); };
+  void Set(std::pair<int, int> cell) { Set(cell.first, cell.second); };
+  void Erase(std::pair<int, int> cell) { Erase(cell.first, cell.second); };
+  int Get(std::pair<int, int> cell) const { return Get(cell.first, cell.second); };
+  void SetSafe(std::pair<int, int> cell, bool val) { SetSafe(cell.first, cell.second, val); };
+  void Set(std::pair<int, int> cell, bool val) { Set(cell.first, cell.second, val); };
+  int GetSafe(std::pair<int, int> cell) const { return GetSafe(cell.first, cell.second); };
 
   constexpr uint64_t& operator[](unsigned i) { return state[i]; }
   constexpr const uint64_t& operator[](unsigned i) const { return state[i]; }
@@ -385,19 +371,6 @@ public:
   }
 
   std::vector<std::pair<int, int>> OnCells() const;
-
-  unsigned CountNeighbours(std::pair<int, int> cell) const {
-    int result = 0;
-    const std::vector<std::pair<int, int>> directions = {{-1,0}, {0,-1}, {1,0}, {0,1}, {-1,-1}, {-1, 1}, {1, -1}, {1, 1}};
-    for (auto d : directions) {
-      int x = (cell.first + d.first + N) % N;
-      int y = (cell.second + d.second + N) % N;
-      if (GetCell(x, y)) result++;
-    }
-    return result;
-  }
-
-
 
   // bool IsEmpty() const {
   //   for (int i = 0; i < N; i++) {
@@ -607,8 +580,8 @@ public:
     int j, k;
     uint64_t m, t;
 
-    for (j = 32, m = 0x00000000FFFFFFFF; j; j >>= 1, m ^= m << j) {
-      for (k = 0; k < 64; k = ((k | j) + 1) & ~j) {
+    for (j = N/2, m = (~0ULL) >> (N/2); j; j >>= 1, m ^= m << j) {
+      for (k = 0; k < N; k = ((k | j) + 1) & ~j) {
         if (whichDiagonal) {
           t = (state[k] ^ (state[k | j] >> j)) & m;
           state[k] ^= t;
@@ -816,8 +789,32 @@ public:
 
   LifeState Match(const LifeTarget &target) const;
 
-  std::pair<int, int> FindSetNeighbour(std::pair<int, int> cell) const;
-  unsigned NeighbourhoodCount(std::pair<int, int> cell) const;
+  std::pair<int, int> FindSetNeighbour(std::pair<int, int> cell) const {
+    // This could obviously be done faster by extracting the result
+    // directly from the columns, but this is probably good enough for now
+    const std::array<std::pair<int, int>, 9> directions = {std::make_pair(0, 0), {-1, 0}, {1, 0}, {0,1}, {0, -1}, {-1,-1}, {-1,1}, {1, -1}, {1, 1}};
+    for (auto d : directions) {
+      int x = (cell.first + d.first + N) % N;
+      int y = (cell.second + d.second + 64) % 64;
+      if (Get(x, y))
+        return std::make_pair(x, y);
+    }
+    return std::make_pair(-1, -1);
+  }
+
+  unsigned CountNeighboursWithCenter(std::pair<int, int> cell) const {
+    unsigned result = 0;
+    for (int i = -1; i <= 1; i++) {
+      uint64_t column = state[(cell.first + i + N) % N];
+      column = RotateRight(column, (cell.second - 1 + 64) % 64);
+      result += __builtin_popcountll(column & 0b111);
+    }
+    return result;
+  }
+
+  unsigned CountNeighbours(std::pair<int, int> cell) const {
+    return CountNeighboursWithCenter(cell) - (Get(cell) ? 1 : 0);
+  }
 
 private:
   void inline Add(uint64_t &b1, uint64_t &b0, const uint64_t &val) {
@@ -984,12 +981,9 @@ public:
   }
 #else
   std::pair<int, int> FirstOn() const {
-    int foundq = N;
-    for (int x = 0; x < N; x+=4) {
-      if (state[x] != 0ULL ||
-          state[x+1] != 0ULL ||
-          state[x+2] != 0ULL ||
-          state[x+3] != 0ULL) {
+    unsigned foundq = N;
+    for (int x = 0; x < N; x += 4) {
+      if ((state[x] | state[x + 1] | state[x + 2] | state[x + 3]) != 0ULL) {
         foundq = x;
       }
     }
@@ -997,17 +991,15 @@ public:
       return std::make_pair(-1, -1);
     }
 
-    int foundx;
     if (state[foundq] != 0ULL) {
-      foundx = foundq;
+      return std::make_pair(foundq, __builtin_ctzll(state[foundq]));
     } else if (state[foundq + 1] != 0ULL) {
-      foundx = foundq + 1;
+      return std::make_pair(foundq + 1, __builtin_ctzll(state[foundq + 1]));
     } else if (state[foundq + 2] != 0ULL) {
-      foundx = foundq + 2;
+      return std::make_pair(foundq + 2, __builtin_ctzll(state[foundq + 2]));
     } else if (state[foundq + 3] != 0ULL) {
-      foundx = foundq + 3;
+      return std::make_pair(foundq + 3, __builtin_ctzll(state[foundq + 3]));
     }
-    return std::make_pair(foundx, __builtin_ctzll(state[foundx]));
   }
 #endif
 
@@ -1015,6 +1007,12 @@ public:
     std::pair<int, int> pair = FirstOn();
     LifeState result;
     result.Set(pair.first, pair.second);
+    return result;
+  }
+
+  static LifeState Cell(std::pair<int, int> cell) {
+    LifeState result;
+    result.Set(cell.first, cell.second);
     return result;
   }
 
@@ -1077,7 +1075,7 @@ public:
     int leftMargin  = __builtin_ctz(popCols);
     int rightMargin = __builtin_clz(popCols);
 #else
-#error "XYBounds cannot handle N"
+#error "XYBounds cannot handle N = " N
 #endif
 
     uint64_t orOfCols = 0;
@@ -1313,7 +1311,7 @@ void LifeState::Transform(SymmetryTransform transf) {
 void LifeState::Print() const {
   for (int j = 0; j < 64; j++) {
     for (int i = 0; i < N; i++) {
-      if (GetCell(i - (N/2), j - 32) == 0) {
+      if (GetSafe(i - (N/2), j - 32) == 0) {
         int hor = 0;
         int ver = 0;
 
@@ -1363,7 +1361,7 @@ LifeState LifeState::Parse(const char *rle) {
         cnt = 1;
 
       for (j = 0; j < cnt; j++) {
-        result.SetCell(x, y, 1);
+        result.SetSafe(x, y, 1);
         x++;
       }
 
@@ -1403,11 +1401,11 @@ std::string LifeState::RLE() const {
   unsigned eol_count = 0;
 
   for (unsigned j = 0; j < 64; j++) {
-    bool last_val = GetCell(0 - (N/2), j - 32) == 1;
+    bool last_val = GetSafe(0 - (N/2), j - 32) == 1;
     unsigned run_count = 0;
 
     for (unsigned i = 0; i < N; i++) {
-      bool val = GetCell(i - (N/2), j - 32) == 1;
+      bool val = GetSafe(i - (N/2), j - 32) == 1;
 
       // Flush linefeeds if we find a live cell
       if (val && eol_count > 0) {
@@ -1462,31 +1460,6 @@ std::string LifeState::RLE() const {
   return result.str();
 }
 
-std::pair<int, int> LifeState::FindSetNeighbour(std::pair<int, int> cell) const {
-  // This could obviously be done faster by extracting the result
-  // directly from the columns, but this is probably good enough for now
-  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(0, 0), {-1, 0}, {1, 0}, {0,1}, {0, -1}, {-1,-1}, {-1,1}, {1, -1}, {1, 1}};
-  for (auto d : directions) {
-    int x = (cell.first + d.first + N) % N;
-    int y = (cell.second + d.second + 64) % 64;
-    if (Get(x, y))
-      return std::make_pair(x, y);
-  }
-  return std::make_pair(-1, -1);
-}
-
-unsigned LifeState::NeighbourhoodCount(std::pair<int, int> cell) const {
-  unsigned result = 0;
-  // ditto
-  const std::array<std::pair<int, int>, 9> directions = {std::make_pair(-1,-1), {-1,0}, {-1,1}, {0,-1}, {0, 0}, {0,1}, {1, -1}, {1, 0}, {1, 1}};
-  for (auto d : directions) {
-    int x = (cell.first + d.first + N) % N;
-    int y = (cell.second + d.second + 64) % 64;
-    if (Get(x, y))
-      result++;
-  }
-  return result;
-}
 
 class LifeTarget {
 public:
