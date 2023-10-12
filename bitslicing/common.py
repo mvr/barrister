@@ -16,6 +16,7 @@ def espresso_char(v):
         return "0"
     if v == DONTCARE:
         return "-"
+    return "?"
 
 def life_rule(center, count):
     if center == ON:
@@ -177,7 +178,8 @@ def print_output(lines, innames, outnames):
 
 def run_espresso(data, innames, outnames):
     print(data)
-    p = subprocess.run(["./espresso", "-Dexact", "-S1"],
+    # p = subprocess.run(["./espresso", "-Dexact", "-S1"],
+    p = subprocess.run(["./espresso", "-Dso_both", "-S1"],
                        text = True,
                        input = data,
                        capture_output = True)

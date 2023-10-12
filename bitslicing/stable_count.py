@@ -55,8 +55,8 @@ def emit_rule(live_count, unknown_count):
     return result
 
 innames = ["stateunk", "stateon", "on2", "on1", "on0", "unk3", "unk2", "unk1", "unk0"]
-outnames = ["live2", "live3",
-            "dead0", "dead1", "dead2", "dead4", "dead5", "dead6",
+outnames = ["l2", "l3",
+            "d0", "d1", "d2", "d4", "d5", "d6",
             "abort"]
 
 data = f""".i {len(innames)}

@@ -51,7 +51,7 @@ def remove(state, live_count, unknown_count):
         return live_count, unknown_count - 1
 
 innames = ["stateunk", "stateon", "on3", "on2", "on1", "on0", "unk1", "unk0"]
-outnames = ["unknown", "next_on"]
+outnames = ["next_unknown", "next_on"]
 data = f""".i {len(innames)}
 .o {len(outnames)}
 .type fr

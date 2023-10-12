@@ -17,6 +17,8 @@ all: Barrister
 
 Barrister: Barrister.cpp LifeAPI.h *.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o Barrister Barrister.cpp $(LDFLAGS)
+Barrister2: Barrister2.cpp LifeAPI.h *.hpp
+	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o Barrister2 Barrister2.cpp $(LDFLAGS)
 CompleteStill: CompleteStill.cpp LifeAPI.h *.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o CompleteStill CompleteStill.cpp $(LDFLAGS)
 

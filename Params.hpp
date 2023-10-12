@@ -64,7 +64,7 @@ public:
   bool reportOscillators;
   bool skipGlancing;
   bool continueAfterSuccess;
-  bool forbidEater2;
+  // bool forbidEater2;
   bool printSummary;
   bool pipeResults;
 
@@ -127,7 +127,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.reportOscillators = toml::find_or(toml, "report-oscillators", false);
   params.skipGlancing = toml::find_or(toml, "skip-glancing", true);
   params.continueAfterSuccess = toml::find_or(toml, "continue-after-success", false);
-  params.forbidEater2 = toml::find_or(toml, "forbid-eater2", false);
+  // params.forbidEater2 = toml::find_or(toml, "forbid-eater2", false);
   params.printSummary = toml::find_or(toml, "print-summary", true);
 
   params.pipeResults = toml::find_or(toml, "pipe-results", false);
@@ -141,7 +141,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.debug = toml::find_or(toml, "debug", false);
 
   std::string rle = toml::find<std::string>(toml, "pattern");
-  LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
+  LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
 
   std::vector<int> patternCenterVec = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
   std::pair<int, int> patternCenter = {-patternCenterVec[0], -patternCenterVec[1]};
@@ -158,7 +158,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.filterGen = toml::find_or(toml, "filter-gen", -1);
   if(params.filterGen != -1) {
     std::string rle = toml::find_or<std::string>(toml, "filter", "");
-    LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
+    LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
 
     std::vector<int> patternCenterVec =
         toml::find_or<std::vector<int>>(toml, "filter-pos", {0, 0});
@@ -176,7 +176,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
       std::string rle = toml::find_or<std::string>(f, "forbidden", "");
       std::vector<int> forbiddenCenterVec =
         toml::find_or<std::vector<int>>(f, "forbidden-pos", {0, 0});
-      LifeHistoryState pat = ParseLifeHistoryWHeader(rle);
+      LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
 
       pat.Move(forbiddenCenterVec[0], forbiddenCenterVec[1]);
 

@@ -13,7 +13,7 @@ def signal_function(center_options, stable_count, unknown_count):
     for n in center_options.possible_neighbourhoods():
         signals.append(signal_neighbourhood(n, stable_count, unknown_count))
 
-    if len(signals) == 0: return "00"
+    if len(signals) == 0: return "--"
 
     if signals.count(signals[0]) == len(signals):
         return signals[0]
