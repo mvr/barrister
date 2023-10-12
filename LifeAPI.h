@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <array>
 #include <vector>
 #include <iostream>
 #include <sstream>
@@ -71,19 +72,35 @@ constexpr unsigned longest_run_uint64_t(uint64_t x) {
   if(x == 0)
     return 0;
 
-  unsigned count = 0;
+  if(x == ~0ULL)
+    return 64;
 
-  for(int n = 5; n >= 0; n--) {
-    for(unsigned i = 1; i <= (1<<n); i *= 2) {
-      uint64_t y = (x & __builtin_rotateleft64(x, i));
-      if(y != 0) {
-        x = y;
-        count += i;
-      }
+  std::array<uint64_t, 6> pow2runs = {0};
+  for (unsigned n = 0; n < 6; n++) {
+    pow2runs[n] = x;
+    x &= __builtin_rotateleft64(x, 1 << n);
+  }
+
+  unsigned last;
+  for (unsigned n = 0; n < 6; n++) {
+    if (pow2runs[n] == 0) {
+      last = n-1;
+      break;
     }
   }
 
-  return count + 1;
+  x = pow2runs[last];
+  unsigned count = 1 << last;
+
+  for (int n = 5; n >= 0; n--) {
+    uint64_t y = (x & __builtin_rotateleft64(x, 1 << n));
+    if (y != 0 && n < last) {
+      count += 1 << n;
+      x = y;
+    }
+  }
+
+  return count;
 }
 
 constexpr unsigned populated_width_uint64_t(uint64_t x) {
@@ -107,19 +124,35 @@ constexpr unsigned longest_run_uint32_t(uint32_t x) {
   if(x == 0)
     return 0;
 
-  unsigned count = 0;
+  if(x == ~0)
+    return 32;
 
-  for(int n = 4; n >= 0; n--) {
-    for(unsigned i = 1; i <= (1<<n); i *= 2) {
-      uint32_t y = (x & __builtin_rotateleft32(x, i));
-      if(y != 0) {
-        x = y;
-        count += i;
-      }
+  std::array<uint32_t, 5> pow2runs = {0};
+  for (unsigned n = 0; n < 5; n++) {
+    pow2runs[n] = x;
+    x &= __builtin_rotateleft64(x, 1 << n);
+  }
+
+  unsigned last;
+  for (unsigned n = 0; n < 5; n++) {
+    if (pow2runs[n] == 0) {
+      last = n-1;
+      break;
     }
   }
 
-  return count + 1;
+  x = pow2runs[last];
+  unsigned count = 1 << last;
+
+  for (int n = 4; n >= 0; n--) {
+    uint64_t y = (x & __builtin_rotateleft64(x, 1 << n));
+    if (y != 0 && n < last) {
+      count += 1 << n;
+      x = y;
+    }
+  }
+
+  return count;
 }
 
 constexpr unsigned populated_width_uint32_t(uint32_t x) {
