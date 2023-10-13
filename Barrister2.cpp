@@ -402,10 +402,7 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
 
       // TODO: move these checks to their own function
 
-      if (currentGen > params->maxFirstActiveGen)
-        return {false, frontier};
-
-      if(hasInteracted) {
+      if (hasInteracted) {
         bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
 
         if (isRecovered)
@@ -413,10 +410,18 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
         else
           recoveredTime = 0;
 
+        if (currentGen > interactionStart + params->maxActiveWindowGens) {
+          // TODO: This is the place to check for oscillators
+          return {false, frontier};
+        }
+
         if (isRecovered && recoveredTime == params->minStableInterval) {
           ReportSolution();
           return {false, frontier};
         }
+      } else {
+        if (currentGen > params->maxFirstActiveGen)
+          return {false, frontier};
       }
 
       continue;
