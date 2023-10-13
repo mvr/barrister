@@ -42,21 +42,6 @@ bool TransitionIsSingleton(Transition t) {
   return bits && !(bits & (bits-1));
 }
 
-bool TransitionPrev(Transition t) {
-  switch (t)   {
-  case Transition::OFF_TO_OFF:
-  case Transition::OFF_TO_ON:
-    return false;
-
-  case Transition::ON_TO_OFF:
-  case Transition::ON_TO_ON:
-    return true;
-
-  case Transition::STABLE_TO_STABLE:
-    return false;
-  }
-}
-
 class LifeUnknownState {
 public:
   LifeState state;

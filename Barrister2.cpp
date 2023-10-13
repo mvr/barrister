@@ -259,10 +259,18 @@ StableOptions SearchState::OptionsFor(LifeUnknownState state,
                               stable.state.CountNeighbours(cell));
 
   if (state.unknownStable.Get(cell)) {
-    if(TransitionPrev(transition))
-      options &= StableOptions::LIVE;
-    else
+    switch (transition)   {
+    case Transition::OFF_TO_OFF:
+    case Transition::OFF_TO_ON:
       options &= StableOptions::DEAD;
+      break;
+    case Transition::ON_TO_OFF:
+    case Transition::ON_TO_ON:
+      options &= StableOptions::LIVE;
+      break;
+    case Transition::STABLE_TO_STABLE:
+      break;
+    }
   }
 
   return options;
