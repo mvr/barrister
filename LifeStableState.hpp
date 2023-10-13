@@ -93,22 +93,14 @@ public:
 
 StableOptions LifeStableState::GetOptions(std::pair<int, int> cell) const {
   auto result = StableOptions::IMPOSSIBLE;
-  if(!live2.Get(cell))
-    result |= StableOptions::LIVE2;
-  if(!live3.Get(cell))
-    result |= StableOptions::LIVE3;
-  if(!dead0.Get(cell))
-    result |= StableOptions::DEAD0;
-  if(!dead1.Get(cell))
-    result |= StableOptions::DEAD1;
-  if(!dead2.Get(cell))
-    result |= StableOptions::DEAD2;
-  if(!dead4.Get(cell))
-    result |= StableOptions::DEAD4;
-  if(!dead5.Get(cell))
-    result |= StableOptions::DEAD5;
-  if(!dead6.Get(cell))
-    result |= StableOptions::DEAD6;
+  if(!live2.Get(cell)) result |= StableOptions::LIVE2;
+  if(!live3.Get(cell)) result |= StableOptions::LIVE3;
+  if(!dead0.Get(cell)) result |= StableOptions::DEAD0;
+  if(!dead1.Get(cell)) result |= StableOptions::DEAD1;
+  if(!dead2.Get(cell)) result |= StableOptions::DEAD2;
+  if(!dead4.Get(cell)) result |= StableOptions::DEAD4;
+  if(!dead5.Get(cell)) result |= StableOptions::DEAD5;
+  if(!dead6.Get(cell)) result |= StableOptions::DEAD6;
   return result;
 }
 void LifeStableState::RestrictOptions(std::pair<int, int> cell,

@@ -170,9 +170,7 @@ LifeState SearchState::ForcedUnchangingCells(
 // TODO: add special-case for interactions that are too early
 Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
                               bool forcedInactive, bool forcedUnchanging) {
-  auto result = Transition::OFF_TO_OFF | Transition::OFF_TO_ON |
-                Transition::ON_TO_OFF | Transition::ON_TO_ON |
-                Transition::STABLE_TO_STABLE;
+  auto result = Transition::ANY;
 
   if (!unknownstable) {
     if (state)
@@ -226,17 +224,10 @@ StableOptions OptionsFor(bool currentstate, bool nextstate, unsigned currenton,
 
   currentmask &= ((1 << (unknown + 1)) - 1) << currenton;
 
-  if (!currentstate && !nextstate)
-    currentmask &= 0b111110111;
-
-  if (!currentstate && nextstate)
-    currentmask &= 0b000001000;
-
-  if (currentstate && !nextstate)
-    currentmask &= 0b111110011;
-
-  if (currentstate && nextstate)
-    currentmask &= 0b000001100;
+  if (!currentstate && !nextstate) currentmask &= 0b111110111;
+  if (!currentstate &&  nextstate) currentmask &= 0b000001000;
+  if ( currentstate && !nextstate) currentmask &= 0b111110011;
+  if ( currentstate &&  nextstate) currentmask &= 0b000001100;
 
   // The possible stable count for the neighbourhood, as a bitfield
   unsigned stablemask = (currentmask >> currenton) << stableon;
@@ -250,14 +241,10 @@ StableOptions OptionsFor(bool currentstate, bool nextstate, unsigned currenton,
 StableOptions OptionsFor(Transition transition, unsigned currenton,
                          unsigned unknown, unsigned stableon) {
   switch (transition) {
-  case Transition::OFF_TO_OFF:
-    return OptionsFor(false, false, currenton, unknown, stableon);
-  case Transition::OFF_TO_ON:
-    return OptionsFor(false, true, currenton, unknown, stableon);
-  case Transition::ON_TO_OFF:
-    return OptionsFor(true, false, currenton, unknown, stableon);
-  case Transition::ON_TO_ON:
-    return OptionsFor(true, true, currenton, unknown, stableon);
+  case Transition::OFF_TO_OFF: return OptionsFor(false, false, currenton, unknown, stableon);
+  case Transition::OFF_TO_ON:  return OptionsFor(false, true, currenton, unknown, stableon);
+  case Transition::ON_TO_OFF:  return OptionsFor(true, false, currenton, unknown, stableon);
+  case Transition::ON_TO_ON:   return OptionsFor(true, true, currenton, unknown, stableon);
   case Transition::STABLE_TO_STABLE:
     return (StableOptions::DEAD & OptionsFor(false, false, currenton, unknown, stableon)) |
            (StableOptions::LIVE & OptionsFor(true, true, currenton, unknown, stableon));

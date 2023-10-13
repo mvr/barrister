@@ -15,6 +15,7 @@ enum class Transition : unsigned char {
   ON_TO_ON         = 1 << 3,
   STABLE_TO_STABLE = 1 << 4,
   IMPOSSIBLE       = 0,
+  ANY = OFF_TO_OFF | OFF_TO_ON | ON_TO_OFF | ON_TO_ON | STABLE_TO_STABLE,
 };
 
 constexpr inline Transition operator~ (Transition a) { return static_cast<Transition>( ~static_cast<std::underlying_type<Transition>::type>(a) ); }
