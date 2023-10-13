@@ -430,9 +430,9 @@ void SearchState::SearchStep() {
   // std::cout << "Stable After Propagate:" << std::endl;
   // std::cout << stable.RLEWHeader() << std::endl;
 
-  // How often do we want to do this?
-  if (propagateResult.changed)
-    current.TransferStable(stable);
+  // TODO: only transfer if necessary
+  // if (propagateResult.changed)
+  current.TransferStable(stable);
 
   auto [consistent, frontier] = CalculateFrontier();
   if (!consistent)
