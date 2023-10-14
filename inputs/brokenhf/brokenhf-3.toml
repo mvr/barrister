@@ -1,6 +1,5 @@
-min-first-active-gen = 3
-max-first-active-gen = 15
-max-active-window-gens = 20
+first-active-range = [3, 15]
+active-window-range = [0, 20]
 min-stable-interval = 4
 
 max-active-cells = 14

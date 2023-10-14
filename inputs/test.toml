@@ -1,14 +1,12 @@
 first-active-range = [0, 10]
+active-window-range = [0, 20]
 min-stable-interval = 5
 
-max-active-window-gens = 20
-
-max-stable-pop = 100
 max-active-cells = 8
 
 stabilise-results = false
 skip-glancing = true
-forbid-blocks = true
+forbid-eater2 = true
 
 pattern = '''
 x = 19, y = 15, rule = LifeHistory
