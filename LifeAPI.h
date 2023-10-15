@@ -81,7 +81,7 @@ constexpr unsigned longest_run_uint64_t(uint64_t x) {
     x &= __builtin_rotateleft64(x, 1 << n);
   }
 
-  unsigned last;
+  unsigned last = 5;
   for (unsigned n = 0; n < 6; n++) {
     if (pow2runs[n] == 0) {
       last = n-1;
@@ -124,7 +124,7 @@ constexpr unsigned longest_run_uint32_t(uint32_t x) {
   if(x == 0)
     return 0;
 
-  if(x == ~0)
+  if(x == ~0U)
     return 32;
 
   std::array<uint32_t, 5> pow2runs = {0};
@@ -133,7 +133,7 @@ constexpr unsigned longest_run_uint32_t(uint32_t x) {
     x &= __builtin_rotateleft64(x, 1 << n);
   }
 
-  unsigned last;
+  unsigned last = 4;
   for (unsigned n = 0; n < 5; n++) {
     if (pow2runs[n] == 0) {
       last = n-1;
