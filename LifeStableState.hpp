@@ -105,22 +105,14 @@ StableOptions LifeStableState::GetOptions(std::pair<int, int> cell) const {
 }
 void LifeStableState::RestrictOptions(std::pair<int, int> cell,
                                       StableOptions options) {
-  if ((options & StableOptions::LIVE2) != StableOptions::LIVE2)
-    live2.Set(cell);
-  if ((options & StableOptions::LIVE3) != StableOptions::LIVE3)
-    live3.Set(cell);
-  if ((options & StableOptions::DEAD0) != StableOptions::DEAD0)
-    dead0.Set(cell);
-  if ((options & StableOptions::DEAD1) != StableOptions::DEAD1)
-    dead1.Set(cell);
-  if ((options & StableOptions::DEAD2) != StableOptions::DEAD2)
-    dead2.Set(cell);
-  if ((options & StableOptions::DEAD4) != StableOptions::DEAD4)
-    dead4.Set(cell);
-  if ((options & StableOptions::DEAD5) != StableOptions::DEAD5)
-    dead5.Set(cell);
-  if ((options & StableOptions::DEAD6) != StableOptions::DEAD6)
-    dead6.Set(cell);
+  if ((options & StableOptions::LIVE2) != StableOptions::LIVE2) live2.Set(cell);
+  if ((options & StableOptions::LIVE3) != StableOptions::LIVE3) live3.Set(cell);
+  if ((options & StableOptions::DEAD0) != StableOptions::DEAD0) dead0.Set(cell);
+  if ((options & StableOptions::DEAD1) != StableOptions::DEAD1) dead1.Set(cell);
+  if ((options & StableOptions::DEAD2) != StableOptions::DEAD2) dead2.Set(cell);
+  if ((options & StableOptions::DEAD4) != StableOptions::DEAD4) dead4.Set(cell);
+  if ((options & StableOptions::DEAD5) != StableOptions::DEAD5) dead5.Set(cell);
+  if ((options & StableOptions::DEAD6) != StableOptions::DEAD6) dead6.Set(cell);
 }
 
 void LifeStableState::SetOn(const LifeState &which) {
@@ -168,9 +160,6 @@ void LifeStableState::UpdateStateKnown(std::pair<int, int> cell) {
   if (maybeLive && !maybeDead) {
     stateZOI |= LifeState::CellZOI(cell);
   }
-}
-
-void LifeStableState::UpdateCounts() {
 }
 
 // Assumes that the counts and the state are up to date

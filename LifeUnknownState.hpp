@@ -128,7 +128,6 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
   LifeUnknownState result;
 
   LifeState activeUnknownZOI = (unknown & ~unknownStable).ZOI();
-  // LifeState keepStable;
 
   LifeState state3(false), state2(false), state1(false), state0(false);
   LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);

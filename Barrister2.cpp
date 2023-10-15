@@ -242,12 +242,12 @@ StableOptions OptionsFor(Transition transition, unsigned currenton,
                          unsigned unknown, unsigned stableon) {
   switch (transition) {
   case Transition::OFF_TO_OFF: return OptionsFor(false, false, currenton, unknown, stableon);
-  case Transition::OFF_TO_ON:  return OptionsFor(false, true, currenton, unknown, stableon);
-  case Transition::ON_TO_OFF:  return OptionsFor(true, false, currenton, unknown, stableon);
-  case Transition::ON_TO_ON:   return OptionsFor(true, true, currenton, unknown, stableon);
+  case Transition::OFF_TO_ON:  return OptionsFor(false, true,  currenton, unknown, stableon);
+  case Transition::ON_TO_OFF:  return OptionsFor(true,  false, currenton, unknown, stableon);
+  case Transition::ON_TO_ON:   return OptionsFor(true,  true,  currenton, unknown, stableon);
   case Transition::STABLE_TO_STABLE:
     return (StableOptions::DEAD & OptionsFor(false, false, currenton, unknown, stableon)) |
-           (StableOptions::LIVE & OptionsFor(true, true, currenton, unknown, stableon));
+           (StableOptions::LIVE & OptionsFor(true,  true,  currenton, unknown, stableon));
   }
 }
 
@@ -528,10 +528,8 @@ SearchState::SearchState(SearchParams &inparams) : currentGen{0}, hasInteracted{
   stable.state = inparams.startingStable;
   stable.unknown = inparams.searchArea;
 
-  // These need to be done in this order first, because the counts/options start at all 0
-  stable.UpdateCounts();
+  // This needs to be done in this order first, because the counts/options start at all 0
   stable.UpdateOptions();
-
   stable.Propagate();
 
   current.state = inparams.startingPattern;
