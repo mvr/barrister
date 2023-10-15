@@ -32,10 +32,7 @@ innames = ["l2", "l3", "d0", "d1", "d2", "d4", "d5", "d6",
            "s2", "s1", "s0",
            "unk3", "unk2", "unk1", "unk0"]
 outnames = ["signalon", "signaloff"]
-data = f""".i {len(innames)}
-.o {len(outnames)}
-.type fr
-"""
+data = ""
 
 for c in [OFF, ON, UNKNOWN]:
     for unknown_count in range(0, 9):

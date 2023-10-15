@@ -59,11 +59,7 @@ outnames = ["l2", "l3",
             "d0", "d1", "d2", "d4", "d5", "d6",
             "abort"]
 
-data = f""".i {len(innames)}
-.o {len(outnames)}
-.type fr
-"""
-
+data = ""
 for live_count in range(0,6+1):
     for unknown_count in range(0,10-live_count):
         data += emit_rule(live_count, unknown_count)

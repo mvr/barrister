@@ -172,20 +172,43 @@ def print_output(lines, innames, outnames):
             elif val == "1":
                 code.append(name)
         code = " & ".join(code)
-        for val, name in zip(outs, outnames):
-            if val == "1":
-                print(f"{name} |= {code};")
+
+        outcount = outs.count("1")
+        if outcount == 1:
+            for val, name in zip(outs, outnames):
+                if val == "1":
+                    print(f"{name} |= {code};")
+        if outcount > 1:
+            onoutnames = [name for val, name in zip(outs, outnames) if val == "1"]
+            print("{ " + f"uint64_t temp = {code}; " + " ".join([f"{name} |= temp;" for name in onoutnames]) + " }")
+
+def print_phase_correction(phase_line, outnames):
+    bits = phase_line[8:]
+    for val, name in zip(bits, outnames):
+        if val == "0":
+            print(f"{name} = ~{name};")
 
 def run_espresso(data, innames, outnames):
+    header = f""".i {len(innames)}
+.o {len(outnames)}
+.pli {" ".join(innames)}
+.ob {" ".join(outnames)}
+.type fr
+"""
+    print(header)
     print(data)
     # p = subprocess.run(["./espresso", "-Dexact", "-S1"],
-    p = subprocess.run(["./espresso", "-Dso_both", "-S1"],
+    p = subprocess.run(["./espresso", "-Dopoall"],
+    # p = subprocess.run(["./espresso", "-Dso_both", "-S1"],
                        text = True,
-                       input = data,
+                       input = header + data,
                        capture_output = True)
     out = p.stdout
     print(out)
     lines = out.split("\n")
+    phase_line = [l for l in lines if l.startswith("#.phase")][0]
     lines = [l for l in lines if len(l) > 0 and l[0] != '.' and l[0] != '#']
 
+
     print_output(lines, innames, outnames)
+    print_phase_correction(phase_line, outnames)
