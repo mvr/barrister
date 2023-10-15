@@ -410,7 +410,7 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
         else
           recoveredTime = 0;
 
-        if (currentGen > interactionStart + params->maxActiveWindowGens) {
+        if (!isRecovered && currentGen > interactionStart + params->maxActiveWindowGens) {
           // TODO: This is the place to check for oscillators
           return {false, frontier};
         }
@@ -428,6 +428,11 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
     }
 
     frontier.generations.push_back(resolved);
+
+    // Continuing to advance won't find any frontier cells
+    if (resolved.active.IsEmpty()) {
+      break;
+    }
   }
   return {true, frontier};
 }
@@ -454,7 +459,7 @@ void SearchState::SearchStep() {
   std::pair<int, int> branchCell = {-1, -1};
 
   unsigned i;
-  for (i = 0; i < maxLookaheadGens; i++) {
+  for (i = 0; i < frontier.generations.size(); i++) {
     // std::cout << "Choosing:" << std::endl;
     // std::cout << frontier.generations[i].state.ToHistory().RLEWHeader() << std::endl;
     branchCell = frontier.generations[i].frontierCells.FirstOn();
