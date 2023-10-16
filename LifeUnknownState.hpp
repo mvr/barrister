@@ -139,7 +139,7 @@ LifeUnknownState LifeUnknownState::UncertainStepMaintaining(const LifeStableStat
   LifeState stable3(false), stable2(false), stable1(false), stable0(false);
   CountNeighbourhood(stable.state, stable3, stable2, stable1, stable0);
 
-  #pragma clang loop unroll(full)
+#pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
     uint64_t on3 = state3[i];
     uint64_t on2 = state2[i];
