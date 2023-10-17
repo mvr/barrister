@@ -605,7 +605,7 @@ int main(int, char *argv[]) {
   //   hardcoded value!" << std::endl; exit(1);
   // }
 
-  // std::vector<LifeState> allSolutions;
+  std::vector<LifeState> allSolutions;
   // std::vector<uint64_t> seenRotors;
 
   SearchState search(params, allSolutions);
