@@ -83,6 +83,8 @@ public:
   LifeStableState stable;
   LifeUnknownState current;
 
+  Frontier frontier;
+
   LifeState everActive;
 
   LifeCountdown<maxCellActiveWindowGens> activeTimer;
@@ -212,9 +214,16 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
 Transition
 SearchState::AllowedTransitions(FrontierGeneration cellGeneration,
                                 std::pair<int, int> frontierCell) const {
+  // The frontier generation may be out of date with the stable state,
+  // so we have to be a little careful
+
+  bool prevState =
+      cellGeneration.prev.state.Get(frontierCell) ||
+      (cellGeneration.prev.unknownStable.Get(frontierCell) &&
+       !stable.unknown.Get(frontierCell) && stable.state.Get(frontierCell));
+
   bool inZOI = stable.stateZOI.Get(frontierCell);
-  return ::AllowedTransitions(
-      cellGeneration.prev.state.Get(frontierCell),
+  return ::AllowedTransitions(prevState,
       stable.unknown.Get(frontierCell), stable.state.Get(frontierCell),
       inZOI && cellGeneration.forcedInactive.Get(frontierCell),
       inZOI && cellGeneration.forcedUnchanging.Get(frontierCell));
@@ -456,9 +465,23 @@ void SearchState::SearchStep() {
   // if (propagateResult.changed)
   current.TransferStable(stable);
 
-  auto [consistent, frontier] = CalculateFrontier();
-  if (!consistent)
-    return;
+
+  bool allEmpty = true;
+  for (auto &g : frontier.generations) {
+    if (!g.frontierCells.IsEmpty()) {
+      allEmpty = false;
+      break;
+    }
+  }
+
+  if (allEmpty) {
+    bool consistent;
+    std::tie(consistent, frontier) = CalculateFrontier();
+    if (!consistent)
+      return;
+
+    current.TransferStable(stable);
+  }
 
   std::pair<int, int> branchCell = {-1, -1};
 
@@ -538,6 +561,8 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   current.state = inparams.startingPattern;
   current.unknown = stable.unknown;
   current.unknownStable = stable.unknown;
+
+  frontier = {std::vector<FrontierGeneration>()};
 
   everActive = LifeState();
   // activeTimer =
