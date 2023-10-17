@@ -580,6 +580,32 @@ void SearchState::ReportSolution() {
   LifeState marked = stable.unknown | (stable.state & ~startingStableOff);
   std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
 
+  if(params->stabiliseResults) {
+    LifeState completed = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
+
+    if(!completed.IsEmpty()){
+      // std::cout << "Completed:" << std::endl;
+      // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+      // LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
+      // LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
+      // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
+      // std::cout << history.RLE() << std::endl;
+
+      std::cout << "Completed Plain:" << std::endl;
+      std::cout << ((completed & ~startingStableOff) | starting).RLE() << std::endl;
+      allSolutions->push_back((completed & ~startingStableOff) | starting);
+    } else {
+      // std::cout << "Completion failed!" << std::endl;
+      // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+      // LifeHistoryState history;
+      // std::cout << history.RLE() << std::endl;
+
+      std::cout << "Completion Failed!" << std::endl;
+      std::cout << LifeState().RLE() << std::endl;
+    }
+  }
+}
+
 void PrintSummary(std::vector<LifeState> &pats) {
   std::cout << "Summary:" << std::endl;
   std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
