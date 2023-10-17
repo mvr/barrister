@@ -78,7 +78,6 @@ public:
   void SetOff(const LifeState &state);
 
   PropagateResult UpdateStateKnown();
-  void UpdateCounts();
   void UpdateStateKnown(std::pair<int, int> cell);
   PropagateResult UpdateOptions(); // Assumes counts and state/unknown are in sync
   PropagateResult SignalNeighbours(); // Assumes counts and state/unknown are in sync
@@ -379,13 +378,13 @@ PropagateResult LifeStableState::PropagateStep() {
 
 PropagateResult LifeStableState::Propagate() {
   bool done = false;
-  bool changed = false;
+  bool changedEver = false;
   while (!done) {
     auto result = PropagateStep();
     if (!result.consistent)
       return {false, false};
     if (result.changed)
-      changed = true;
+      changedEver = true;
     done = !result.changed;
   }
 
@@ -397,7 +396,7 @@ PropagateResult LifeStableState::Propagate() {
     UpdateStateKnown();
   }
 
-  return {true, changed};
+  return {true, changedEver};
 }
 
 std::string LifeStableState::RLE() const {

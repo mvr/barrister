@@ -93,7 +93,6 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.activeBounds.second = activeBounds[1];
 
   params.maxEverActiveCells = toml::find_or(toml, "max-ever-active-cells", -1);
-
   std::vector<int> everActiveBounds = toml::find_or<std::vector<int>>(toml, "ever-active-bounds", {-1, -1});
   params.everActiveBounds.first = everActiveBounds[0];
   params.everActiveBounds.second = everActiveBounds[1];

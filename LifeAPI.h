@@ -302,19 +302,11 @@ public:
 
   void Set(unsigned x, unsigned y) { state[x] |= (1ULL << y); }
   void Erase(unsigned x, unsigned y) { state[x] &= ~(1ULL << y); }
+  void Set(unsigned x, unsigned y, bool val) { if(val) Set(x, y); else Erase(x, y); }
   bool Get(unsigned x, unsigned y) const { return (state[x] & (1ULL << y)) != 0; }
-  void Set(unsigned x, unsigned y, bool val) {
-    if(val)
-      Set(x, y);
-    else
-      Erase(x, y);
-  }
 
   void SetSafe(int x, int y, bool val) {
-    if (val)
-      Set((x + N) % N, (y + 64) % 64);
-    else
-      Erase((x + N) % N, (y + 64) % 64);
+    Set((x + N) % N, (y + 64) % 64, val);
   }
   bool GetSafe(int x, int y) const {
     return Get((x + N) % N, (y + 64) % 64);
@@ -322,13 +314,13 @@ public:
 
   void Set(std::pair<int, int> cell) { Set(cell.first, cell.second); };
   void Erase(std::pair<int, int> cell) { Erase(cell.first, cell.second); };
-  int Get(std::pair<int, int> cell) const { return Get(cell.first, cell.second); };
-  void SetSafe(std::pair<int, int> cell, bool val) { SetSafe(cell.first, cell.second, val); };
   void Set(std::pair<int, int> cell, bool val) { Set(cell.first, cell.second, val); };
-  int GetSafe(std::pair<int, int> cell) const { return GetSafe(cell.first, cell.second); };
+  bool Get(std::pair<int, int> cell) const { return Get(cell.first, cell.second); };
+  void SetSafe(std::pair<int, int> cell, bool val) { SetSafe(cell.first, cell.second, val); };
+  bool GetSafe(std::pair<int, int> cell) const { return GetSafe(cell.first, cell.second); };
 
-  constexpr uint64_t& operator[](unsigned i) { return state[i]; }
-  constexpr const uint64_t& operator[](unsigned i) const { return state[i]; }
+  constexpr uint64_t& operator[](const unsigned i) { return state[i]; }
+  constexpr const uint64_t operator[](const unsigned i) const { return state[i]; }
 
   uint64_t GetHash() const {
     uint64_t result = 0;

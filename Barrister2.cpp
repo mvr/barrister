@@ -492,8 +492,10 @@ void SearchState::SearchStep() {
       continue;
 
     SearchState newSearch = *this;
-
+    newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
     newSearch.stable.RestrictOptions(branchCell, newoptions);
+    newSearch.stable.UpdateStateKnown(branchCell);
+    newSearch.current.TransferStable(newSearch.stable);
 
     // TODO: StablePropagate the column of the cell now
 
@@ -514,8 +516,6 @@ void SearchState::SearchStep() {
       }
     }
 
-    newSearch.stable.UpdateStateKnown(branchCell);
-    newSearch.current.TransferStable(newSearch.stable);
     newSearch.SearchStep();
   }
 }
