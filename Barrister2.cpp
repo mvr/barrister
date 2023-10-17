@@ -282,7 +282,7 @@ SearchState::ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen) {
   auto lookaheadTimer = activeTimer;
   auto lookaheadStreakTimer = streakTimer;
 
-  FrontierGeneration frontierGeneration = {state, state.UncertainStepMaintaining(stable), LifeState(), LifeState(), LifeState(), LifeState(), LifeState(), gen};
+  FrontierGeneration frontierGeneration = {state, LifeUnknownState(), LifeState(), LifeState(), LifeState(), LifeState(), LifeState(), gen};
 
   bool done = false;
   while (!done) {
