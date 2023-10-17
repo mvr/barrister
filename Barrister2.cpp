@@ -97,7 +97,7 @@ public:
   SearchParams *params;
   std::vector<LifeState> *allSolutions;
 
-  SearchState(SearchParams &inparams);
+  SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions);
   SearchState(const SearchState &) = default;
   SearchState &operator=(const SearchState &) = default;
 
@@ -520,10 +520,9 @@ void SearchState::SearchStep() {
   }
 }
 
-SearchState::SearchState(SearchParams &inparams) : currentGen{0}, hasInteracted{false}, interactionStart{0} {
-
+SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions) : currentGen{0}, hasInteracted{false}, interactionStart{0} {
   params = &inparams;
-  // allSolutions = &outsolutions;
+  allSolutions = &outsolutions;
 
   stable.state = inparams.startingStable;
   stable.unknown = inparams.searchArea;
@@ -551,6 +550,15 @@ void SearchState::ReportSolution() {
   LifeState state = params->startingPattern | (stable.state & ~startingStableOff);
   LifeState marked = stable.unknown | (stable.state & ~startingStableOff);
   std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
+
+void PrintSummary(std::vector<LifeState> &pats) {
+  std::cout << "Summary:" << std::endl;
+  std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
+  for (unsigned i = 0; i < pats.size(); i += 8) {
+    std::vector<LifeState> row =
+      std::vector<LifeState>(pats.begin() + i, pats.begin() + std::min((unsigned)pats.size(), i + 8));
+    std::cout << RowRLE(row) << std::endl;
+  }
 }
 
 int main(int, char *argv[]) {
@@ -571,9 +579,9 @@ int main(int, char *argv[]) {
   // std::vector<LifeState> allSolutions;
   // std::vector<uint64_t> seenRotors;
 
-  SearchState search(params);
+  SearchState search(params, allSolutions);
   search.SearchStep();
 
-  // if (params.printSummary)
-  //   PrintSummary(allSolutions);
+  if (params.printSummary)
+    PrintSummary(allSolutions);
 }
