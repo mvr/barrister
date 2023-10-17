@@ -156,6 +156,10 @@ LifeState SearchState::ForcedInactiveCells(
       activePop == (unsigned)params->maxActiveCells)
     result |= ~active; // Or maybe just return
 
+  if (params->activeBounds.first != -1 && activePop > 0) {
+    result |= ~active.BufferAround(params->activeBounds);
+  }
+
   return result;
 }
 LifeState SearchState::ForcedUnchangingCells(
