@@ -107,17 +107,20 @@ public:
       unsigned gen, const LifeUnknownState &state,
       const LifeStableState &stable, const LifeUnknownState &previous,
       const LifeState &active, const LifeState &everActive,
-      const LifeState &changes,
-      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-      const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const;
+      const LifeState &changes
+      // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+      // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+                                ) const;
   LifeState ForcedUnchangingCells(
       unsigned gen, const LifeUnknownState &state,
       const LifeStableState &stable, const LifeUnknownState &previous,
       const LifeState &active, const LifeState &everActive,
-      const LifeState &changes,
-      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-      const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const;
+      const LifeState &changes
+      // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+      // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+          ) const;
 
+  bool UpdateActive(FrontierGeneration &generation);
   std::pair<bool, FrontierGeneration> ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen);
   std::pair<bool, Frontier> CalculateFrontier();
 
@@ -134,9 +137,10 @@ public:
 LifeState SearchState::ForcedInactiveCells(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
     const LifeUnknownState &previous, const LifeState &active,
-    const LifeState &everActive, const LifeState &changes,
-    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
+    const LifeState &everActive, const LifeState &changes
+    // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+    // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+        ) const {
   if (gen < params->minFirstActiveGen) {
     return ~LifeState();
   }
@@ -167,9 +171,10 @@ LifeState SearchState::ForcedInactiveCells(
 LifeState SearchState::ForcedUnchangingCells(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
     const LifeUnknownState &previous, const LifeState &active,
-    const LifeState &everActive, const LifeState &changes,
-    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
+    const LifeState &everActive, const LifeState &changes
+    // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+    // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+        ) const {
   return LifeState();
 }
 
@@ -289,6 +294,30 @@ StableOptions SearchState::OptionsFor(LifeUnknownState state,
   return options;
 }
 
+
+bool SearchState::UpdateActive(FrontierGeneration &generation) {
+  generation.active = generation.state.ActiveComparedTo(stable);
+  generation.changes = generation.state.ChangesComparedTo(generation.state) & stable.stateZOI;
+
+  generation.forcedInactive = ForcedInactiveCells(
+      generation.gen, generation.state, stable, generation.prev,
+      generation.active, everActive, generation.changes);
+
+  if (!(generation.active & generation.forcedInactive).IsEmpty()) {
+    return false;
+  }
+
+  generation.forcedUnchanging = ForcedUnchangingCells(
+      generation.gen, generation.state, stable, generation.prev,
+      generation.active, everActive, generation.changes);
+
+  if (!(generation.changes & generation.forcedUnchanging).IsEmpty()) {
+    return false;
+  }
+
+  return true;
+}
+
 std::pair<bool, FrontierGeneration>
 SearchState::ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen) {
   // TODO: pass these in
@@ -301,31 +330,14 @@ SearchState::ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen) {
   while (!done) {
     frontierGeneration.state = frontierGeneration.prev.UncertainStepMaintaining(stable);
 
+    bool result = UpdateActive(frontierGeneration);
+    if (!result)
+      return {false, frontierGeneration};
+
     // std::cout << "Resolving Before:" << std::endl;
     // std::cout << frontierGeneration.prev.ToHistory().RLEWHeader() << std::endl;
     // std::cout << "Resolving After:" << std::endl;
     // std::cout << frontierGeneration.state.ToHistory().RLEWHeader() << std::endl;
-
-    frontierGeneration.active = frontierGeneration.state.ActiveComparedTo(stable);
-    frontierGeneration.changes = frontierGeneration.state.ChangesComparedTo(state) & stable.stateZOI;
-
-    frontierGeneration.forcedInactive = ForcedInactiveCells(
-        gen, frontierGeneration.state, stable, frontierGeneration.prev,
-        frontierGeneration.active, everActive, frontierGeneration.changes,
-        lookaheadTimer, lookaheadStreakTimer);
-
-    if (!(frontierGeneration.active & frontierGeneration.forcedInactive).IsEmpty()) {
-      return {false, frontierGeneration};
-    }
-
-    frontierGeneration.forcedUnchanging = ForcedUnchangingCells(
-        gen, frontierGeneration.state, stable, frontierGeneration.prev,
-        frontierGeneration.active, everActive, frontierGeneration.changes,
-        lookaheadTimer, lookaheadStreakTimer);
-
-    if (!(frontierGeneration.changes & frontierGeneration.forcedUnchanging).IsEmpty()) {
-      return {false, frontierGeneration};
-    }
 
     LifeState prevUnknownActive = frontierGeneration.prev.unknown & ~frontierGeneration.prev.unknownStable;
     LifeState becomeUnknown = (frontierGeneration.state.unknown & ~frontierGeneration.state.unknownStable) & ~prevUnknownActive;
@@ -519,12 +531,19 @@ void SearchState::SearchStep() {
       continue;
 
     SearchState newSearch = *this;
-    newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
     newSearch.stable.RestrictOptions(branchCell, newoptions);
     newSearch.stable.UpdateStateKnown(branchCell);
-    newSearch.current.TransferStable(newSearch.stable);
+    // TODO: StablePropagate the column of the cell now?
 
-    // TODO: StablePropagate the column of the cell now
+    newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
+    newSearch.frontier.generations[i].prev.SetTransitionPrev(branchCell, t);
+    newSearch.frontier.generations[i].state.SetTransitionResult(branchCell, t);
+
+    newSearch.UpdateActive(newSearch.frontier.generations[i]);
+    // TODO: we could modify `active` and `changed` directly, based on
+    // the transition `t`, instead of recalculating them
+
+    newSearch.current.TransferStable(newSearch.stable);
 
     // std::cout << std::bitset<8>(static_cast<unsigned char>(newSearch.stable.GetOptions({52, 0}))) << std::endl;
 
