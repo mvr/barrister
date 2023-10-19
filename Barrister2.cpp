@@ -192,14 +192,16 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
                   Transition::STABLE_TO_STABLE);
   }
   if (forcedInactive) {
-    if (stablestate)
+    if (unknownstable)
+      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
+    if (!unknownstable && stablestate)
       result &= ~(Transition::OFF_TO_OFF | Transition::ON_TO_OFF);
-    if (!stablestate)
+    if (!unknownstable && !stablestate)
       result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_ON);
   }
 
   if (forcedUnchanging)
-    result &= ~(Transition::ON_TO_OFF | Transition::OFF_TO_ON);
+    result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
 
   // No need to branch them separately
   if (((result & Transition::ON_TO_ON) == Transition::ON_TO_ON) &&
