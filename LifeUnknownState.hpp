@@ -14,8 +14,10 @@ enum class Transition : unsigned char {
   ON_TO_OFF        = 1 << 2,
   ON_TO_ON         = 1 << 3,
   STABLE_TO_STABLE = 1 << 4,
+
   IMPOSSIBLE       = 0,
   ANY = OFF_TO_OFF | OFF_TO_ON | ON_TO_OFF | ON_TO_ON | STABLE_TO_STABLE,
+  UNCHANGING = OFF_TO_OFF | ON_TO_ON | STABLE_TO_STABLE,
 };
 
 constexpr inline Transition operator~ (Transition a) { return static_cast<Transition>( ~static_cast<std::underlying_type<Transition>::type>(a) ); }
@@ -95,23 +97,15 @@ public:
     }
   }
 
-  bool StepFor(std::pair<int, int> cell) const {
-    unsigned count = state.CountNeighbours(cell);
-    if (state.Get(cell))
-      return count == 2 || count == 3;
-    else
-      return count == 3;
-  }
-
   Transition TransitionFor(std::pair<int, int> cell) const {
-    bool next = StepFor(cell);
+    bool next = state.StepFor(cell);
     switch (state.Get(cell) << 1 | next) {
     case 0b00: return Transition::OFF_TO_OFF;
     case 0b01: return Transition::OFF_TO_ON;
     case 0b10: return Transition::ON_TO_OFF;
     case 0b11: return Transition::ON_TO_ON;
+    default: return Transition::IMPOSSIBLE;
     }
-    std::cout << "Shouldn't" << std::endl;
   }
 
   // Would this transition be an interaction with the active pattern?

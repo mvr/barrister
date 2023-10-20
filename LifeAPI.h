@@ -897,6 +897,14 @@ public:
     }
   }
 
+  bool StepFor(std::pair<int, int> cell) const {
+    unsigned count = CountNeighbours(cell);
+    if (Get(cell))
+      return count == 2 || count == 3;
+    else
+      return count == 3;
+  }
+
   static LifeState Parse(const char *rle);
 
   static LifeState Parse(const char *rle, int dx, int dy) {

@@ -178,20 +178,17 @@ LifeState SearchState::ForcedUnchangingCells(
   return LifeState();
 }
 
-// TODO: add special-case for interactions that are too early
 Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
-                              bool forcedInactive, bool forcedUnchanging) {
+                              bool forcedInactive, bool forcedUnchanging, bool inzoi, Transition unperturbed) {
   auto result = Transition::ANY;
 
-  if (!unknownstable) {
-    if (state)
-      result &= ~(Transition::OFF_TO_OFF | Transition::OFF_TO_ON |
-                  Transition::STABLE_TO_STABLE);
-    if (!state)
-      result &= ~(Transition::ON_TO_OFF | Transition::ON_TO_ON |
-                  Transition::STABLE_TO_STABLE);
-  }
-  if (forcedInactive) {
+  // If current state is known, remove options with the wrong previous state
+  if (!unknownstable && state)
+    result &= Transition::ON_TO_OFF | Transition::ON_TO_ON;
+  if (!unknownstable && !state)
+    result &= Transition::OFF_TO_OFF | Transition::OFF_TO_ON;
+
+  if (forcedInactive && inzoi) {
     if (unknownstable)
       result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
     if (!unknownstable && stablestate)
@@ -200,9 +197,18 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
       result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_ON);
   }
 
-  if (forcedUnchanging)
-    result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
+  if (forcedInactive && !inzoi) {
+    if (unknownstable) {
+      result &= Transition::UNCHANGING;
+    }
+    if (!unknownstable) {
+      result &= unperturbed;
+    }
+  }
 
+  if (forcedUnchanging && inzoi)
+    result &= Transition::OFF_TO_OFF | Transition::ON_TO_ON | Transition::STABLE_TO_STABLE;
+  
   // No need to branch them separately
   if (((result & Transition::ON_TO_ON) == Transition::ON_TO_ON) &&
       !((result & Transition::OFF_TO_OFF) == Transition::OFF_TO_OFF))
@@ -229,11 +235,12 @@ SearchState::AllowedTransitions(FrontierGeneration cellGeneration,
       (cellGeneration.prev.unknownStable.Get(frontierCell) &&
        !stable.unknown.Get(frontierCell) && stable.state.Get(frontierCell));
 
-  bool inZOI = stable.stateZOI.Get(frontierCell);
-  return ::AllowedTransitions(prevState,
-      stable.unknown.Get(frontierCell), stable.state.Get(frontierCell),
-      inZOI && cellGeneration.forcedInactive.Get(frontierCell),
-      inZOI && cellGeneration.forcedUnchanging.Get(frontierCell));
+  return ::AllowedTransitions(prevState, stable.unknown.Get(frontierCell),
+                              stable.state.Get(frontierCell),
+                              cellGeneration.forcedInactive.Get(frontierCell),
+                              cellGeneration.forcedUnchanging.Get(frontierCell),
+                              stable.stateZOI.Get(frontierCell),
+                              cellGeneration.prev.TransitionFor(frontierCell));
 }
 
 StableOptions OptionsFor(bool currentstate, bool nextstate, unsigned currenton,
