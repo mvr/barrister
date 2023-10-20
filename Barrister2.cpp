@@ -121,6 +121,7 @@ public:
           ) const;
 
   bool UpdateActive(FrontierGeneration &generation);
+  std::pair<bool, bool> SetForced(FrontierGeneration &generation);
   std::pair<bool, FrontierGeneration> ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen);
   std::pair<bool, Frontier> CalculateFrontier();
 
@@ -327,6 +328,50 @@ bool SearchState::UpdateActive(FrontierGeneration &generation) {
   return true;
 }
 
+std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
+  LifeState remainingCells = generation.frontierCells;
+
+  bool someForced = false;
+
+  for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
+       remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
+    auto allowedTransitions = AllowedTransitions(generation, cell);
+
+    if (allowedTransitions == Transition::IMPOSSIBLE) {
+      return {false, false};
+    }
+
+    if (generation.forcedInactive.Get(cell) &&
+        !TransitionIsSingleton(allowedTransitions)) {
+      std::cout << generation.prev.unknown.Get(cell) << ", " << generation.prev.state.Get(cell) << std::endl;
+      std::cout << generation.state.unknown.Get(cell) << ", " << generation.state.state.Get(cell) << std::endl;
+      std::cout << stable.unknown.Get(cell) << ", " << stable.state.Get(cell) << std::endl;
+      std::cout << std::bitset<5>(static_cast<unsigned char>(allowedTransitions)) << std::endl;
+    }
+
+    // TODO: don't we possibly gain information even if it's not a singleton?
+    if (TransitionIsSingleton(allowedTransitions)) {
+      auto transition = allowedTransitions; // Just a rename
+
+      // Resolve it immediately
+      auto options = OptionsFor(generation.prev, cell, transition);
+      stable.RestrictOptions(cell, options);
+
+      if (stable.GetOptions(cell) == StableOptions::IMPOSSIBLE)
+        return {false, false};
+
+      stable.UpdateStateKnown(cell);
+
+      generation.prev.SetTransitionPrev(cell, transition);
+      generation.state.SetTransitionResult(cell, transition);
+
+      someForced = true;
+    }
+  }
+
+  return {true, someForced};
+}
+
 std::pair<bool, FrontierGeneration>
 SearchState::ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen) {
   // TODO: pass these in
@@ -339,8 +384,8 @@ SearchState::ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen) {
   while (!done) {
     frontierGeneration.state = frontierGeneration.prev.UncertainStepMaintaining(stable);
 
-    bool result = UpdateActive(frontierGeneration);
-    if (!result)
+    bool updateresult = UpdateActive(frontierGeneration);
+    if (!updateresult)
       return {false, frontierGeneration};
 
     // std::cout << "Resolving Before:" << std::endl;
@@ -354,40 +399,8 @@ SearchState::ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen) {
     frontierGeneration.frontierCells = becomeUnknown & ~prevUnknownActive.ZOI();
     LifeState remainingCells = frontierGeneration.frontierCells;
 
-    bool someForced = false;
+    auto [result, someForced] = SetForced(frontierGeneration);
 
-    for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
-         remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
-      auto allowedTransitions = AllowedTransitions(frontierGeneration, cell);
-
-      if (allowedTransitions == Transition::IMPOSSIBLE) {
-        return {false, frontierGeneration};
-      }
-
-      // TODO: don't we possibly gain information even if it's not a singleton?
-      if (TransitionIsSingleton(allowedTransitions)) {
-        auto transition = allowedTransitions; // Just a rename
-
-        // Resolve it immediately
-        auto options = OptionsFor(frontierGeneration.prev, cell, transition);
-        stable.RestrictOptions(cell, options);
-
-        if (stable.GetOptions(cell) == StableOptions::IMPOSSIBLE)
-          return {false, frontierGeneration};
-
-        stable.UpdateStateKnown(cell);
-
-        frontierGeneration.prev.SetTransitionPrev(cell, transition);
-        frontierGeneration.state.SetTransitionResult(cell, transition);
-
-        someForced = true;
-
-        // TODO: StablePropagate the column of the cell now, probably?
-
-        // TODO: update active/changes/forcedInactive/forcedUnchanging at this
-        // point?
-      }
-    }
     if (someForced) {
       auto propagateResult = stable.Propagate();
 
