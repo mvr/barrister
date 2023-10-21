@@ -636,7 +636,7 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
   }
 
   // CHEAT!
-  if (instabilities.GetPop() + currentPop >= maxPop)
+  if (!minimise && instabilities.GetPop() + currentPop >= maxPop)
     return false;
 
   LifeState settable = instabilities.ZOI() & unknownStable;
