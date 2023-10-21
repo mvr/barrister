@@ -124,6 +124,7 @@ public:
   std::pair<bool, bool> SetForced(FrontierGeneration &generation);
   std::pair<bool, FrontierGeneration> ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen);
   std::pair<bool, Frontier> CalculateFrontier();
+  bool UpdateFrontier();
 
   Transition AllowedTransitions(FrontierGeneration cellGeneration,
                                 std::pair<int, int> frontierCell) const;
@@ -341,13 +342,13 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
       return {false, false};
     }
 
-    if (generation.forcedInactive.Get(cell) &&
-        !TransitionIsSingleton(allowedTransitions)) {
-      std::cout << generation.prev.unknown.Get(cell) << ", " << generation.prev.state.Get(cell) << std::endl;
-      std::cout << generation.state.unknown.Get(cell) << ", " << generation.state.state.Get(cell) << std::endl;
-      std::cout << stable.unknown.Get(cell) << ", " << stable.state.Get(cell) << std::endl;
-      std::cout << std::bitset<5>(static_cast<unsigned char>(allowedTransitions)) << std::endl;
-    }
+    // if (generation.forcedInactive.Get(cell) &&
+    //     !TransitionIsSingleton(allowedTransitions)) {
+    //   std::cout << generation.prev.unknown.Get(cell) << ", " << generation.prev.state.Get(cell) << std::endl;
+    //   std::cout << generation.state.unknown.Get(cell) << ", " << generation.state.state.Get(cell) << std::endl;
+    //   std::cout << stable.unknown.Get(cell) << ", " << stable.state.Get(cell) << std::endl;
+    //   std::cout << std::bitset<5>(static_cast<unsigned char>(allowedTransitions)) << std::endl;
+    // }
 
     // TODO: don't we possibly gain information even if it's not a singleton?
     if (TransitionIsSingleton(allowedTransitions)) {
@@ -400,6 +401,9 @@ SearchState::ResolveFrontierGeneration(LifeUnknownState &state, unsigned gen) {
     LifeState remainingCells = frontierGeneration.frontierCells;
 
     auto [result, someForced] = SetForced(frontierGeneration);
+
+    if (!result)
+      return {false, frontierGeneration};
 
     if (someForced) {
       auto propagateResult = stable.Propagate();
@@ -484,6 +488,28 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
   return {true, frontier};
 }
 
+bool SearchState::UpdateFrontier() {
+  bool anyChanges = false;
+  for (auto &g : frontier.generations) {
+    g.state.TransferStable(stable);
+
+    auto [result, changes] = SetForced(g);
+    if (!result)
+      return false;
+    anyChanges = anyChanges || changes;
+  }
+
+  if (anyChanges) {
+    auto propagateResult = stable.Propagate();
+
+    if (!propagateResult.consistent)
+      return false;
+
+    stable.UpdateStateKnown();
+  }
+  return true;
+}
+
 void SearchState::SearchStep() {
   // std::cout << "Stable Before Propagate:" << std::endl;
   // std::cout << stable.RLEWHeader() << std::endl;
@@ -514,7 +540,18 @@ void SearchState::SearchStep() {
     if (!consistent)
       return;
 
+    // This is more important now than in old Barrister: we otherwise
+    // spend a fair bit of time searching uncompletable parts of the
+    // search space
+    propagateResult = stable.TestUnknowns(stable.stateZOI & stable.unknown);
+    // propagateResult = stable.TestUnknowns(stable.Vulnerable());
+    if (!propagateResult.consistent)
+      return;
     current.TransferStable(stable);
+  } else {
+    bool result = UpdateFrontier();
+    if (!result)
+      return;
   }
 
   std::pair<int, int> branchCell = {-1, -1};
@@ -561,14 +598,6 @@ void SearchState::SearchStep() {
     newSearch.frontier.generations[i].prev.SetTransitionPrev(branchCell, t);
     newSearch.frontier.generations[i].state.SetTransitionResult(branchCell, t);
 
-    newSearch.UpdateActive(newSearch.frontier.generations[i]);
-    // TODO: we could modify `active` and `changed` directly, based on
-    // the transition `t`, instead of recalculating them
-
-    newSearch.current.TransferStable(newSearch.stable);
-
-    // std::cout << std::bitset<8>(static_cast<unsigned char>(newSearch.stable.GetOptions({52, 0}))) << std::endl;
-
     if (frontierGeneration.prev.TransitionIsPerturbation(branchCell, t)) {
       newSearch.stable.stateZOI.Set(branchCell);
 
@@ -583,6 +612,12 @@ void SearchState::SearchStep() {
         newSearch.interactionStart = i;
       }
     }
+
+    newSearch.UpdateActive(newSearch.frontier.generations[i]);
+    // TODO: we could modify `active` and `changed` directly, based on
+    // the transition `t`, instead of recalculating them
+
+    newSearch.current.TransferStable(newSearch.stable);
 
     newSearch.SearchStep();
   }
