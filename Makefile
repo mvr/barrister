@@ -1,5 +1,6 @@
 CC = clang++
-CFLAGS = -std=c++20 -Wall -Wextra -pedantic -O3 -march=native -mtune=native -flto -fno-stack-protector -fomit-frame-pointer -g3
+# CFLAGS = -std=c++20 -Wall -Wextra -pedantic -O3 -DNDEBUG -march=native -mtune=native -flto -fno-stack-protector -fomit-frame-pointer
+CFLAGS = -std=c++20 -O1 -g3 -DDEBUG -Wall -Wextra -pedantic
 LDFLAGS =
 
 # CC = /usr/local/opt/llvm/bin/clang++
@@ -13,7 +14,7 @@ else
 	INSTRUMENTFLAGS =
 endif
 
-all: Barrister
+all: Barrister2
 
 Barrister: Barrister.cpp LifeAPI.h *.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o Barrister Barrister.cpp $(LDFLAGS)

@@ -71,9 +71,16 @@ public:
   LifeState state;
   LifeState unknown;
 
+  bool operator==(const LifeStableState&) const = default;
+
   StableOptions GetOptions(std::pair<int, int> cell) const;
   void RestrictOptions(std::pair<int, int> cell, StableOptions options);
 
+  bool SingletonOptions(std::pair<int, int> cell) {
+    unsigned char bits = static_cast<unsigned char>(GetOptions(cell));
+    return bits && !(bits & (bits-1));
+  }
+  
   void SetOn(const LifeState &state);
   void SetOff(const LifeState &state);
   void SetOn(std::pair<int, int> cell);
@@ -83,10 +90,9 @@ public:
   PropagateResult PropagateSimpleStep();
   PropagateResult PropagateSimple();
 
-  void UpdateStateKnown(std::pair<int, int> cell);
-
   PropagateResult StabiliseOptions();
   PropagateResult UpdateStateKnown();
+  void UpdateStateKnown(std::pair<int, int> cell);
   PropagateResult UpdateOptions(); // Assumes counts and state/unknown are in sync
   PropagateResult SignalNeighbours(); // Assumes counts and state/unknown are in sync
   PropagateResult PropagateStep();
@@ -105,6 +111,15 @@ public:
   std::string RLE() const;
   std::string RLEWHeader() const {
     return "x = 0, y = 0, rule = LifeBellman\n" + RLE();
+  }
+
+  void SanityCheck() {
+#ifdef DEBUG
+    LifeStableState copy = *this;
+    auto [consistent, changes] = copy.UpdateStateKnown();
+    assert(consistent);
+    assert(!changes);
+#endif
   }
 };
 
@@ -304,6 +319,12 @@ PropagateResult LifeStableState::PropagateSimple() {
 
   stateZOI |= state.ZOI();
 
+  if (changed) {
+    auto result = StabiliseOptions();
+    if (!result.consistent)
+      return {false, false};
+  }
+
   return {true, changed};
 }
 
@@ -339,7 +360,6 @@ void LifeStableState::UpdateStateKnown(std::pair<int, int> cell) {
   }
 }
 
-// Assumes that the counts and the state are up to date
 PropagateResult LifeStableState::UpdateOptions() {
   LifeState state3(false), state2(false), state1(false), state0(false);
   LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
