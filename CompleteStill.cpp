@@ -11,6 +11,6 @@ int main(int, char *argv[]) {
 
   std::cout << stable.state.RLE() << std::endl;
   std::cout << stable.unknownStable.RLE() << std::endl;
-  LifeState result = stable.CompleteStable();
+  LifeState result = stable.CompleteStable(3, true);
   std::cout << result.RLE() << std::endl;
 }

@@ -636,7 +636,7 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
   }
 
   // CHEAT!
-  if (instabilities.GetPop() + currentPop >= maxPop)
+  if (!minimise && instabilities.GetPop() + currentPop >= maxPop)
     return false;
 
   LifeState settable = instabilities.ZOI() & unknownStable;
@@ -691,7 +691,7 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
   auto startTime = std::chrono::system_clock::now();
   auto timeLimit = startTime + std::chrono::seconds(timeout);
 
-  while(!(unknownStable & ~searchArea).IsEmpty()) {
+  do {
     searchArea = searchArea.ZOI();
     LifeStableState copy = *this;
     copy.unknownStable &= searchArea;
@@ -700,7 +700,7 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
     auto currentTime = std::chrono::system_clock::now();
     if (best.GetPop() > 0 || currentTime > timeLimit)
       break;
-  }
+  } while(!(unknownStable & ~searchArea).IsEmpty());
   return best;
 }
 
