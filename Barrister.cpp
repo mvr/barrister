@@ -405,16 +405,14 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->componentActiveBounds.first != -1) {
-    LifeState tempResult = ~LifeState();
     for (auto &c : active.Components()) {
       auto wh = c.WidthHeight();
 
       if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
         return ~LifeState();
 
-      tempResult &= ~c.BufferAround(params->componentActiveBounds);
+      result |= ~active.BufferAround(params->componentActiveBounds) & c.BigZOI();
     }
-    result |= tempResult;
   }
 
   if (params->maxEverActiveCells != -1 &&
@@ -437,15 +435,14 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->componentEverActiveBounds.first != -1) {
-    LifeState tempResult = ~LifeState();
     for (auto &c : everActive.Components()) {
       auto wh = c.WidthHeight();
 
       if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
         return ~LifeState();
-      tempResult &= ~c.BufferAround(params->componentEverActiveBounds);
+
+      result |= ~everActive.BufferAround(params->componentEverActiveBounds) & c.BigZOI();
     }
-    result |= tempResult;
   }
 
   if (params->hasStator)
