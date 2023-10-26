@@ -232,9 +232,9 @@ bool SearchState::CheckConditionsOn(
       // auto wh =  EffectiveWidthHeight(params->symTransf, changes & dom);
       auto wh =  (changes & dom).WidthHeight();
       if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second) {
-        for (auto &c : changes.Components()) {
+        for (auto &c : (changes & dom).Components()) {
           // auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
-          auto wh = (c & dom).WidthHeight();
+          auto wh = c.WidthHeight();
           if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
             return false;
         }
@@ -272,7 +272,7 @@ bool SearchState::CheckConditionsOn(
     if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second) {
       for (auto &c : (active & dom).Components()) {
         // auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
-        auto wh = (c & dom).WidthHeight();
+        auto wh = c.WidthHeight();
         if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
           return false;
       }
@@ -298,9 +298,9 @@ bool SearchState::CheckConditionsOn(
     // auto wh = EffectiveWidthHeight(params->symTransf, everActive & dom);
     auto wh = (everActive & dom).WidthHeight();
     if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second) {
-      for (auto &c : everActive.Components()) {
+      for (auto &c : (everActive & dom).Components()) {
         // auto wh = EffectiveWidthHeight(params->symTransf, c & dom);
-        auto wh = (c & dom).WidthHeight();
+        auto wh = c.WidthHeight();
         if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
           return false;
       }
@@ -393,15 +393,13 @@ LifeState SearchState::ForcedInactiveCells(
     }
 
     if (params->componentChangesBounds.first != -1) {
-      for (auto &c : changes.Components()) {
+      for (auto &c : (changes & dom).Components()) {
         // auto wh = EffectiveWidthHeight(params->symTransf, c & dom);
-        auto wh = (c & dom).WidthHeight();
+        auto wh = c.WidthHeight();
         if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
           return ~LifeState();
 
-        //changesForbidden |= ~(active & dom).EffBufferAround(params->symTransf, params->componentChangesBounds) & c.BigZOI() & dom;
-        changesForbidden |= ~(active & dom).BufferAround(params->componentChangesBounds) & c.BigZOI() & dom;
-      
+        changesForbidden |= ~c.BufferAround(params->componentChangesBounds) & c.BigZOI() & dom;
       }
     }
 
@@ -430,17 +428,15 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->componentActiveBounds.first != -1) {
-    LifeState tempResult = ~LifeState();
-    for (auto &c : active.Components()) {
+    for (auto &c : (active & dom).Components()) {
       //auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
-      auto wh = (c & dom).WidthHeight();
+      auto wh = c.WidthHeight();
 
       if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
         return ~LifeState();
 
-      tempResult &= ~(c & dom).BufferAround(params->componentActiveBounds);
+      result |= ~c.BufferAround(params->componentActiveBounds) & c.BigZOI() & dom;
     }
-    result |= tempResult & dom;
   }
 
   if (params->maxEverActiveCells != -1 &&
@@ -464,20 +460,19 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->componentEverActiveBounds.first != -1) {
-    LifeState tempResult = ~LifeState();
-    for (auto &c : everActive.Components()) {
+    for (auto &c : (everActive & dom).Components()) {
       // auto wh = EffectiveWidthHeight(params->symTransf,c & dom);
-      auto wh = (c & dom).WidthHeight();
+      auto wh = c.WidthHeight();
 
       if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
         return ~LifeState();
-      tempResult &= ~(c & dom).BufferAround(params->componentEverActiveBounds);
+
+      result |= ~c.BufferAround(params->componentEverActiveBounds) & c.BigZOI() & dom;
     }
-    result |= tempResult & dom;
   }
 
   if (params->hasStator)
-    result |= params->stator;
+    result |= params->stator & dom;
 
   LifeState resultCopy = result;
   resultCopy.Transform(params->symTransf);
