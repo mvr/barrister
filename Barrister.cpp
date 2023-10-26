@@ -378,7 +378,7 @@ LifeState SearchState::ForcedInactiveCells(
         if (wh.first > params->componentChangesBounds.first || wh.second > params->componentChangesBounds.second)
           return ~LifeState();
 
-        changesForbidden |= ~active.BufferAround(params->componentChangesBounds) & c.BigZOI();
+        changesForbidden |= ~c.BufferAround(params->componentChangesBounds) & c.BigZOI();
       }
     }
 
@@ -411,7 +411,7 @@ LifeState SearchState::ForcedInactiveCells(
       if (wh.first > params->componentActiveBounds.first || wh.second > params->componentActiveBounds.second)
         return ~LifeState();
 
-      result |= ~active.BufferAround(params->componentActiveBounds) & c.BigZOI();
+      result |= ~c.BufferAround(params->componentActiveBounds) & c.BigZOI();
     }
   }
 
@@ -441,7 +441,7 @@ LifeState SearchState::ForcedInactiveCells(
       if (wh.first > params->componentEverActiveBounds.first || wh.second > params->componentEverActiveBounds.second)
         return ~LifeState();
 
-      result |= ~everActive.BufferAround(params->componentEverActiveBounds) & c.BigZOI();
+      result |= ~c.BufferAround(params->componentEverActiveBounds) & c.BigZOI();
     }
   }
 
