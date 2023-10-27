@@ -164,10 +164,9 @@ LifeState SearchState::ForcedInactiveCells(
 
   auto activePop = active.GetPop();
 
-  // if (hasInteracted && !params->reportOscillators && gen > interactionStart +
-  // params->maxActiveWindowGens && activePop > 0) {
-  //   return ~LifeState();
-  // }
+  if (hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens) {
+    return ~LifeState();
+  }
 
   if (params->maxActiveCells != -1 &&
       activePop > (unsigned)params->maxActiveCells)
@@ -175,8 +174,7 @@ LifeState SearchState::ForcedInactiveCells(
 
   LifeState result;
 
-  if (params->maxActiveCells != -1 &&
-      activePop == (unsigned)params->maxActiveCells)
+  if (params->maxActiveCells != -1 && activePop == (unsigned)params->maxActiveCells)
     result |= ~active; // Or maybe just return
 
   if (params->activeBounds.first != -1 && activePop > 0) {
@@ -695,7 +693,7 @@ void SearchState::SearchStep() {
         // std::cout << branchCell.first << ", " << branchCell.second << std::endl;
 
         newSearch.hasInteracted = true;
-        newSearch.interactionStart = i;
+        newSearch.interactionStart = frontierGeneration.gen;
       }
     }
 
