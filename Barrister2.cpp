@@ -313,6 +313,8 @@ StableOptions SearchState::OptionsFor(LifeUnknownState state,
       break;
     case Transition::STABLE_TO_STABLE:
       break;
+    default:
+      break;
     }
   }
 
@@ -349,6 +351,8 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
   LifeState remainingCells = generation.frontierCells;
   for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
        remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
+
+#ifdef DEBUG
     {
       bool beforeUnknown = stable.unknown.Get(cell);
       bool beforeState = stable.state.Get(cell);
@@ -356,6 +360,7 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
       assert(beforeUnknown == stable.unknown.Get(cell));
       assert(beforeState == stable.state.Get(cell));
     }
+#endif
 
     if (!generation.state.unknown.Get(cell)) {
       // It was set by stable propagation
@@ -642,8 +647,6 @@ void SearchState::SearchStep() {
   std::pair<int, int> branchCell = {-1, -1};
   unsigned i;
   for (i = 0; i < frontier.generations.size(); i++) {
-    // std::cout << "Choosing:" << std::endl;
-    // std::cout << frontier.generations[i].state.ToHistory().RLEWHeader() << std::endl;
     branchCell = frontier.generations[i].frontierCells.FirstOn();
     if(branchCell.first != -1) break;
   }
@@ -679,8 +682,7 @@ void SearchState::SearchStep() {
     // TODO: StablePropagate the column of the cell now?
 
     newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
-    newSearch.frontier.generations[i].prev.SetTransitionPrev(branchCell, t);
-    newSearch.frontier.generations[i].state.SetTransitionResult(branchCell, t);
+    newSearch.frontier.generations[i].SetTransition(branchCell, transition);
 
     if (frontierGeneration.prev.TransitionIsPerturbation(branchCell, t)) {
       newSearch.stable.stateZOI.Set(branchCell);
