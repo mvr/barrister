@@ -649,6 +649,11 @@ public:
     return boundary;
   }
 
+  uint64_t ZOIColumn(int i) const {
+    uint64_t col = state[(i - 1 + N) % N] | state[i] | state[(i + 1) % N];
+    return RotateLeft(col) | col | RotateRight(col);
+  }
+
   LifeState MooreZOI() const {
     LifeState temp(false);
     LifeState boundary(false);
