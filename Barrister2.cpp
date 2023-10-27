@@ -457,7 +457,8 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
     frontierGeneration.state.SanityCheck(stable);
 
-    frontier.generations.push_back(frontierGeneration);
+    if(!frontierGeneration.frontierCells.IsEmpty())
+      frontier.generations.push_back(frontierGeneration);
 
     if (!frontierGeneration.IsAlive())
       break;
@@ -524,7 +525,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     current = next;
     currentGen += 1;
 
-    if (frontier.generations.size() >0 && frontier.generations[0].gen == currentGen) {
+    if (frontier.generations.size() > 0 && frontier.generations[0].gen == currentGen) {
       frontier.generations.erase(frontier.generations.begin());
     }
 
