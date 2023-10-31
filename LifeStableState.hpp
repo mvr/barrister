@@ -83,6 +83,8 @@ public:
   
   void SetOn(const LifeState &state);
   void SetOff(const LifeState &state);
+  void SetOn(int column, uint64_t which);
+  void SetOff(int column, uint64_t which);
   void SetOn(std::pair<int, int> cell);
   void SetOff(std::pair<int, int> cell);
 
@@ -90,13 +92,27 @@ public:
   PropagateResult PropagateSimpleStep();
   PropagateResult PropagateSimple();
 
-  PropagateResult StabiliseOptions();
-  void UpdateStateKnown(std::pair<int, int> cell);
   PropagateResult SynchroniseStateKnown();
   PropagateResult UpdateOptions(); // Assumes counts and state/unknown are in sync
+  PropagateResult StabiliseOptions(); // Apply the above two repeatedly
+
   PropagateResult SignalNeighbours(); // Assumes counts and state/unknown are in sync
   PropagateResult PropagateStep();
   PropagateResult Propagate();
+
+  PropagateResult SynchroniseStateKnownColumn(int column);
+
+  PropagateResult PropagateSimpleStepStrip(int column);
+  PropagateResult PropagateSimpleStrip(int column);
+
+  PropagateResult SynchroniseStateKnownStrip(int column);
+  PropagateResult UpdateOptionsStrip(int column); // Assumes counts and state/unknown are in sync
+  PropagateResult StabiliseOptionsStrip(int column);
+  PropagateResult SignalNeighboursStrip(int column); // Assumes counts and state/unknown are in sync
+  PropagateResult PropagateStepStrip(int column);
+  PropagateResult PropagateStrip(int column);
+
+  PropagateResult SynchroniseStateKnown(std::pair<int, int> cell);
 
   LifeState PerturbedUnknowns() const {
     LifeState perturbed = live2 | live3 | dead0 | dead1 | dead2 | dead4 | dead5 | dead6;
@@ -104,6 +120,7 @@ public:
   }
   LifeState Vulnerable() const;
 
+  PropagateResult TestUnknown(std::pair<int, int> cell);
   PropagateResult TestUnknowns(const LifeState &cells);
   bool CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best);
   LifeState CompleteStable(unsigned timeout, bool minimise);
@@ -112,6 +129,9 @@ public:
   std::string RLEWHeader() const {
     return "x = 0, y = 0, rule = LifeBellman\n" + RLE();
   }
+
+  bool CompatibleWith(const LifeState &desired) const;
+  bool CompatibleWith(const LifeStableState &desired) const;
 
   void SanityCheck() {
 #ifdef DEBUG
@@ -163,6 +183,24 @@ void LifeStableState::SetOff(const LifeState &which) {
   unknown &= ~which;
   live2 |= which;
   live3 |= which;
+}
+
+void LifeStableState::SetOn(int i, uint64_t which) {
+  state[i] |= which;
+  stateZOI |= LifeState::ColumnZOI(i, which);
+  unknown[i] &= ~which;
+  dead0[i] |= which;
+  dead1[i] |= which;
+  dead2[i] |= which;
+  dead4[i] |= which;
+  dead5[i] |= which;
+  dead6[i] |= which;
+}
+void LifeStableState::SetOff(int i, uint64_t which) {
+  state[i] &= ~which;
+  unknown[i] &= ~which;
+  live2[i] |= which;
+  live3[i] |= which;
 }
 
 void LifeStableState::SetOn(std::pair<int, int> cell) {
@@ -359,17 +397,6 @@ PropagateResult LifeStableState::SynchroniseStateKnown() {
   unknown = maybeLive & maybeDead;
 
   return {true, !changes.IsEmpty()};
-}
-
-void LifeStableState::UpdateStateKnown(std::pair<int, int> cell) {
-  bool maybeLive = !(live2.Get(cell) && live3.Get(cell));
-  bool maybeDead = !(dead0.Get(cell) && dead1.Get(cell) && dead2.Get(cell) && dead4.Get(cell) && dead5.Get(cell) && dead6.Get(cell));
-  state.Set(cell, maybeLive && !maybeDead);
-  unknown.Set(cell, maybeLive && maybeDead);
-
-  if (maybeLive && !maybeDead) {
-    stateZOI |= LifeState::CellZOI(cell);
-  }
 }
 
 PropagateResult LifeStableState::UpdateOptions() {
@@ -610,60 +637,604 @@ PropagateResult LifeStableState::Propagate() {
   return {true, changedEver};
 }
 
+PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
+  std::array<uint64_t, 6> nearbyState;
+  std::array<uint64_t, 6> nearbyUnknown;
+
+  for (int i = 0; i < 6; i++) {
+    int c = (column + i - 2 + N) % N;
+    nearbyState[i] = state[c];
+    nearbyUnknown[i] = unknown[c];
+  }
+
+  std::array<uint64_t, 4> state3, state2, state1, state0;
+  std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
+  CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
+  CountNeighbourhoodStrip(nearbyUnknown, unknown3, unknown2, unknown1, unknown0);
+
+  std::array<uint64_t, 6> new_off;
+  std::array<uint64_t, 6> new_on;
+
+  std::array<uint64_t, 6> new_signal_off {0};
+  std::array<uint64_t, 6> new_signal_on {0};
+
+  uint64_t has_abort = 0;
+
+  #pragma clang loop vectorize(enable)
+  for (int i = 1; i < 5; i++) {
+    uint64_t on3 = state3[i-1];
+    uint64_t on2 = state2[i-1];
+    uint64_t on1 = state1[i-1];
+    uint64_t on0 = state0[i-1];
+    on2 |= on3;
+    on1 |= on3;
+    on0 |= on3;
+
+    uint64_t unk3 = unknown3[i-1];
+    uint64_t unk2 = unknown2[i-1];
+    uint64_t unk1 = unknown1[i-1];
+    uint64_t unk0 = unknown0[i-1];
+
+    unk1 |= unk2 | unk3;
+    unk0 |= unk2 | unk3;
+
+    uint64_t stateon = nearbyState[i];
+    uint64_t stateunk = nearbyUnknown[i];
+
+    // These are the 5 output bits that are calculated for each cell
+    uint64_t set_off = 0; // Set an UNKNOWN cell to OFF
+    uint64_t set_on = 0;
+    uint64_t signal_off = 0; // Set all UNKNOWN neighbours of the cell to OFF
+    uint64_t signal_on = 0;
+    uint64_t abort = 0; // The neighbourhood is inconsistent
+
+    // Begin Autogenerated
+{ uint64_t temp = (~stateunk) & (~stateon) & (~on2) & on1 & on0 & (~unk1) & unk0; signal_off |= temp; signal_on |= temp; abort |= temp; }
+signal_on |= stateon & (~on2) & (~on1) & (~unk0);
+set_off |= (~on1) & (~on0) & (~unk0);
+{ uint64_t temp = stateon & (~on2) & (~on0) & (~unk1) & unk0; signal_off |= temp; signal_on |= temp; abort |= temp; }
+{ uint64_t temp = stateon & (~on2) & on1 & on0; signal_off |= temp; abort |= temp; }
+signal_off |= (~unk1) & (~unk0);
+abort |= (~on1) & (~on0);
+{ uint64_t temp = (~stateon) & (~on0); set_on |= temp; abort |= temp; }
+{ uint64_t temp = (~stateon) & (~on1) & (~unk1); set_off |= temp; set_on |= temp; signal_off |= temp; abort |= temp; }
+{ uint64_t temp = (~on2) & unk1; set_on |= temp; signal_off |= temp; abort |= temp; }
+{ uint64_t temp = (~stateon) & on2; set_off |= temp; set_on |= temp; signal_off |= temp; abort |= temp; }
+{ uint64_t temp = stateunk; signal_off |= temp; abort |= temp; }
+set_on = ~set_on;
+signal_off = ~signal_off;
+abort = ~abort;
+// set_off |= on2 ;
+// set_off |= (~on1) & ((~unk1) | ((~on0) & (~unk0)));
+// set_on |= (~on2) & on1 & on0 & (~unk1) ;
+// abort |= stateon & on2 & (on1 | on0) ;
+// abort |= stateon & (~on1) & on0 & (~unk1) ;
+// abort |= on1 & (~unk1) & (~unk0) & (((~stateon) & (~on2) & on0) | (stateon & (~on0))) ;
+// signal_off |= (~stateunk) & (~stateon) & (~on2) & on1 & (~on0) & (~unk1) & unk0 ;
+// signal_off |= stateon & (~on1) & (((~on0) & unk1) | ((~unk1) & unk0));
+// signal_on |= (~stateunk) & (~stateon) & (~on2) & on1 & on0 & (~unk1) ;
+// signal_on |= stateon & on1 & (~on0) & (~unk1) ;
+// signal_on |= stateon & (~on1) & on0 & (~unk0) ;
+// End Autogenerated
+
+   signal_off &= unk0 | unk1;
+   signal_on  &= unk0 | unk1;
+
+   new_off[i] = set_off & stateunk;
+   new_on[i] = set_on & stateunk;
+   new_signal_off[i] = signal_off;
+   new_signal_on[i] = signal_on;
+
+   has_abort |= abort;
+  }
+
+  if(has_abort != 0)
+    return {false, false};
+
+  std::array<uint64_t, 6> signalled_off {0};
+  std::array<uint64_t, 6> signalled_on {0};
+
+  #pragma clang loop vectorize(enable)
+  for (int i = 1; i < 5; i++) {
+   uint64_t smear_off = RotateLeft(new_signal_off[i]) | new_signal_off[i] | RotateRight(new_signal_off[i]);
+   signalled_off[i-1] |= smear_off;
+   signalled_off[i]   |= smear_off;
+   signalled_off[i+1] |= smear_off;
+
+   uint64_t smear_on  = RotateLeft(new_signal_on[i])  | new_signal_on[i]  | RotateRight(new_signal_on[i]);
+   signalled_on[i-1] |= smear_on;
+   signalled_on[i]   |= smear_on;
+   signalled_on[i+1] |= smear_on;
+  }
+
+  for (int i = 1; i < 5; i++) {
+   signalled_off[i] &= ~new_signal_off[i];
+   signalled_on[i] &= ~new_signal_on[i];
+  }
+
+  uint64_t signalled_overlaps = 0;
+  #pragma clang loop vectorize(enable)
+  for (int i = 0; i < 6; i++) {
+    signalled_overlaps |= nearbyUnknown[i] & signalled_off[i] & signalled_on[i];
+  }
+  if(signalled_overlaps != 0)
+    return {false, false};
+
+  #pragma clang loop vectorize(enable)
+  for (int i = 1; i < 5; i++) {
+    int orig = (column + i - 2 + N) % N;
+    state[orig]  |= new_on[i];
+    unknown[orig] &= ~new_off[i];
+    unknown[orig] &= ~new_on[i];
+  }
+
+  #pragma clang loop vectorize(enable)
+  for (int i = 0; i < 6; i++) {
+    int orig = (column + i - 2 + N) % N;
+    state[orig]  |= signalled_on[i] & nearbyUnknown[i];
+    unknown[orig] &= ~signalled_on[i];
+    unknown[orig] &= ~signalled_off[i];
+  }
+
+  uint64_t unknownChanges = 0;
+  #pragma clang loop vectorize(enable)
+  for (int i = 0; i < 6; i++) {
+    int orig = (column + i - 2 + N) % N;
+    unknownChanges |= unknown[orig] ^ nearbyUnknown[i];
+  }
+
+  return { true, unknownChanges != 0 };
+}
+
+
+PropagateResult LifeStableState::SynchroniseStateKnownColumn(int i) {
+  uint64_t knownOn = ~unknown[i] & state[i];
+  dead0[i] |= knownOn;
+  dead1[i] |= knownOn;
+  dead2[i] |= knownOn;
+  dead4[i] |= knownOn;
+  dead5[i] |= knownOn;
+  dead6[i] |= knownOn;
+
+  uint64_t knownOff = ~unknown[i] & ~state[i];
+  live2[i] |= knownOff;
+  live3[i] |= knownOff;
+
+  uint64_t maybeLive = ~(live2[i] & live3[i]);
+  uint64_t maybeDead = ~(dead0[i] & dead1[i] & dead2[i] & dead4[i] & dead5[i] & dead6[i]);
+
+  uint64_t impossibles = ~maybeLive & ~maybeDead;
+  if (impossibles != 0)
+    return {false, false};
+
+  uint64_t changes = 0;
+  changes |= ~state[i] & (maybeLive & ~maybeDead);
+  state[i] = maybeLive & ~maybeDead;
+
+  changes |= ~stateZOI[i] & state.ZOIColumn(i);
+  stateZOI[i] |= state.ZOIColumn(i);
+
+  changes |= ~unknown[i] & (maybeLive & maybeDead);
+  unknown[i] = maybeLive & maybeDead;
+
+  return {true, changes != 0};
+}
+
+PropagateResult LifeStableState::SynchroniseStateKnownStrip(int column) {
+  // TODO: check this optimises
+  bool anyChanges = false;
+  for (int i = 0; i < 4; i++) {
+    int c = (column + i - 2 + N) % N;
+    auto result = SynchroniseStateKnownColumn(c);
+    if(!result.consistent)
+      return {false, false};
+    anyChanges = anyChanges || result.changed;
+  }
+  return {true, anyChanges};
+}
+
+PropagateResult LifeStableState::SynchroniseStateKnown(std::pair<int, int> cell) {
+  bool knownOn = !unknown.Get(cell) && state.Get(cell);
+  if(knownOn) {
+    dead0.Set(cell);
+    dead1.Set(cell);
+    dead2.Set(cell);
+    dead4.Set(cell);
+    dead5.Set(cell);
+    dead6.Set(cell);
+  }
+  bool knownOff = !unknown.Get(cell) && !state.Get(cell);
+  if (knownOff) {
+    live2.Set(cell);
+    live3.Set(cell);
+  }
+
+  bool maybeLive = !(live2.Get(cell) && live3.Get(cell));
+  bool maybeDead = !(dead0.Get(cell) && dead1.Get(cell) && dead2.Get(cell) && dead4.Get(cell) && dead5.Get(cell) && dead6.Get(cell));
+  state.Set(cell, maybeLive && !maybeDead);
+  unknown.Set(cell, maybeLive && maybeDead);
+
+  if (maybeLive && !maybeDead) {
+    stateZOI |= LifeState::CellZOI(cell);
+  }
+
+  return {true, false};
+}
+
+PropagateResult LifeStableState::PropagateSimpleStrip(int column) {
+  bool done = false;
+  bool changed = false;
+  while (!done) {
+    auto result = PropagateSimpleStepStrip(column);
+    if (!result.consistent)
+      return {false, false};
+    changed = changed || result.changed;
+    done = !result.changed;
+  }
+
+  stateZOI |= state.ZOI(); // TODO!
+
+  if (changed) {
+    auto result = StabiliseOptionsStrip(column);
+    if (!result.consistent)
+      return {false, false};
+  }
+
+  return {true, changed};
+}
+
+PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
+  std::array<uint64_t, 6> nearbyState;
+  std::array<uint64_t, 6> nearbyUnknown;
+
+  for (int i = 0; i < 6; i++) {
+    int c = (column + i - 2 + N) % N;
+    nearbyState[i] = state[c];
+    nearbyUnknown[i] = unknown[c];
+  }
+
+  std::array<uint64_t, 4> state3, state2, state1, state0;
+  std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
+  CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
+  CountNeighbourhoodStrip(nearbyUnknown, unknown3, unknown2, unknown1, unknown0);
+
+  std::array<uint64_t, 6> new_signal_off, new_signal_on;
+
+  for (int i = 1; i < 5; i++) {
+    int orig = (column + i - 2 + N) % N;
+
+    uint64_t l2 = live2[orig];
+    uint64_t l3 = live3[orig];
+    uint64_t d0 = dead0[orig];
+    uint64_t d1 = dead1[orig];
+    uint64_t d2 = dead2[orig];
+    uint64_t d4 = dead4[orig];
+    uint64_t d5 = dead5[orig];
+    uint64_t d6 = dead6[orig];
+
+    uint64_t s2 = state2[i-1];
+    uint64_t s1 = state1[i-1];
+    uint64_t s0 = state0[i-1];
+
+    uint64_t unk3 = unknown3[i-1];
+    uint64_t unk2 = unknown2[i-1];
+    uint64_t unk1 = unknown1[i-1];
+    uint64_t unk0 = unknown0[i-1];
+
+    uint64_t signaloff = 0;
+    uint64_t signalon = 0;
+
+// Begin Autogenerated, see bitslicing/stable_count.py
+signalon |= (~l2) & d0 & d1 & (~s1) & (~s0) & (~unk2) & unk0;
+signalon |= d0 & d1 & d2 & (~s2) & (~s1) & (~s0) & unk2 & (~unk1) & (~unk0);
+signalon |= d1 & d2 & d4 & (~d5) & (~s2) & (~s1) & unk2 & (~unk1) & (~unk0);
+signalon |= d2 & d4 & d5 & (~d6) & s1 & (~s0) & (~unk1) & (~unk0);
+signalon |= d0 & d1 & d2 & d4 & (~s2) & (~s1) & (~s0) & (~unk1) & unk0;
+signaloff |= s2 & s1;
+signalon |= l2 & l3 & d4 & s1 & s0 & (~unk2) & (~unk0);
+signalon |= d0 & d1 & (~d2) & (~s1) & (~s0) & (~unk2) & unk1 & (~unk0);
+signalon |= d4 & d5 & (~d6) & (~s2) & (~unk2) & unk0;
+signalon |= d2 & d4 & (~d5) & s1 & (~s0) & (~unk2);
+signalon |= (~l2) & d1 & (~s1) & (~unk2) & unk1 & (~unk0);
+signaloff |= (~l2) & l3 & s1 & s0;
+signalon |= d1 & d2 & d4 & d5 & (~d6) & (~s1) & s0 & (~unk1) & unk0;
+signalon |= d0 & d1 & d2 & d4 & d5 & (~d6) & (~s1) & (~s0) & unk1 & (~unk0);
+signalon |= l2 & d2 & (~s2) & s1 & (~s0) & (~unk2) & (~unk0);
+signalon |= l2 & d1 & d2 & (~s2) & (~s1) & s0 & (~unk2) & unk0;
+signalon |= l2 & d1 & d5 & s0 & (~unk2) & (~unk1) & unk0;
+signalon |= l3 & d0 & d2 & d4 & d6 & (~s0) & (~unk2) & (~unk1) & unk0;
+signaloff |= l2 & l3 & d2 & d4 & d5 & d6 & s0;
+signaloff |= l2 & l3 & d1 & d2 & d4 & d5 & d6;
+signaloff |= d6 & s2 & s0;
+signaloff |= l3 & (~d2) & d4 & d5 & d6 & s1;
+signaloff |= d5 & d6 & s2;
+// End Autogenerated
+
+    new_signal_off[i] = signaloff;
+    new_signal_on[i] = signalon;
+  }
+
+  std::array<uint64_t, 6> signalled_off {0};
+  std::array<uint64_t, 6> signalled_on {0};
+
+  #pragma clang loop vectorize(enable)
+  for (int i = 1; i < 5; i++) {
+   uint64_t smear_off = RotateLeft(new_signal_off[i]) | new_signal_off[i] | RotateRight(new_signal_off[i]);
+   signalled_off[i-1] |= smear_off;
+   signalled_off[i]   |= smear_off;
+   signalled_off[i+1] |= smear_off;
+
+   uint64_t smear_on  = RotateLeft(new_signal_on[i])  | new_signal_on[i]  | RotateRight(new_signal_on[i]);
+   signalled_on[i-1] |= smear_on;
+   signalled_on[i]   |= smear_on;
+   signalled_on[i+1] |= smear_on;
+  }
+  for (int i = 1; i < 5; i++) {
+   signalled_off[i] &= ~new_signal_off[i];
+   signalled_on[i] &= ~new_signal_on[i];
+  }
+
+  uint64_t signalled_overlaps = 0;
+  #pragma clang loop vectorize(enable)
+  for (int i = 0; i < 6; i++) {
+    signalled_overlaps |= nearbyUnknown[i] & signalled_off[i] & signalled_on[i];
+  }
+  if(signalled_overlaps != 0)
+    return {false, false};
+
+  #pragma clang loop vectorize(enable)
+  for (int i = 0; i < 6; i++) {
+    int orig = (column + i - 2 + N) % N;
+    SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
+    SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);
+  }
+
+  uint64_t unknownChanges = 0;
+  #pragma clang loop vectorize(enable)
+  for (int i = 0; i < 6; i++) {
+    unknownChanges |= (signalled_on[i] & nearbyUnknown[i]) | (signalled_off[i] & nearbyUnknown[i]);
+  }
+
+  return {true, unknownChanges != 0};
+}
+
+PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
+  std::array<uint64_t, 6> nearbyState;
+  std::array<uint64_t, 6> nearbyUnknown;
+
+  for (int i = 0; i < 6; i++) {
+    int c = (column + i - 2 + N) % N;
+    nearbyState[i] = state[c];
+    nearbyUnknown[i] = unknown[c];
+  }
+
+  std::array<uint64_t, 4> state3, state2, state1, state0;
+  std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
+  CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
+  CountNeighbourhoodStrip(nearbyUnknown, unknown3, unknown2, unknown1, unknown0);
+
+  uint64_t has_abort = 0;
+  uint64_t changes = 0;
+
+  for (int i = 1; i < 5; i++) {
+    uint64_t on2 = state2[i-1];
+    uint64_t on1 = state1[i-1];
+    uint64_t on0 = state0[i-1];
+
+    uint64_t unk3 = unknown3[i-1];
+    uint64_t unk2 = unknown2[i-1];
+    uint64_t unk1 = unknown1[i-1];
+    uint64_t unk0 = unknown0[i-1];
+
+    uint64_t stateon = nearbyState[i];
+    uint64_t stateunk = nearbyUnknown[i];
+
+    uint64_t abort = 0;
+
+    uint64_t l2 = 0;
+    uint64_t l3 = 0;
+    uint64_t d0 = 0;
+    uint64_t d1 = 0;
+    uint64_t d2 = 0;
+    uint64_t d4 = 0;
+    uint64_t d5 = 0;
+    uint64_t d6 = 0;
+
+// Begin Autogenerated, see bitslicing/stable_count.py
+d4 |= stateunk & (~on2) & (~on1) & (~on0) & unk2 & (~unk1) & (~unk0);
+d5 |= stateunk & (~on2) & (~on1) & unk2 & (~unk1) & (~unk0);
+d5 |= stateunk & (~on2) & (~on1) & (~on0) & unk2 & (~unk1);
+{ uint64_t temp = stateunk & (~on1) & (~on0) & (~unk2) & unk1 & (~unk0); l2 |= temp; d2 |= temp; }
+d5 |= (~on2) & (~on1) & (~on0) & unk2 & (~unk1) & (~unk0);
+{ uint64_t temp = stateunk & on0 & (~unk2) & (~unk1) & unk0; l2 |= temp; d2 |= temp; d4 |= temp; }
+{ uint64_t temp = (~stateon) & (~on1) & (~unk3) & (~unk2) & (~unk1) & (~unk0); d2 |= temp; d6 |= temp; abort |= temp; }
+{ uint64_t temp = (~stateon) & (~on2) & on0 & (~unk2) & (~unk1) & unk0; d5 |= temp; d6 |= temp; abort |= temp; }
+d6 |= stateunk & (~on1) & on0 & (~unk1) & unk0;
+d4 |= stateunk & (~on1) & on0 & (~unk2) & unk0;
+d6 |= stateunk & (~on1) & (~on0) & unk1 & (~unk0);
+d6 |= stateunk & on1 & (~on0) & (~unk1) & (~unk0);
+{ uint64_t temp = (~on2) & (~on0) & (~unk3) & (~unk2) & (~unk1) & unk0; l3 |= temp; d4 |= temp; d5 |= temp; abort |= temp; }
+d6 |= (~on2) & (~on1) & unk2 & (~unk1) & (~unk0);
+d4 |= stateunk & on1 & (~on0) & (~unk2) & (~unk0);
+{ uint64_t temp = (~on1) & on0 & (~unk2) & (~unk1) & unk0; l3 |= temp; d4 |= temp; }
+d6 |= (~on2) & (~on1) & (~on0) & unk2 & (~unk1);
+d5 |= stateunk & (~on2) & (~unk2) & unk1 & (~unk0);
+{ uint64_t temp = stateunk & (~on0) & (~unk3) & (~unk2) & (~unk1); d1 |= temp; d5 |= temp; }
+{ uint64_t temp = (~on0) & (~unk3) & (~unk2) & (~unk1) & (~unk0); d1 |= temp; d5 |= temp; }
+{ uint64_t temp = (~stateon) & (~on2) & on1 & (~on0) & (~unk2); d6 |= temp; abort |= temp; }
+{ uint64_t temp = (~on2) & (~on1) & (~unk2) & unk1 & (~unk0); l3 |= temp; d4 |= temp; }
+{ uint64_t temp = (~on2) & (~on1) & (~on0) & (~unk2) & unk1; l3 |= temp; d4 |= temp; }
+{ uint64_t temp = (~on1) & (~on0) & (~unk3) & (~unk2) & (~unk1); l2 |= temp; d2 |= temp; d6 |= temp; }
+{ uint64_t temp = (~on2) & (~unk3) & (~unk2) & (~unk1) & (~unk0); l3 |= temp; d4 |= temp; d5 |= temp; }
+abort |= stateon & on1 & on0;
+d5 |= stateunk & on1 & (~on0) & (~unk2);
+d6 |= (~on2) & (~unk2) & unk1 & (~unk0);
+d5 |= on1 & (~on0) & (~unk2) & (~unk0);
+d6 |= stateunk & (~on2) & on1 & (~unk2);
+{ uint64_t temp = (~stateon) & on1 & on0; l2 |= temp; d2 |= temp; }
+{ uint64_t temp = (~on2) & (~on1) & (~unk2) & unk1; d5 |= temp; d6 |= temp; }
+{ uint64_t temp = on2 & (~on1) & (~on0); l2 |= temp; d0 |= temp; abort |= temp; }
+{ uint64_t temp = (~stateunk) & (~stateon); l2 |= temp; l3 |= temp; }
+d4 |= on2 & on0;
+abort |= (~on2) & unk2;
+abort |= (~on2) & unk1;
+{ uint64_t temp = on2 & on1; d4 |= temp; d5 |= temp; }
+{ uint64_t temp = (~stateon) & on2; l2 |= temp; l3 |= temp; d1 |= temp; d2 |= temp; abort |= temp; }
+abort |= unk3;
+d0 |= on0;
+{ uint64_t temp = on1; d0 |= temp; d1 |= temp; }
+{ uint64_t temp = stateon; d1 |= temp; d2 |= temp; d4 |= temp; d5 |= temp; d6 |= temp; }
+abort = ~abort;
+// End Autogenerated
+
+    int orig = (column + i - 2 + N) % N;
+
+    changes |= l2 & ~live2[orig];
+    changes |= l3 & ~live3[orig];
+    changes |= d0 & ~dead0[orig];
+    changes |= d1 & ~dead1[orig];
+    changes |= d2 & ~dead2[orig];
+    changes |= d4 & ~dead4[orig];
+    changes |= d5 & ~dead5[orig];
+    changes |= d6 & ~dead6[orig];
+
+    live2[orig] |= l2;
+    live3[orig] |= l3;
+    dead0[orig] |= d0;
+    dead1[orig] |= d1;
+    dead2[orig] |= d2;
+    dead4[orig] |= d4;
+    dead5[orig] |= d5;
+    dead6[orig] |= d6;
+    has_abort |= abort;
+  }
+
+  return {has_abort == 0, changes != 0};
+}
+
+PropagateResult LifeStableState::StabiliseOptionsStrip(int column) {
+  bool changedEver = false;
+  bool done = false;
+  while (!done) {
+    done = false;
+
+    PropagateResult knownresult = SynchroniseStateKnownStrip(column);
+    if (!knownresult.consistent)
+      return {false, false};
+
+    PropagateResult optionsresult = UpdateOptionsStrip(column);
+    if (!optionsresult.consistent)
+      return {false, false};
+
+    done = !optionsresult.changed && !knownresult.changed;
+    changedEver = changedEver || !done;
+  }
+  return {true, changedEver};
+}
+
+PropagateResult LifeStableState::PropagateStepStrip(int column) {
+  bool changedEver = false;
+
+  auto result = StabiliseOptionsStrip(column);
+  if (!result.consistent)
+    return {false, false};
+  changedEver = result.changed;
+
+  PropagateResult signalresult = SignalNeighboursStrip(column);
+  if (!signalresult.consistent)
+    return {false, false};
+  changedEver = changedEver || signalresult.changed;
+
+  return {true, changedEver};
+}
+
+PropagateResult LifeStableState::PropagateStrip(int column) {
+  auto [consistent, changedEver] = PropagateSimpleStrip(column);
+  if (!consistent)
+    return {false, false};
+
+  bool done = false;
+  while (!done) {
+    auto result = PropagateStepStrip(column);
+    if (!result.consistent)
+      return {false, false};
+    changedEver = changedEver || result.changed;
+    done = !result.changed;
+  }
+
+  // Need to do one last options update after the last SignalNeighbours
+  if (changedEver) {
+    auto result = StabiliseOptionsStrip(column);
+    if (!result.consistent)
+      return {false, false};
+  }
+
+  return {true, changedEver};
+}
+
+PropagateResult LifeStableState::TestUnknown(std::pair<int, int> cell) {
+  // Try on
+  LifeStableState onSearch = *this;
+  onSearch.SetOn(cell);
+  // auto onResult = onSearch.PropagateSimpleStrip(cell.first);
+  auto onResult = onSearch.PropagateStrip(cell.first);
+  // auto onResult = onSearch.Propagate();
+
+  // Try off
+  LifeStableState offSearch = *this;
+  offSearch.SetOff(cell);
+  // auto offResult = offSearch.PropagateSimpleStrip(cell.first);
+  auto offResult = offSearch.PropagateStrip(cell.first);
+  // auto offResult = offSearch.Propagate();
+
+  if (!onResult.consistent && !offResult.consistent)
+    return {false, false};
+
+  bool change = false;
+
+  if (onResult.consistent && !offResult.consistent) {
+    *this = onSearch;
+    change = true;
+  }
+
+  if (!onResult.consistent && offResult.consistent) {
+    *this = offSearch;
+    change = true;
+  }
+
+  if (onResult.consistent && offResult.consistent && onResult.changed && offResult.changed) {
+    // TODO! use all the masks! this might make a big difference!
+    // Copy over common cells
+    LifeState agreement = unknown & ~onSearch.unknown & ~offSearch.unknown & ~(onSearch.state ^ offSearch.state);
+    if (!agreement.IsEmpty()) {
+      SetOn( agreement &  onSearch.state);
+      SetOff(agreement & ~onSearch.state);
+      change = true;
+    }
+  }
+
+  return {true, change};
+}
+
 
 PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
   // Try all the nearby changes to see if any are forced
   LifeState remainingCells = cells;
-  bool change = false;
+  bool anyChanges = false;
   while (!remainingCells.IsEmpty()) {
     auto cell = remainingCells.FirstOn();
     remainingCells.Erase(cell);
 
-    // Try on
-    LifeStableState onSearch = *this;
-    onSearch.SetOn(cell);
-    // auto onResult = onSearch.PropagateColumn(cell.first);
-    auto onResult = onSearch.Propagate();
-
-    // Try off
-    LifeStableState offSearch = *this;
-    offSearch.SetOff(cell);
-    // auto offResult = offSearch.PropagateColumn(cell.first);
-    auto offResult = offSearch.Propagate();
-
-    if (!onResult.consistent && !offResult.consistent) {
+    LifeStableState copy = *this;
+    auto result = TestUnknown(cell);
+    if (!result.consistent)
       return {false, false};
-    }
-
-    if (onResult.consistent && !offResult.consistent) {
-      *this = onSearch;
-      change = true;
-    }
-
-    if (!onResult.consistent && offResult.consistent) {
-      *this = offSearch;
-      change = true;
-    }
-
-    if (onResult.consistent && offResult.consistent && onResult.changed && offResult.changed) {
-      // Copy over common cells
-      LifeState agreement = unknown & ~onSearch.unknown & ~offSearch.unknown & ~(onSearch.state ^ offSearch.state);
-      if (!agreement.IsEmpty()) {
-        // std::cout << "Agreement:" << std::endl;
-        // std::cout << LifeHistoryState(state | (agreement & onSearch.state), unknown & ~agreement, agreement).RLEWHeader() << std::endl;
-        SetOn(agreement & onSearch.state);
-        SetOff(agreement & ~onSearch.state);
-        change = true;
-      }
-    }
+    anyChanges = anyChanges || result.changed;
 
     remainingCells &= unknown;
   }
 
-  if (change)
-    return {Propagate().consistent, true};
-  else
-    return {true, false};
+  return {true, anyChanges};
 }
 
 bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best) {
@@ -768,6 +1339,26 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
   return best;
 }
 
+
+bool LifeStableState::CompatibleWith(const LifeState &desired) const {
+  LifeStableState desiredStable = LifeStableState();
+  desiredStable.state = desired;
+  desiredStable.StabiliseOptions();
+  return CompatibleWith(desiredStable);
+}
+
+bool LifeStableState::CompatibleWith(const LifeStableState &desired) const {
+  if(!(live2 & ~desired.live2).IsEmpty()) return false;
+  if(!(live3 & ~desired.live3).IsEmpty()) return false;
+  if(!(dead0 & ~desired.dead0).IsEmpty()) return false;
+  if(!(dead1 & ~desired.dead1).IsEmpty()) return false;
+  if(!(dead2 & ~desired.dead2).IsEmpty()) return false;
+  if(!(dead4 & ~desired.dead4).IsEmpty()) return false;
+  if(!(dead5 & ~desired.dead5).IsEmpty()) return false;
+  if(!(dead6 & ~desired.dead6).IsEmpty()) return false;
+  if(!(~unknown & ~desired.unknown & (state ^ desired.state)).IsEmpty()) return false;
+  return true;
+}
 
 std::string LifeStableState::RLE() const {
   LifeState marked = unknown | state;
