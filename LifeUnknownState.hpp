@@ -88,6 +88,7 @@ public:
   LifeState ActiveComparedTo(const LifeStableState &stable) const;
   LifeState ChangesComparedTo(const LifeUnknownState &prev) const;
   void TransferStable(const LifeStableState &stable);
+  void TransferStable(const LifeStableState &stable, std::pair<int, int> cell);
 
   void SetKnown(std::pair<int, int> cell, bool value, bool stable) {
     if (stable) {
@@ -521,6 +522,16 @@ void LifeUnknownState::TransferStable(const LifeStableState &stable) {
   state |= stable.state & updated;
   unknown &= ~updated;
   unknownStable &= ~updated;
+}
+
+void LifeUnknownState::TransferStable(const LifeStableState &stable, std::pair<int, int> cell) {
+  bool updated = unknownStable.Get(cell) && !stable.unknown.Get(cell);
+  if (updated) {
+    if(stable.state.Get(cell))
+      state.Set(cell);
+    unknown.Erase(cell);
+    unknownStable.Erase(cell);
+  }
 }
 
 LifeState

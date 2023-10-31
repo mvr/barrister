@@ -114,25 +114,17 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
 }
 
 Transition
-AllowedTransitions(FrontierGeneration &generation,
+AllowedTransitions(const FrontierGeneration &generation,
                    const LifeStableState &stable,
                    std::pair<int, int> cell) {
-  // The frontier generation may be out of date with the stable state,
-  // so we have to be a little careful
-
   auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
 
-  bool prevState =
-      generation.prev.state.Get(cell) ||
-      (generation.prev.unknownStable.Get(cell) &&
-       !stable.unknown.Get(cell) && stable.state.Get(cell));
+  auto allowedTransitions = ::AllowedTransitions(
+      generation.prev.state.Get(cell), stable.unknown.Get(cell),
+      stable.state.Get(cell), generation.forcedInactive.Get(cell),
+      generation.forcedUnchanging.Get(cell), stable.stateZOI.Get(cell),
+      generation.prev.UnperturbedTransitionFor(cell));
 
-  auto allowedTransitions = ::AllowedTransitions(prevState, stable.unknown.Get(cell),
-                              stable.state.Get(cell),
-                              generation.forcedInactive.Get(cell),
-                              generation.forcedUnchanging.Get(cell),
-                              stable.stateZOI.Get(cell),
-                              generation.prev.UnperturbedTransitionFor(cell));
   return TransitionSimplify(possibleTransitions & allowedTransitions);
 }
 
@@ -192,8 +184,6 @@ public:
   std::pair<bool, Frontier> CalculateFrontier();
   std::pair<bool, bool> TryAdvance();
 
-  Transition AllowedTransitions(FrontierGeneration &cellGeneration,
-                                std::pair<int, int> frontierCell) const;
   StableOptions OptionsFor(const LifeUnknownState &state,
                            std::pair<int, int> cell,
                            Transition transition) const;
@@ -340,6 +330,9 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
   LifeState remainingCells = generation.frontierCells;
   for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
        remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
+
+    generation.prev.TransferStable(stable, cell);
+    generation.state.TransferStable(stable, cell);
 
     // Check whether the stable state of the cell is actually forced
     if(stable.unknown.Get(cell)) {
@@ -667,6 +660,8 @@ void SearchState::SearchStep() {
 
   assert(branchCell.first != -1);
 
+  frontierGeneration.prev.TransferStable(stable, branchCell);
+  frontierGeneration.state.TransferStable(stable, branchCell);
   auto allowedTransitions = ::AllowedTransitions(frontierGeneration, stable, branchCell);
   // The cell should not still be in the frontier in this case
   assert(!TransitionIsSingleton(allowedTransitions));
