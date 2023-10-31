@@ -194,7 +194,8 @@ public:
 
   Transition AllowedTransitions(FrontierGeneration &cellGeneration,
                                 std::pair<int, int> frontierCell) const;
-  StableOptions OptionsFor(LifeUnknownState state, std::pair<int, int> cell,
+  StableOptions OptionsFor(const LifeUnknownState &state,
+                           std::pair<int, int> cell,
                            Transition transition) const;
   void ResolveFrontier();
 
@@ -340,15 +341,6 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
   for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
        remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
 
-#ifdef DEBUG
-    {
-      bool beforeUnknown = stable.unknown.Get(cell);
-      bool beforeState = stable.state.Get(cell);
-      stable.UpdateStateKnown(cell);
-      assert(beforeUnknown == stable.unknown.Get(cell));
-      assert(beforeState == stable.state.Get(cell));
-    }
-#endif
 
     if (!generation.state.unknown.Get(cell)) {
       // It was set by stable propagation
@@ -636,6 +628,7 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
 }
 
 void SearchState::SearchStep() {
+  // Don't totally recalculate unless necessary
   auto [consistent, someChanges] = RefineFrontier();
   if (!consistent)
     return;
@@ -645,16 +638,6 @@ void SearchState::SearchStep() {
     std::tie(consistent, frontier) = CalculateFrontier();
     if (!consistent)
       return;
-
-    // This is more important now than in old Barrister: we otherwise
-    // spend a fair bit of time searching uncompletable parts of the
-    // search space
-    // TODO: need to figure out which cells to check! doing everything in stateZOI is very wasteful!
-
-    // // auto propagateResult = stable.TestUnknowns(stable.Vulnerable());
-    // auto propagateResult = stable.TestUnknowns(stable.stateZOI & stable.unknown);
-    // if (!propagateResult.consistent)
-    //   return;
   }
 
   SanityCheck();
@@ -671,25 +654,23 @@ void SearchState::SearchStep() {
   auto &frontierGeneration = frontier.generations[i];
 
   assert(branchCell.first != -1);
-  // The cell should not still be in the frontier in this case
-  assert(stable.unknown.CountNeighboursWithCenter(branchCell) != 0);
 
   auto allowedTransitions = ::AllowedTransitions(frontierGeneration, stable, branchCell);
+  // The cell should not still be in the frontier in this case
+  assert(!TransitionIsSingleton(allowedTransitions));
 
   // Loop over the possible transitions
   for (auto transition = TransitionHighest(allowedTransitions);
        transition != Transition::IMPOSSIBLE;
        allowedTransitions &= ~transition, transition = TransitionHighest(allowedTransitions)) {
 
-    auto currentoptions = stable.GetOptions(branchCell);
-    auto newoptions = currentoptions & OptionsFor(frontierGeneration.prev, branchCell, transition);
+    auto newoptions = stable.GetOptions(branchCell) & OptionsFor(frontierGeneration.prev, branchCell, transition);
 
     if (newoptions == StableOptions::IMPOSSIBLE)
       continue;
 
     SearchState newSearch = *this;
     newSearch.stable.RestrictOptions(branchCell, newoptions);
-    // TODO: StablePropagate the column of the cell now?
     newSearch.stable.SynchroniseStateKnown(branchCell);
 
     newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
@@ -699,12 +680,6 @@ void SearchState::SearchStep() {
       newSearch.stable.stateZOI.Set(branchCell);
 
       if (!hasInteracted) {
-        // std::cout << "First Perturbing:" << std::endl;
-        // std::cout << std::bitset<8>(static_cast<unsigned char>(t)) << std::endl;
-        // std::cout << frontierGeneration.prev.ToHistory().RLEWHeader() << std::endl;
-        // std::cout << LifeHistoryState(frontierGeneration.state.state, frontierGeneration.state.unknown, LifeState::Cell(branchCell)).RLEWHeader() << std::endl;
-        // std::cout << branchCell.first << ", " << branchCell.second << std::endl;
-
         newSearch.hasInteracted = true;
         newSearch.interactionStart = frontierGeneration.gen;
       }
@@ -736,10 +711,8 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   frontier = {std::vector<FrontierGeneration>()};
 
   everActive = LifeState();
-  // activeTimer =
-  // LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
-  // streakTimer =
-  // LifeCountdown<maxCellActiveStreakGens>(params->maxCellActiveStreakGens);
+  // activeTimer = LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
+  // streakTimer = LifeCountdown<maxCellActiveStreakGens>(params->maxCellActiveStreakGens);
 }
 
 void SearchState::ReportSolution() {
