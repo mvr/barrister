@@ -341,9 +341,24 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
   for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
        remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
 
+    // Check whether the stable state of the cell is actually forced
+    if(stable.unknown.Get(cell)) {
+      auto propagateResult = stable.TestUnknown(cell);
 
-    if (!generation.state.unknown.Get(cell)) {
-      // It was set by stable propagation
+      if (!propagateResult.consistent)
+        return {false, false};
+
+      if (propagateResult.changed) {
+        // TODO: just the strip
+        stable.SynchroniseStateKnown();
+        generation.prev.TransferStable(stable);
+        generation.state.TransferStable(stable);
+        someForced = true;
+      }
+    }
+
+    // Check whether the transition was already figured out by other means
+    if ((!generation.prev.unknown.Get(cell) && !generation.state.unknown.Get(cell)) || generation.state.unknownStable.Get(cell)) {
       generation.frontierCells.Erase(cell);
       continue;
     }
