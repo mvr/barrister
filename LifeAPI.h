@@ -94,7 +94,7 @@ constexpr unsigned longest_run_uint64_t(uint64_t x) {
 
   for (int n = 5; n >= 0; n--) {
     uint64_t y = (x & __builtin_rotateleft64(x, 1 << n));
-    if (y != 0 && n < last) {
+    if (y != 0 && (unsigned)n < last) {
       count += 1 << n;
       x = y;
     }
@@ -146,7 +146,7 @@ constexpr unsigned longest_run_uint32_t(uint32_t x) {
 
   for (int n = 4; n >= 0; n--) {
     uint64_t y = (x & __builtin_rotateleft64(x, 1 << n));
-    if (y != 0 && n < last) {
+    if (y != 0 && (unsigned)n < last) {
       count += 1 << n;
       x = y;
     }
@@ -300,6 +300,11 @@ public:
   constexpr LifeState() : state{0} {}
   LifeState(__attribute__((unused)) bool dummy) {}
 
+  LifeState(const LifeState &) = default;
+  LifeState &operator=(const LifeState &) = default;
+
+  LifeState &operator=(bool) = delete;
+
   void Set(unsigned x, unsigned y) { state[x] |= (1ULL << y); }
   void Erase(unsigned x, unsigned y) { state[x] &= ~(1ULL << y); }
   void Set(unsigned x, unsigned y, bool val) { if(val) Set(x, y); else Erase(x, y); }
@@ -320,7 +325,7 @@ public:
   bool GetSafe(std::pair<int, int> cell) const { return GetSafe(cell.first, cell.second); };
 
   constexpr uint64_t& operator[](const unsigned i) { return state[i]; }
-  constexpr const uint64_t operator[](const unsigned i) const { return state[i]; }
+  constexpr uint64_t operator[](const unsigned i) const { return state[i]; }
 
   uint64_t GetHash() const {
     uint64_t result = 0;
@@ -1037,6 +1042,8 @@ public:
       return std::make_pair(foundq + 2, __builtin_ctzll(state[foundq + 2]));
     } else if (state[foundq + 3] != 0ULL) {
       return std::make_pair(foundq + 3, __builtin_ctzll(state[foundq + 3]));
+    } else {
+      return std::make_pair(-1, -1);
     }
   }
 #endif
@@ -1096,6 +1103,16 @@ public:
   static LifeState CellZOI(std::pair<int, int> cell) {
     return LifeState::NZOIAround(cell, 1);
   }
+
+  static LifeState ColumnZOI(int i, uint64_t col) {
+    LifeState result;
+    col = col | RotateLeft(col) | RotateRight(col);
+    result[(i - 1 + N) % N] = col;
+    result[i] = col;
+    result[(i + 1) % N] = col;
+    return result;
+  }
+
 
   LifeState NZOI(unsigned distance) {
     return Convolve(LifeState::NZOIAround({0, 0}, distance));
