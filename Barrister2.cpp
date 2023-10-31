@@ -45,7 +45,9 @@
 // then the current cell is likely to be swamped in the next
 // generation or two
 
-const unsigned maxLookaheadGens = 5;
+const unsigned maxBranchingGens = 3;
+const unsigned maxFrontierGens = 10;
+const unsigned maxLookaheadGens = 20;
 
 const unsigned maxCellActiveWindowGens = 0;
 const unsigned maxCellActiveStreakGens = 0;
@@ -77,10 +79,6 @@ struct FrontierGeneration {
   }
 };
 
-// struct FrontierCell {
-//   std::pair<int, int> cell;
-//   unsigned gen;
-// };
 Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
                               bool forcedInactive, bool forcedUnchanging, bool inzoi, Transition unperturbed) {
   auto result = Transition::ANY;
@@ -141,16 +139,6 @@ AllowedTransitions(FrontierGeneration &generation,
 
 struct Frontier {
   std::vector<FrontierGeneration> generations;
-  // std::vector<FrontierCell> cells;
-
-  bool IsEmpty() const {
-    for (auto &g : generations) {
-      if (!g.frontierCells.IsEmpty()) {
-        return false;
-      }
-    }
-    return true;
-  }
 };
 
 class SearchState {
@@ -209,6 +197,10 @@ public:
   StableOptions OptionsFor(LifeUnknownState state, std::pair<int, int> cell,
                            Transition transition) const;
   void ResolveFrontier();
+
+  bool FrontierComplete() const;
+  std::pair<unsigned, std::pair<int, int>> ChooseBranchCell() const;
+
   void SearchStep();
 
   void ReportSolution();
@@ -424,7 +416,7 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
   bool anyForced = false;
 
-  for (unsigned i = 0; i < maxLookaheadGens; i++) {
+  for (unsigned i = 0; i < maxFrontierGens; i++) {
     gen++;
 
     auto [result, someForced] = stable.StabiliseOptions();
@@ -607,12 +599,48 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
   return {true, frontier};
 }
 
+bool SearchState::FrontierComplete() const {
+  bool isEmpty = true;
+  for (auto &g : frontier.generations) {
+    if (g.gen > currentGen + maxBranchingGens)
+      break;
+    if (!g.frontierCells.IsEmpty()) {
+      isEmpty = false;
+      break;
+    }
+  }
+  return isEmpty;
+}
+
+std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
+  // Prefer unknown stable cells?
+  // Prefer lower numbers of possible transitions?
+  // Prefer cells where all options are active?
+  unsigned i;
+  std::pair<int, int> branchCell = {-1, -1};
+  // for (unsigned i = 0; i < generations.size(); i++) {
+  //   std::pair<int, int> branchCell = generations[i].frontierCells.FirstOn();
+  //   if (branchCell.first != -1) {
+  //     auto allowedTransitions = ::AllowedTransitions(generations[i], stable, branchCell);
+  //     if ((allowedTransitions & Transition::STABLE_TO_STABLE) != Transition::STABLE_TO_STABLE)
+  //     // if(TransitionCount(allowedTransitions) <= 3)
+  //       return {i, branchCell};
+  //   }
+  // }
+  for (i = 0; i < frontier.generations.size(); i++) {
+    branchCell = frontier.generations[i].frontierCells.FirstOn();
+    if(branchCell.first != -1) break;
+  }
+
+  return {i, branchCell};
+}
+
 void SearchState::SearchStep() {
   auto [consistent, someChanges] = RefineFrontier();
   if (!consistent)
     return;
 
-  if (frontier.IsEmpty()) {
+  if (FrontierComplete()) {
     bool consistent;
     std::tie(consistent, frontier) = CalculateFrontier();
     if (!consistent)
@@ -639,13 +667,7 @@ void SearchState::SearchStep() {
   //   std::cout << g.state.ToHistory().RLEWHeader() << std::endl;
   // }
 
-  std::pair<int, int> branchCell = {-1, -1};
-  unsigned i;
-  for (i = 0; i < frontier.generations.size(); i++) {
-    branchCell = frontier.generations[i].frontierCells.FirstOn();
-    if(branchCell.first != -1) break;
-  }
-
+  auto [i, branchCell] = ChooseBranchCell();
   auto &frontierGeneration = frontier.generations[i];
 
   assert(branchCell.first != -1);
