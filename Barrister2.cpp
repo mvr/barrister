@@ -372,13 +372,14 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
       if (newOptions == StableOptions::IMPOSSIBLE)
         return {false, false};
 
-      // // Correct the transition, if we have just learned the stable state
-      // if (transition == Transition::STABLE_TO_STABLE && !stable.unknown.Get(cell)) {
-      //   if (stable.state.Get(cell))
-      //     transition = Transition::ON_TO_ON;
-      //   else
-      //     transition = Transition::OFF_TO_OFF;
-      // }
+      // Correct the transition, if we have actually learned the stable state
+      if (transition == Transition::STABLE_TO_STABLE && !stable.unknown.Get(cell)) {
+        someForced = true;
+        if (stable.state.Get(cell))
+          transition = Transition::ON_TO_ON;
+        else
+          transition = Transition::OFF_TO_OFF;
+      }
 
       generation.SetTransition(cell, transition);
 
