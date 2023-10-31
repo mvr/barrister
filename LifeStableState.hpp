@@ -91,8 +91,8 @@ public:
   PropagateResult PropagateSimple();
 
   PropagateResult StabiliseOptions();
-  PropagateResult UpdateStateKnown();
   void UpdateStateKnown(std::pair<int, int> cell);
+  PropagateResult SynchroniseStateKnown();
   PropagateResult UpdateOptions(); // Assumes counts and state/unknown are in sync
   PropagateResult SignalNeighbours(); // Assumes counts and state/unknown are in sync
   PropagateResult PropagateStep();
@@ -116,7 +116,7 @@ public:
   void SanityCheck() {
 #ifdef DEBUG
     LifeStableState copy = *this;
-    auto [consistent, changes] = copy.UpdateStateKnown();
+    auto [consistent, changes] = copy.SynchroniseStateKnown();
     assert(consistent);
     assert(!changes);
 #endif
@@ -328,7 +328,19 @@ PropagateResult LifeStableState::PropagateSimple() {
   return {true, changed};
 }
 
-PropagateResult LifeStableState::UpdateStateKnown() {
+PropagateResult LifeStableState::SynchroniseStateKnown() {
+  LifeState knownOn = ~unknown & state;
+  dead0 |= knownOn;
+  dead1 |= knownOn;
+  dead2 |= knownOn;
+  dead4 |= knownOn;
+  dead5 |= knownOn;
+  dead6 |= knownOn;
+
+  LifeState knownOff = ~unknown & ~state;
+  live2 |= knownOff;
+  live3 |= knownOff;
+
   LifeState maybeLive = ~(live2 & live3);
   LifeState maybeDead = ~(dead0 & dead1 & dead2 & dead4 & dead5 & dead6);
 
@@ -542,12 +554,13 @@ PropagateResult LifeStableState::StabiliseOptions() {
   bool done = false;
   while (!done) {
     done = false;
-    PropagateResult optionsresult = UpdateOptions();
-    if (!optionsresult.consistent)
+
+    PropagateResult knownresult = SynchroniseStateKnown();
+    if (!knownresult.consistent)
       return {false, false};
 
-    PropagateResult knownresult = UpdateStateKnown();
-    if (!knownresult.consistent)
+    PropagateResult optionsresult = UpdateOptions();
+    if (!optionsresult.consistent)
       return {false, false};
 
     done = !optionsresult.changed && !knownresult.changed;

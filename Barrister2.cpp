@@ -382,7 +382,7 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
       auto startingOptions = stable.GetOptions(cell);
       auto options = OptionsFor(generation.prev, cell, transition);
       stable.RestrictOptions(cell, options);
-      stable.UpdateStateKnown(cell);
+      stable.SynchroniseStateKnown(cell);
       auto newOptions = stable.GetOptions(cell);
 
       if (newOptions == StableOptions::IMPOSSIBLE)
@@ -667,8 +667,8 @@ void SearchState::SearchStep() {
 
     SearchState newSearch = *this;
     newSearch.stable.RestrictOptions(branchCell, newoptions);
-    newSearch.stable.UpdateStateKnown(branchCell);
     // TODO: StablePropagate the column of the cell now?
+    newSearch.stable.SynchroniseStateKnown(branchCell);
 
     newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
     newSearch.frontier.generations[i].SetTransition(branchCell, transition);
