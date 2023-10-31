@@ -28,7 +28,11 @@ void inline CountRows(const LifeState &state, LifeState &__restrict__ bit0, Life
   }
 }
 
-void inline CountNeighbourhood(const LifeState &state, LifeState &__restrict__ bit3, LifeState &__restrict__ bit2, LifeState &__restrict__ bit1, LifeState &__restrict__ bit0) {
+void inline CountNeighbourhood(const LifeState &state,
+                               LifeState &__restrict__ bit3,
+                               LifeState &__restrict__ bit2,
+                               LifeState &__restrict__ bit1,
+                               LifeState &__restrict__ bit0) {
   LifeState col0(false), col1(false);
   CountRows(state, col0, col1);
 
@@ -68,6 +72,94 @@ void inline CountNeighbourhood(const LifeState &state, LifeState &__restrict__ b
       bit1.state[i] = on1;
       bit0.state[i] = on0;
     }
+  }
+}
+
+std::array<uint64_t, 4> inline CountNeighbourhoodColumn(const LifeState &state, int column) {
+  std::array<uint64_t, 4> nearby;
+  for (int i = 0; i < 4; i++) {
+    int c = (column + i - 1 + N) % N;
+    nearby[i] = state[c];
+  }
+
+  std::array<uint64_t, 4> col0;
+  std::array<uint64_t, 4> col1;
+
+  for (int i = 0; i < 4; i++) {
+    uint64_t a = nearby[i];
+    uint64_t l = RotateLeft(a);
+    uint64_t r = RotateRight(a);
+
+    col0[i] = l ^ r ^ a;
+    col1[i] = ((l ^ r) & a) | (l & r);
+  }
+
+  std::array<uint64_t, 4> result;
+
+  {
+    int idxU = 0;
+    int i = 1;
+    int idxB = 2;
+
+    uint64_t u_on1 = col1[idxU];
+    uint64_t u_on0 = col0[idxU];
+    uint64_t c_on1 = col1[i];
+    uint64_t c_on0 = col0[i];
+    uint64_t l_on1 = col1[idxB];
+    uint64_t l_on0 = col0[idxB];
+
+    uint64_t uc0, uc1, uc2, uc_carry0;
+    HalfAdd(uc0, uc_carry0, u_on0, c_on0);
+    FullAdd(uc1, uc2, u_on1, c_on1, uc_carry0);
+
+    uint64_t on_carry1, on_carry0;
+    HalfAdd(result[3], on_carry0, uc0, l_on0);
+    FullAdd(result[2], on_carry1, uc1, l_on1, on_carry0);
+    HalfAdd(result[1], result[0], uc2, on_carry1);
+  }
+
+  return result;
+}
+
+void inline CountNeighbourhoodStrip(
+    const std::array<uint64_t, 6> &state,
+    std::array<uint64_t, 4> &__restrict__ bit3,
+    std::array<uint64_t, 4> &__restrict__ bit2,
+    std::array<uint64_t, 4> &__restrict__ bit1,
+    std::array<uint64_t, 4> &__restrict__ bit0) {
+
+  std::array<uint64_t, 6> col0;
+  std::array<uint64_t, 6> col1;
+
+  for (int i = 0; i < 6; i++) {
+    uint64_t a = state[i];
+    uint64_t l = RotateLeft(a);
+    uint64_t r = RotateRight(a);
+
+    col0[i] = l ^ r ^ a;
+    col1[i] = ((l ^ r) & a) | (l & r);
+  }
+
+  #pragma clang loop vectorize(enable)
+  for (int i = 1; i < 5; i++) {
+    int idxU = i-1;
+    int idxB = i+1;
+
+    uint64_t u_on1 = col1[idxU];
+    uint64_t u_on0 = col0[idxU];
+    uint64_t c_on1 = col1[i];
+    uint64_t c_on0 = col0[i];
+    uint64_t l_on1 = col1[idxB];
+    uint64_t l_on0 = col0[idxB];
+
+    uint64_t uc0, uc1, uc2, uc_carry0;
+    HalfAdd(uc0, uc_carry0, u_on0, c_on0);
+    FullAdd(uc1, uc2, u_on1, c_on1, uc_carry0);
+
+    uint64_t on_carry1, on_carry0;
+    HalfAdd(bit0[i-1], on_carry0, uc0, l_on0);
+    FullAdd(bit1[i-1], on_carry1, uc1, l_on1, on_carry0);
+    HalfAdd(bit2[i-1], bit3[i-1], uc2, on_carry1);
   }
 }
 
