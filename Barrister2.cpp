@@ -81,6 +81,63 @@ struct FrontierGeneration {
 //   std::pair<int, int> cell;
 //   unsigned gen;
 // };
+Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
+                              bool forcedInactive, bool forcedUnchanging, bool inzoi, Transition unperturbed) {
+  auto result = Transition::ANY;
+
+  // If current state is known, remove options with the wrong previous state
+  if (!unknownstable && state)
+    result &= Transition::ON_TO_OFF | Transition::ON_TO_ON;
+  if (!unknownstable && !state)
+    result &= Transition::OFF_TO_OFF | Transition::OFF_TO_ON;
+
+  if (forcedInactive && inzoi) {
+    if (unknownstable)
+      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
+    if (!unknownstable && stablestate)
+      result &= ~(Transition::OFF_TO_OFF | Transition::ON_TO_OFF);
+    if (!unknownstable && !stablestate)
+      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_ON);
+  }
+
+  if (forcedInactive && !inzoi) {
+    if (unknownstable) {
+      result &= Transition::UNCHANGING;
+    }
+    if (!unknownstable) {
+      result &= unperturbed;
+    }
+  }
+
+  if (forcedUnchanging && inzoi)
+    result &= Transition::OFF_TO_OFF | Transition::ON_TO_ON | Transition::STABLE_TO_STABLE;
+
+  return result;
+}
+
+Transition
+AllowedTransitions(FrontierGeneration &generation,
+                   const LifeStableState &stable,
+                   std::pair<int, int> cell) {
+  // The frontier generation may be out of date with the stable state,
+  // so we have to be a little careful
+
+  auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
+
+  bool prevState =
+      generation.prev.state.Get(cell) ||
+      (generation.prev.unknownStable.Get(cell) &&
+       !stable.unknown.Get(cell) && stable.state.Get(cell));
+
+  auto allowedTransitions = ::AllowedTransitions(prevState, stable.unknown.Get(cell),
+                              stable.state.Get(cell),
+                              generation.forcedInactive.Get(cell),
+                              generation.forcedUnchanging.Get(cell),
+                              stable.stateZOI.Get(cell),
+                              generation.prev.UnperturbedTransitionFor(cell));
+  return TransitionSimplify(possibleTransitions & allowedTransitions);
+}
+
 
 struct Frontier {
   std::vector<FrontierGeneration> generations;
@@ -202,65 +259,8 @@ LifeState SearchState::ForcedUnchangingCells(
   return LifeState();
 }
 
-Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
-                              bool forcedInactive, bool forcedUnchanging, bool inzoi, Transition unperturbed) {
-  auto result = Transition::ANY;
-
-  // If current state is known, remove options with the wrong previous state
-  if (!unknownstable && state)
-    result &= Transition::ON_TO_OFF | Transition::ON_TO_ON;
-  if (!unknownstable && !state)
-    result &= Transition::OFF_TO_OFF | Transition::OFF_TO_ON;
-
-  if (forcedInactive && inzoi) {
-    if (unknownstable)
-      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
-    if (!unknownstable && stablestate)
-      result &= ~(Transition::OFF_TO_OFF | Transition::ON_TO_OFF);
-    if (!unknownstable && !stablestate)
-      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_ON);
-  }
-
-  if (forcedInactive && !inzoi) {
-    if (unknownstable) {
-      result &= Transition::UNCHANGING;
-    }
-    if (!unknownstable) {
-      result &= unperturbed;
-    }
-  }
-
-  if (forcedUnchanging && inzoi)
-    result &= Transition::OFF_TO_OFF | Transition::ON_TO_ON | Transition::STABLE_TO_STABLE;
-  
-  return result;
-}
-
-Transition
-SearchState::AllowedTransitions(FrontierGeneration &generation,
-                                std::pair<int, int> cell) const {
-  // The frontier generation may be out of date with the stable state,
-  // so we have to be a little careful
-
-  auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
-
-  bool prevState =
-      generation.prev.state.Get(cell) ||
-      (generation.prev.unknownStable.Get(cell) &&
-       !stable.unknown.Get(cell) && stable.state.Get(cell));
-
-  auto allowedTransitions = ::AllowedTransitions(prevState, stable.unknown.Get(cell),
-                              stable.state.Get(cell),
-                              generation.forcedInactive.Get(cell),
-                              generation.forcedUnchanging.Get(cell),
-                              stable.stateZOI.Get(cell),
-                              generation.prev.UnperturbedTransitionFor(cell));
-  return TransitionSimplify(possibleTransitions & allowedTransitions);
-}
-
 StableOptions OptionsFor(bool currentstate, bool nextstate, unsigned currenton,
                          unsigned unknown, unsigned stableon) {
-
   // The possible current count for the neighbourhood, as a bitfield
   unsigned currentmask = (1 << 9) - 1;
 
@@ -277,43 +277,41 @@ StableOptions OptionsFor(bool currentstate, bool nextstate, unsigned currenton,
   return StableOptionsForCounts(stablemask);
 }
 
-// Counts do not include the center
-StableOptions OptionsFor(Transition transition, unsigned currenton,
-                         unsigned unknown, unsigned stableon) {
-  switch (transition) {
-  case Transition::OFF_TO_OFF: return OptionsFor(false, false, currenton, unknown, stableon);
-  case Transition::OFF_TO_ON:  return OptionsFor(false, true,  currenton, unknown, stableon);
-  case Transition::ON_TO_OFF:  return OptionsFor(true,  false, currenton, unknown, stableon);
-  case Transition::ON_TO_ON:   return OptionsFor(true,  true,  currenton, unknown, stableon);
-  case Transition::STABLE_TO_STABLE:
-    return (StableOptions::DEAD & OptionsFor(false, false, currenton, unknown, stableon)) |
-           (StableOptions::LIVE & OptionsFor(true,  true,  currenton, unknown, stableon));
-  default: return StableOptions::IMPOSSIBLE;
-  }
-}
-
-StableOptions SearchState::OptionsFor(LifeUnknownState state,
+StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
                                       std::pair<int, int> cell,
                                       Transition transition) const {
-  auto options = ::OptionsFor(transition, state.state.CountNeighbours(cell),
-                              state.unknown.CountNeighbours(cell),
-                              stable.state.CountNeighbours(cell));
+  unsigned currenton = state.state.CountNeighbours(cell);
+  unsigned unknown = state.unknown.CountNeighbours(cell);
+  unsigned stableon = stable.state.CountNeighbours(cell);
 
-  if (state.unknownStable.Get(cell)) {
-    switch (transition) {
-    case Transition::OFF_TO_OFF:
-    case Transition::OFF_TO_ON:
+  StableOptions options;
+  switch (transition) {
+  case Transition::OFF_TO_OFF:
+    options = ::OptionsFor(false, false, currenton, unknown, stableon);
+    if (state.unknownStable.Get(cell))
       options &= StableOptions::DEAD;
-      break;
-    case Transition::ON_TO_OFF:
-    case Transition::ON_TO_ON:
+    break;
+  case Transition::OFF_TO_ON:
+    options = ::OptionsFor(false, true, currenton, unknown, stableon);
+    if (state.unknownStable.Get(cell))
+      options &= StableOptions::DEAD;
+    break;
+  case Transition::ON_TO_OFF:
+    options = ::OptionsFor(true, false, currenton, unknown, stableon);
+    if (state.unknownStable.Get(cell))
       options &= StableOptions::LIVE;
-      break;
-    case Transition::STABLE_TO_STABLE:
-      break;
-    default:
-      break;
-    }
+    break;
+  case Transition::ON_TO_ON:
+    options = ::OptionsFor(true, true, currenton, unknown, stableon);
+    if (state.unknownStable.Get(cell))
+      options &= StableOptions::LIVE;
+    break;
+  case Transition::STABLE_TO_STABLE:
+    options = (::OptionsFor(false, false, currenton, unknown, stableon) & StableOptions::DEAD) |
+              (::OptionsFor(true,  true,  currenton, unknown, stableon) & StableOptions::LIVE);
+    break;
+  default:
+    options = StableOptions::IMPOSSIBLE;
   }
 
   return options;
@@ -366,7 +364,7 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
       continue;
     }
 
-    auto allowedTransitions = AllowedTransitions(generation, cell);
+    auto allowedTransitions = ::AllowedTransitions(generation, stable, cell);
 
     if (allowedTransitions == Transition::IMPOSSIBLE) {
       return {false, false};
@@ -600,7 +598,7 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
     LifeState remainingCells = generation.frontierCells;
     for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
          remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
-      auto allowedTransitions = AllowedTransitions(generation, cell);
+      auto allowedTransitions = ::AllowedTransitions(generation, stable, cell);
       assert(!TransitionIsSingleton(allowedTransitions));
     }
   }
@@ -654,7 +652,7 @@ void SearchState::SearchStep() {
   // The cell should not still be in the frontier in this case
   assert(stable.unknown.CountNeighboursWithCenter(branchCell) != 0);
 
-  auto allowedTransitions = AllowedTransitions(frontierGeneration, branchCell);
+  auto allowedTransitions = ::AllowedTransitions(frontierGeneration, stable, branchCell);
 
   // Loop over the possible transitions
   for (auto transition = TransitionHighest(allowedTransitions);
