@@ -342,22 +342,6 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
     generation.prev.TransferStable(stable, cell);
     generation.state.TransferStable(stable, cell);
 
-    // Check whether the stable state of the cell is actually forced
-    if(stable.unknown.Get(cell)) {
-      auto propagateResult = stable.TestUnknown(cell);
-
-      if (!propagateResult.consistent)
-        return {false, false};
-
-      if (propagateResult.changed) {
-        // TODO: just the strip
-        stable.SynchroniseStateKnown();
-        generation.prev.TransferStable(stable);
-        generation.state.TransferStable(stable);
-        someForced = true;
-      }
-    }
-
     // Check whether the transition was already figured out by other means
     if ((!generation.prev.unknown.Get(cell) && !generation.state.unknown.Get(cell)) || generation.state.unknownStable.Get(cell)) {
       generation.frontierCells.Erase(cell);
@@ -491,12 +475,38 @@ std::pair<bool, bool> SearchState::RefineFrontierStep() {
       return {false, false};
   }
 
+  for (auto &generation : frontier.generations) {
+  LifeState remainingCells = generation.frontierCells;
+  for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
+       remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
+    // Check whether the stable state of the cell is actually forced
+    if(stable.unknown.Get(cell)) {
+      auto propagateResult = stable.TestUnknown(cell);
+
+      if (!propagateResult.consistent)
+        return {false, false};
+      anyChanges = anyChanges || propagateResult.changed;
+
+      if (propagateResult.changed) {
+        // TODO: just the strip
+        stable.SynchroniseStateKnown();
+      }
+    }
+  }
+  }
+
   return {true, anyChanges};
 }
 
 std::pair<bool, bool> SearchState::RefineFrontier() {
-  bool done = false;
   bool anyChanges = false;
+
+  auto propagateResult = stable.StabiliseOptions();
+  if (!propagateResult.consistent)
+    return {false, false};
+  anyChanges = anyChanges || propagateResult.changed;
+
+  bool done = false;
   while (!done) {
     auto [consistent, changed] = RefineFrontierStep();
     if (!consistent)
@@ -566,12 +576,21 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
       return {false, frontier};
     anyChanges = anyChanges || someChanges;
 
-    // Fold into PopulateFrontier?
-    auto propagateResult = stable.Propagate();
-    anyChanges = anyChanges || propagateResult.changed;
-
+    // This is more important now than in old Barrister: we otherwise
+    // spend a fair bit of time searching uncompletable parts of the
+    // search space
+    auto propagateResult = stable.TestUnknowns(stable.stateZOI & stable.unknown);
     if (!propagateResult.consistent)
       return {false, frontier};
+    anyChanges = anyChanges || propagateResult.changed;
+
+    stable.SanityCheck();
+
+    // Fold into PopulateFrontier?
+    propagateResult = stable.Propagate();
+    if (!propagateResult.consistent)
+      return {false, frontier};
+    anyChanges = anyChanges || propagateResult.changed;
 
     std::tie(consistent, someChanges) = RefineFrontier();
     if (!consistent)
@@ -688,6 +707,10 @@ void SearchState::SearchStep() {
     SearchState newSearch = *this;
     newSearch.stable.RestrictOptions(branchCell, newoptions);
     newSearch.stable.SynchroniseStateKnown(branchCell);
+
+    auto propagateResult = newSearch.stable.PropagateSimpleStrip(branchCell.first);
+    if (!propagateResult.consistent)
+      continue;
 
     newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
     newSearch.frontier.generations[i].SetTransition(branchCell, transition);
