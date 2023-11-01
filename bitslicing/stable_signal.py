@@ -35,7 +35,7 @@ outnames = ["signalon", "signaloff"]
 data = ""
 
 for c in [OFF, ON, UNKNOWN]:
-    for unknown_count in range(0, 9):
+    for unknown_count in range(0, 10):
         if c == UNKNOWN and unknown_count == 0: continue
         for stab_count in range(0, 10 - unknown_count):
             if c == ON and stab_count == 0: continue
