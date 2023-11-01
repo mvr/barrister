@@ -29,19 +29,6 @@ constexpr inline StableOptions& operator|= (StableOptions& a, StableOptions b) {
 constexpr inline StableOptions& operator&= (StableOptions& a, StableOptions b) { a = a & b; return a; }
 constexpr inline StableOptions& operator^= (StableOptions& a, StableOptions b) { a = a ^ b; return a; }
 
-StableOptions StableOptionsForCounts(unsigned countmask) {
-  StableOptions result = StableOptions::IMPOSSIBLE;
-  if ((1 << 2) & countmask) result |= StableOptions::LIVE2;
-  if ((1 << 3) & countmask) result |= StableOptions::LIVE3;
-  if ((1 << 0) & countmask) result |= StableOptions::DEAD0;
-  if ((1 << 1) & countmask) result |= StableOptions::DEAD1;
-  if ((1 << 2) & countmask) result |= StableOptions::DEAD2;
-  if ((1 << 4) & countmask) result |= StableOptions::DEAD4;
-  if ((1 << 5) & countmask) result |= StableOptions::DEAD5;
-  if ((1 << 6) & countmask) result |= StableOptions::DEAD6;
-  return result;
-}
-
 struct PropagateResult {
   bool consistent;
   bool changed;
@@ -49,6 +36,16 @@ struct PropagateResult {
 
 class LifeStableState {
 public:
+  LifeState state;
+  LifeState unknown;
+
+  // This is a superset of state.ZOI(), but may have more cells
+  //
+  // If the active pattern is perturbed somewhere, we know the cell
+  // must be in state.ZOI() eventually even if we don't know exactly
+  // which cell is on
+  LifeState stateZOI;
+
   // IMPORTANT: These are stored flipped to the meaning of StableOptions, so
   // 0 is possible, 1 is ruled out
   LifeState live2;
@@ -60,18 +57,9 @@ public:
   LifeState dead5;
   LifeState dead6;
 
-  // This is a superset of state.ZOI(), but may have more cells
-  //
-  // If the active pattern is perturbed somewhere, we know the cell
-  // must be in state.ZOI() eventually even if we don't know exactly
-  // which cell is on
-  LifeState stateZOI;
-
-  // These are cached values are determined by the live/dead option masks
-  LifeState state;
-  LifeState unknown;
-
   bool operator==(const LifeStableState&) const = default;
+
+  LifeStableState Join(const LifeStableState &other) const;
 
   StableOptions GetOptions(std::pair<int, int> cell) const;
   void RestrictOptions(std::pair<int, int> cell, StableOptions options);

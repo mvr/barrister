@@ -113,10 +113,9 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
   return result;
 }
 
-Transition
-AllowedTransitions(const FrontierGeneration &generation,
-                   const LifeStableState &stable,
-                   std::pair<int, int> cell) {
+Transition AllowedTransitions(const FrontierGeneration &generation,
+                              const LifeStableState &stable,
+                              std::pair<int, int> cell) {
   auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
 
   auto allowedTransitions = ::AllowedTransitions(
@@ -257,7 +256,16 @@ StableOptions OptionsFor(bool currentstate, bool nextstate, unsigned currenton,
   // The possible stable count for the neighbourhood, as a bitfield
   unsigned stablemask = (currentmask >> currenton) << stableon;
 
-  return StableOptionsForCounts(stablemask);
+  StableOptions result = StableOptions::IMPOSSIBLE;
+  if ((1 << 2) & stablemask) result |= StableOptions::LIVE2;
+  if ((1 << 3) & stablemask) result |= StableOptions::LIVE3;
+  if ((1 << 0) & stablemask) result |= StableOptions::DEAD0;
+  if ((1 << 1) & stablemask) result |= StableOptions::DEAD1;
+  if ((1 << 2) & stablemask) result |= StableOptions::DEAD2;
+  if ((1 << 4) & stablemask) result |= StableOptions::DEAD4;
+  if ((1 << 5) & stablemask) result |= StableOptions::DEAD5;
+  if ((1 << 6) & stablemask) result |= StableOptions::DEAD6;
+  return result;
 }
 
 StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
@@ -656,14 +664,15 @@ void SearchState::SearchStep() {
   // }
 
   auto [i, branchCell] = ChooseBranchCell();
+  assert(branchCell.first != -1);
   auto &frontierGeneration = frontier.generations[i];
 
-  assert(branchCell.first != -1);
 
   frontierGeneration.prev.TransferStable(stable, branchCell);
   frontierGeneration.state.TransferStable(stable, branchCell);
   auto allowedTransitions = ::AllowedTransitions(frontierGeneration, stable, branchCell);
   // The cell should not still be in the frontier in this case
+  assert(allowedTransitions != Transition::IMPOSSIBLE);
   assert(!TransitionIsSingleton(allowedTransitions));
 
   // Loop over the possible transitions
@@ -706,10 +715,10 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   stable.unknown = inparams.searchArea;
 
   // This needs to be done in this order first, because the counts/options start at all 0
-  stable.UpdateOptions();
+  stable.SynchroniseStateKnown();
   stable.Propagate();
 
-  current.state = inparams.startingPattern;
+  current.state = inparams.activePattern | stable.state;
   current.unknown = stable.unknown;
   current.unknownStable = stable.unknown;
 

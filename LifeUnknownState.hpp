@@ -65,6 +65,16 @@ Transition TransitionSimplify(Transition transition) {
   return transition;
 }
 
+Transition TransitionFor(const LifeState &state, std::pair<int, int> cell) {
+  bool next = state.StepFor(cell);
+  switch (state.Get(cell) << 1 | next) {
+  case 0b00: return Transition::OFF_TO_OFF;
+  case 0b01: return Transition::OFF_TO_ON;
+  case 0b10: return Transition::ON_TO_OFF;
+  case 0b11: return Transition::ON_TO_ON;
+  default: return Transition::IMPOSSIBLE;
+  }
+}
 
 class LifeUnknownState {
 public:
@@ -113,6 +123,8 @@ public:
     case Transition::STABLE_TO_STABLE:
       SetKnown(cell, false, true);
       break;
+    default:
+      break;
     }
   }
 
@@ -129,18 +141,13 @@ public:
     case Transition::STABLE_TO_STABLE:
       SetKnown(cell, false, true);
       break;
+    default:
+      break;
     }
   }
 
   Transition UnperturbedTransitionFor(std::pair<int, int> cell) const {
-    bool next = state.StepFor(cell);
-    switch (state.Get(cell) << 1 | next) {
-    case 0b00: return Transition::OFF_TO_OFF;
-    case 0b01: return Transition::OFF_TO_ON;
-    case 0b10: return Transition::ON_TO_OFF;
-    case 0b11: return Transition::ON_TO_ON;
-    default: return Transition::IMPOSSIBLE;
-    }
+    return ::TransitionFor(state, cell);
   }
 
   // Would this transition be an interaction with the active pattern?
@@ -149,7 +156,7 @@ public:
   }
 
   std::tuple<bool, bool, bool> StepMaintainingFor(const LifeStableState &stable,
-                                           std::pair<int, int> cell) const {
+                                                  std::pair<int, int> cell) const {
     auto [next, nextUnknown, nextUnknownStable] = StepMaintainingColumn(stable, cell.first);
 
     int y = cell.second;
