@@ -229,6 +229,15 @@ LifeState SearchState::ForcedInactiveCells(
     result |= ~active.BufferAround(params->activeBounds);
   }
 
+  if (params->maxEverActiveCells != -1 &&
+      everActive.GetPop() == (unsigned)params->maxEverActiveCells) {
+    result |= ~everActive; // Or maybe just return
+  }
+
+  if (params->everActiveBounds.first != -1 && activePop > 0) {
+    result |= ~everActive.BufferAround(params->everActiveBounds);
+  }
+
   return result;
 }
 LifeState SearchState::ForcedUnchangingCells(
@@ -311,6 +320,8 @@ StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
 bool SearchState::UpdateActive(FrontierGeneration &generation) {
   generation.active = generation.state.ActiveComparedTo(stable) & stable.stateZOI;
   generation.changes = generation.state.ChangesComparedTo(generation.state) & stable.stateZOI;
+
+  everActive |= generation.active;
 
   generation.forcedInactive = ForcedInactiveCells(
       generation.gen, generation.state, stable, generation.prev,
