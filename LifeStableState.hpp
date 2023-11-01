@@ -131,6 +131,25 @@ public:
   }
 };
 
+LifeStableState LifeStableState::Join(const LifeStableState &other) const {
+  LifeStableState result;
+
+  result.unknown = unknown | other.unknown | (state ^ other.state);
+  result.state = state & ~result.unknown;
+  result.stateZOI = stateZOI & other.stateZOI;
+
+  result.live2 = live2 & other.live2;
+  result.live3 = live3 & other.live3;
+  result.dead0 = dead0 & other.dead0;
+  result.dead1 = dead1 & other.dead1;
+  result.dead2 = dead2 & other.dead2;
+  result.dead4 = dead4 & other.dead4;
+  result.dead5 = dead5 & other.dead5;
+  result.dead6 = dead6 & other.dead6;
+
+  return result;
+}
+
 StableOptions LifeStableState::GetOptions(std::pair<int, int> cell) const {
   auto result = StableOptions::IMPOSSIBLE;
   if(!live2.Get(cell)) result |= StableOptions::LIVE2;
@@ -1191,14 +1210,9 @@ PropagateResult LifeStableState::TestUnknown(std::pair<int, int> cell) {
   }
 
   if (onResult.consistent && offResult.consistent && onResult.changed && offResult.changed) {
-    // TODO! use all the masks! this might make a big difference!
-    // Copy over common cells
-    LifeState agreement = unknown & ~onSearch.unknown & ~offSearch.unknown & ~(onSearch.state ^ offSearch.state);
-    if (!agreement.IsEmpty()) {
-      SetOn( agreement &  onSearch.state);
-      SetOff(agreement & ~onSearch.state);
-      change = true;
-    }
+    LifeStableState joined = onSearch.Join(offSearch);
+    change = joined != *this;
+    *this = joined;
   }
 
   return {true, change};
