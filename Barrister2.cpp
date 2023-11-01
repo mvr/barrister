@@ -452,6 +452,12 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
 std::pair<bool, bool> SearchState::RefineFrontierStep() {
   bool anyChanges = false;
+
+  auto propagateResult = stable.StabiliseOptions();
+  if (!propagateResult.consistent)
+    return {false, false};
+  anyChanges = anyChanges || propagateResult.changed;
+
   for (auto &g : frontier.generations) {
     g.prev.TransferStable(stable);
     g.state.TransferStable(stable);
@@ -463,7 +469,6 @@ std::pair<bool, bool> SearchState::RefineFrontierStep() {
     auto [result, changes] = SetForced(g);
     if (!result)
       return {false, false};
-
     anyChanges = anyChanges || changes;
   }
 
@@ -475,25 +480,14 @@ std::pair<bool, bool> SearchState::RefineFrontierStep() {
       return {false, false};
   }
 
+  LifeState unknowns;
   for (auto &generation : frontier.generations) {
-  LifeState remainingCells = generation.frontierCells;
-  for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
-       remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
-    // Check whether the stable state of the cell is actually forced
-    if(stable.unknown.Get(cell)) {
-      auto propagateResult = stable.TestUnknown(cell);
-
-      if (!propagateResult.consistent)
-        return {false, false};
-      anyChanges = anyChanges || propagateResult.changed;
-
-      if (propagateResult.changed) {
-        // TODO: just the strip
-        stable.SynchroniseStateKnown();
-      }
-    }
+    unknowns |= generation.frontierCells;
   }
-  }
+  propagateResult = stable.TestUnknowns(unknowns);
+  if (!propagateResult.consistent)
+    return {false, false};
+  anyChanges = anyChanges || propagateResult.changed;
 
   return {true, anyChanges};
 }
@@ -501,19 +495,21 @@ std::pair<bool, bool> SearchState::RefineFrontierStep() {
 std::pair<bool, bool> SearchState::RefineFrontier() {
   bool anyChanges = false;
 
-  auto propagateResult = stable.StabiliseOptions();
-  if (!propagateResult.consistent)
-    return {false, false};
-  anyChanges = anyChanges || propagateResult.changed;
-
   bool done = false;
   while (!done) {
     auto [consistent, changed] = RefineFrontierStep();
     if (!consistent)
       return {false, false};
-
     anyChanges = anyChanges || changed;
     done = !changed;
+  }
+
+  // Have to end with this
+  if (anyChanges) {
+    auto propagateResult = stable.StabiliseOptions();
+    if (!propagateResult.consistent)
+      return {false, false};
+    anyChanges = anyChanges || propagateResult.changed;
   }
   return {true, anyChanges};
 }

@@ -1221,7 +1221,7 @@ PropagateResult LifeStableState::TestUnknown(std::pair<int, int> cell) {
 
 PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
   // Try all the nearby changes to see if any are forced
-  LifeState remainingCells = cells;
+  LifeState remainingCells = cells & unknown;
   bool anyChanges = false;
   while (!remainingCells.IsEmpty()) {
     auto cell = remainingCells.FirstOn();
