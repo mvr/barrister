@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import itertools
 import subprocess
 
+# TODO: make an enum
 OFF = 0
 ON = 1
 UNKNOWN = 2
@@ -36,24 +37,49 @@ def int2bin(n, count=24):
     """returns the binary of integer n, using count number of digits"""
     return "".join([str((n >> y) & 1) for y in range(count-1, -1, -1)])
 
+# Counts not including the center square
 @dataclass
 class CellNeighbourhood:
     center : int
-    neighbours : int
+    count : int
 
     def life_rule(self):
         if self.center == ON:
-            if self.neighbours == 2 or self.neighbours == 3: return ON
+            if self.count == 2 or self.count == 3: return ON
             else: return OFF
         if self.center == OFF:
-            if self.neighbours == 3: return ON
+            if self.count == 3: return ON
             else: return OFF
 
     def life_stable(self):
         if self.center == ON:
-            return self.neighbours == 2 or self.neighbours == 3
+            return self.count == 2 or self.count == 3
         if self.center == OFF:
-            return not self.neighbours == 3
+            return not self.count == 3
+
+#     def unknown_relaxations(self):
+#         return CellUnknownNeighbourhood(0,0,0)
+
+@dataclass
+class CellUnknownNeighbourhood:
+    center : int
+    count : int
+    unknown : int
+
+    def meet(self, other):
+        if self.center == other.center: new_center = self.center
+        elif self.center == UNKNOWN: new_center = other.center
+        elif other.center == UNKNOWN: new_center = self.center
+        else: return None
+
+        known_ons = max(self.count, other.count)
+        known_offs = max(8 - self.unknown - self.count, 8 - other.unknown - other.count)
+        remaining_unknown = 8 - known_ons - known_offs
+
+        return CellUnknownNeighbourhood(new_center, known_ons, remaining_unknown)
+
+    def restrict_to(self, o):
+        return self.meet(o.to_unknown_neighbourhood())
 
 @dataclass
 class StableOptions:
@@ -67,9 +93,17 @@ class StableOptions:
     dead5 : bool
     dead6 : bool
 
+    # There must be a nicer way to do this so I can just write StableOptions.impossible
+    @staticmethod
+    def impossible():
+        return StableOptions(True, True, True, True, True, True, True, True)
+
+    @staticmethod
+    def unknown():
+        return StableOptions(False, False, False, False, False, False, False, False)
+
     def copy(self):
         return dataclasses.replace(self)
-
 
     def espresso_str(self):
         result = ""
@@ -83,15 +117,28 @@ class StableOptions:
         result += espresso_char(self.dead6)
         return result
 
+    # are these names backwards?
     def join(self, other):
-        self.live2 = self.live2 and other.live2
-        self.live3 = self.live3 and other.live3
-        self.dead0 = self.dead0 and other.dead0
-        self.dead1 = self.dead1 and other.dead1
-        self.dead2 = self.dead2 and other.dead2
-        self.dead4 = self.dead4 and other.dead4
-        self.dead5 = self.dead5 and other.dead5
-        self.dead6 = self.dead6 and other.dead6
+        return StableOptions(
+            self.live2 and other.live2,
+            self.live3 and other.live3,
+            self.dead0 and other.dead0,
+            self.dead1 and other.dead1,
+            self.dead2 and other.dead2,
+            self.dead4 and other.dead4,
+            self.dead5 and other.dead5,
+            self.dead6 and other.dead6)
+
+    def meet(self, other):
+        return StableOptions(
+            self.live2 or other.live2,
+            self.live3 or other.live3,
+            self.dead0 or other.dead0,
+            self.dead1 or other.dead1,
+            self.dead2 or other.dead2,
+            self.dead4 or other.dead4,
+            self.dead5 or other.dead5,
+            self.dead6 or other.dead6)
 
     # I hate python
     def upperset(self):
@@ -105,6 +152,10 @@ class StableOptions:
                     setattr(options, c, False)
                 result.append(options)
         return result
+
+    @staticmethod
+    def all_possible():
+        return StableOptions.unknown().upperset();
 
     def possible_neighbourhoods(self):
         result = []
@@ -121,46 +172,55 @@ class StableOptions:
     def is_maximal(self):
         return [self.live2, self.live3, self.dead0, self.dead1, self.dead2, self.dead4, self.dead5, self.dead6].count(False) == 1
 
-    def maybedead(self):
+    def maybe_dead(self):
         return not self.dead0 or not self.dead1 or not self.dead2 or not self.dead4 or not self.dead5 or not self.dead6
 
-    def maybelive(self):
+    def maybe_live(self):
         return not self.live2 or not self.live3
 
     def to_three_state(self):
-        maybedead = self.maybedead()
-        maybelive = self.maybelive()
+        maybedead = self.maybe_dead()
+        maybelive = self.maybe_live()
         if maybelive and not maybedead:
             return ON
         if not maybelive and maybedead:
             return OFF
         return UNKNOWN
 
-    @staticmethod
-    def compatible_options(center, stable_neighbours, unknown_neighbours):
-        # Counts not including the center square
+    def to_unknown_neighbourhood(self):
+        counts = [n.count for n in self.possible_neighbourhoods()]
+        return CellUnknownNeighbourhood(self.to_three_state(), min(counts), max(counts) - min(counts))
 
-        lower = stable_neighbours
-        upper = stable_neighbours + unknown_neighbours
+    @staticmethod
+    def maximal_options(unknown_neighbourhood):
+        lower = unknown_neighbourhood.count
+        upper = unknown_neighbourhood.count + unknown_neighbourhood.unknown
         r = range(lower, upper + 1)
 
-        minimal = StableOptions(not 2 in r, not 3 in r, not 0 in r, not 1 in r, not 2 in r, not 4 in r, not 5 in r, not 6 in r)
-        if center == ON:
-            minimal.dead0 = True
-            minimal.dead1 = True
-            minimal.dead2 = True
-            minimal.dead4 = True
-            minimal.dead5 = True
-            minimal.dead6 = True
-        if center == OFF:
-            minimal.live2 = True
-            minimal.live3 = True
-        upperset = minimal.upperset()
+        maximal = StableOptions(not 2 in r, not 3 in r, not 0 in r, not 1 in r, not 2 in r, not 4 in r, not 5 in r, not 6 in r)
+        if unknown_neighbourhood.center == ON:
+            maximal.dead0 = True
+            maximal.dead1 = True
+            maximal.dead2 = True
+            maximal.dead4 = True
+            maximal.dead5 = True
+            maximal.dead6 = True
+        if unknown_neighbourhood.center == OFF:
+            maximal.live2 = True
+            maximal.live3 = True
+        return maximal
 
-        if center == UNKNOWN:
+    @staticmethod
+    def compatible_options(unknown_neighbourhood):
+        upperset = StableOptions.maximal_options(unknown_neighbourhood).upperset()
+
+        if unknown_neighbourhood.center == UNKNOWN:
             upperset = list(filter(lambda u: u.to_three_state() == UNKNOWN, upperset))
 
         return upperset
+
+    def restrict_to(self, unknown_neighbourhood):
+        return self.meet(StableOptions.maximal_options(unknown_neighbourhood))
 
 def print_output(lines, innames, outnames):
     for term in lines:
@@ -208,7 +268,6 @@ def run_espresso(data, innames, outnames):
     lines = out.split("\n")
     phase_line = [l for l in lines if l.startswith("#.phase")][0]
     lines = [l for l in lines if len(l) > 0 and l[0] != '.' and l[0] != '#']
-
 
     print_output(lines, innames, outnames)
     print_phase_correction(phase_line, outnames)

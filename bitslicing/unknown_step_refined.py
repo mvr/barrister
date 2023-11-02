@@ -5,7 +5,7 @@
 from common import *
 
 def step_neighbourhood(stable_neighbourhood, current_center, stable_neighbours, live_neighbours, unknown_neighbours):
-    unknown_ons = stable_neighbourhood.neighbours - stable_neighbours
+    unknown_ons = stable_neighbourhood.count - stable_neighbours
     current_ons = live_neighbours + unknown_ons
 
     return life_rule(current_center, current_ons)
@@ -98,7 +98,9 @@ for stable_center in [OFF, ON, UNKNOWN]:
                     if stable_center == UNKNOWN or current_center == UNKNOWN:
                         unknown_neighbours -= 1
 
-                    for o in StableOptions.compatible_options(stable_center, stab_neighbours, unknown_neighbours):
+                    n = CellUnknownNeighbourhood(stable_center, stab_neighbours, unknown_neighbours)
+
+                    for o in StableOptions.compatible_options(n):
                         result = unknown_step_function(o, current_center, stab_neighbours, live_neighbours, unknown_neighbours)
                         data += emit_boolean(o, current_center, stable_center, stab_count, live_count, unknown_count, result)
 
