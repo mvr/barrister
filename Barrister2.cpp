@@ -713,7 +713,7 @@ void SearchState::SearchStep() {
     newSearch.stable.RestrictOptions(branchCell, newoptions);
     newSearch.stable.SynchroniseStateKnown(branchCell);
 
-    auto propagateResult = newSearch.stable.PropagateSimpleStrip(branchCell.first);
+    auto propagateResult = newSearch.stable.PropagateStrip(branchCell.first);
     if (!propagateResult.consistent)
       continue;
 
