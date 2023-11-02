@@ -409,15 +409,12 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
 }
 
 std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
-  bool anyForced = false;
+  bool anyChanges = false;
 
-  auto [result, someForced] = stable.StabiliseOptions();
-  if (!result)
-     return {false, false, frontier};
   current.TransferStable(stable);
-  anyForced = anyForced || someForced;
 
   Frontier frontier;
+  frontier.generations.reserve(maxFrontierGens);
 
   LifeUnknownState generation = current;
   unsigned gen = currentGen;
@@ -425,16 +422,11 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
   for (unsigned i = 0; i < maxFrontierGens; i++) {
     gen++;
 
-
     FrontierGeneration frontierGeneration = {
         generation,  generation.StepMaintaining(stable),
         LifeState(), LifeState(),
         LifeState(), LifeState(),
         LifeState(), gen};
-
-    stable.SanityCheck();
-    frontierGeneration.prev.SanityCheck(stable);
-    frontierGeneration.state.SanityCheck(stable);
 
     bool updateresult = UpdateActive(frontierGeneration);
     if (!updateresult)
@@ -445,8 +437,10 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
     frontierGeneration.frontierCells = becomeUnknown & ~prevUnknownActive.ZOI();
 
-
-    frontierGeneration.state.SanityCheck(stable);
+    auto [result, someForced] = SetForced(frontierGeneration);
+    if (!result)
+      return {false, false, frontier};
+    anyChanges = anyChanges || someForced;
 
     if(!frontierGeneration.frontierCells.IsEmpty())
       frontier.generations.push_back(frontierGeneration);
@@ -456,7 +450,7 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
     generation = frontierGeneration.state;
   }
-  return {true, anyForced, frontier};
+  return {true, anyChanges, frontier};
 }
 
 std::pair<bool, bool> SearchState::RefineFrontierStep() {
