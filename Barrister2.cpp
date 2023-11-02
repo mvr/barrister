@@ -159,7 +159,7 @@ public:
 
   LifeState ForcedInactiveCells(
       unsigned gen, const LifeUnknownState &state,
-      const LifeStableState &stable, const LifeUnknownState &previous,
+      const LifeStableState &stable,
       const LifeState &active, const LifeState &everActive,
       const LifeState &changes
       // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
@@ -167,7 +167,7 @@ public:
                                 ) const;
   LifeState ForcedUnchangingCells(
       unsigned gen, const LifeUnknownState &state,
-      const LifeStableState &stable, const LifeUnknownState &previous,
+      const LifeStableState &stable,
       const LifeState &active, const LifeState &everActive,
       const LifeState &changes
       // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
@@ -201,7 +201,7 @@ public:
 
 LifeState SearchState::ForcedInactiveCells(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
-    const LifeUnknownState &previous, const LifeState &active,
+    const LifeState &active,
     const LifeState &everActive, const LifeState &changes
     // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
     // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
@@ -242,7 +242,7 @@ LifeState SearchState::ForcedInactiveCells(
 }
 LifeState SearchState::ForcedUnchangingCells(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
-    const LifeUnknownState &previous, const LifeState &active,
+    const LifeState &active,
     const LifeState &everActive, const LifeState &changes
     // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
     // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
@@ -324,20 +324,18 @@ bool SearchState::UpdateActive(FrontierGeneration &generation) {
   everActive |= generation.active;
 
   generation.forcedInactive = ForcedInactiveCells(
-      generation.gen, generation.state, stable, generation.prev,
+      generation.gen, generation.state, stable,
       generation.active, everActive, generation.changes);
 
-  if (!(generation.active & generation.forcedInactive).IsEmpty()) {
+  if (!(generation.active & generation.forcedInactive).IsEmpty())
     return false;
-  }
 
   generation.forcedUnchanging = ForcedUnchangingCells(
-      generation.gen, generation.state, stable, generation.prev,
+      generation.gen, generation.state, stable,
       generation.active, everActive, generation.changes);
 
-  if (!(generation.changes & generation.forcedUnchanging).IsEmpty()) {
+  if (!(generation.changes & generation.forcedUnchanging).IsEmpty())
     return false;
-  }
 
   return true;
 }
