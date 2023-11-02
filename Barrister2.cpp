@@ -665,10 +665,19 @@ void SearchState::SearchStep() {
     return;
 
   if (FrontierComplete()) {
-    bool consistent;
-    std::tie(consistent, frontier) = CalculateFrontier();
+    bool consistent = CalculateFrontier();
     if (!consistent)
       return;
+  } else {
+    // Everything should work if you omit this step: it is supposed to just speed things up.
+    auto [consistent, someChanges] = RefineFrontier();
+    if (!consistent)
+      return;
+    if (FrontierComplete()) {
+      bool consistent = CalculateFrontier();
+      if (!consistent)
+        return;
+    }
   }
 
   SanityCheck();
