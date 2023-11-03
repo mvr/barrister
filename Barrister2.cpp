@@ -578,7 +578,8 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
     // This is more important now than in old Barrister: we otherwise
     // spend a fair bit of time searching uncompletable parts of the
     // search space
-    auto propagateResult = stable.TestUnknowns(stable.stateZOI & stable.unknown);
+
+    propagateResult = stable.TestUnknowns(stable.Vulnerable().ZOI());
     if (!propagateResult.consistent)
       return {false, frontier};
     anyChanges = anyChanges || propagateResult.changed;
