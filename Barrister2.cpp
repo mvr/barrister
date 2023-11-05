@@ -45,9 +45,9 @@
 // then the current cell is likely to be swamped in the next
 // generation or two
 
-const unsigned maxBranchingGens = 3;
-const unsigned maxFrontierGens = 10;
-const unsigned maxLookaheadGens = 20;
+const unsigned maxBranchingGens = 1;
+const unsigned maxFrontierGens = 3;
+const unsigned maxFastLookaheadGens = 3;
 
 const unsigned maxCellActiveWindowGens = 0;
 const unsigned maxCellActiveStreakGens = 0;
