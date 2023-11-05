@@ -178,10 +178,11 @@ public:
   bool UpdateActive(FrontierGeneration &generation);
   std::pair<bool, bool> SetForced(FrontierGeneration &generation);
 
+  std::pair<bool, bool> TestActive(FrontierGeneration &generation);
+
+  bool FastLookahead();
   std::tuple<bool, bool, Frontier> PopulateFrontier();
-  std::pair<bool, bool> RefineFrontierStep();
-  std::pair<bool, bool> RefineFrontier();
-  std::pair<bool, Frontier> CalculateFrontier();
+  bool CalculateFrontier();
   std::pair<bool, bool> TryAdvance();
 
   StableOptions OptionsFor(const LifeUnknownState &state,
@@ -342,9 +343,7 @@ bool SearchState::UpdateActive(FrontierGeneration &generation) {
 }
 
 std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
-  bool someForced = false;
-
-  stable.SanityCheck();
+  bool anyChanges = false;
   LifeState remainingCells = generation.frontierCells;
   for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
        remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
@@ -352,27 +351,23 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
     generation.prev.TransferStable(stable, cell);
     generation.state.TransferStable(stable, cell);
 
-    // Check whether the transition was already figured out by other means
-    if ((!generation.prev.unknown.Get(cell) && !generation.state.unknown.Get(cell)) || generation.state.unknownStable.Get(cell)) {
-      generation.frontierCells.Erase(cell);
-      continue;
-    }
-
     auto allowedTransitions = ::AllowedTransitions(generation, stable, cell);
 
     if (allowedTransitions == Transition::IMPOSSIBLE) {
       return {false, false};
     }
 
+    // Check whether the transition was already figured out by other means
+    if ((!generation.prev.unknown.Get(cell) && !generation.state.unknown.Get(cell)) || generation.state.unknownStable.Get(cell)) {
+      generation.frontierCells.Erase(cell);
+      continue;
+    }
+
+    // Force the transition to occur if it is the only one allowed
     // TODO: don't we possibly gain information even if it's not a singleton?
     if (TransitionIsSingleton(allowedTransitions)) {
       auto transition = allowedTransitions; // Just a rename
 
-      // if(transition == Transition::STABLE_TO_STABLE) {
-      //   auto propagateResult = stable.TestUnknowns(LifeState::Cell(cell));
-      //   if (!propagateResult.consistent)
-      //     return {false, false};
-      // }
       auto startingOptions = stable.GetOptions(cell);
       auto options = OptionsFor(generation.prev, cell, transition);
       stable.RestrictOptions(cell, options);
@@ -384,7 +379,7 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
 
       // Correct the transition, if we have actually learned the stable state
       if (transition == Transition::STABLE_TO_STABLE && !stable.unknown.Get(cell)) {
-        someForced = true;
+        anyChanges = true;
         if (stable.state.Get(cell))
           transition = Transition::ON_TO_ON;
         else
@@ -396,17 +391,57 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
       generation.frontierCells.Erase(cell);
 
       bool alreadyFixed = startingOptions == newOptions;
-      if(!alreadyFixed) {
-        someForced = true;
+      if (!alreadyFixed) {
+        anyChanges = true;
       }
 
-      stable.SanityCheck();
-      generation.prev.SanityCheck(stable);
-      generation.state.SanityCheck(stable);
+      // stable.SanityCheck();
+      // generation.prev.SanityCheck(stable);
+      // generation.state.SanityCheck(stable);
     }
   }
 
-  return {true, someForced};
+  return {true, anyChanges};
+}
+
+bool SearchState::FastLookahead() {
+  LifeUnknownState prev = current;
+  LifeUnknownState generation;
+  unsigned gen = currentGen;
+
+  for (unsigned i = 0; i < maxFastLookaheadGens; i++) {
+    gen++;
+
+    generation = prev.StepMaintaining(stable);
+
+    LifeState active = generation.ActiveComparedTo(stable) & stable.stateZOI;
+    LifeState changes = generation.ChangesComparedTo(generation) & stable.stateZOI;
+
+    everActive |= active;
+
+    LifeState forcedInactive = ForcedInactiveCells(
+        gen, generation, stable, active, everActive, changes);
+
+    if (!(active & forcedInactive).IsEmpty())
+      return false;
+
+    LifeState forcedUnchanging = ForcedUnchangingCells(
+      gen, generation, stable,
+      active, everActive, changes);
+
+    if (!(changes & forcedUnchanging).IsEmpty())
+      return false;
+
+    bool alive =
+        !((prev.state ^ generation.state) & ~prev.unknown & ~generation.unknown)
+             .IsEmpty();
+
+    if (!alive)
+      break;
+
+    prev = generation;
+  }
+  return true;
 }
 
 std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
@@ -452,70 +487,6 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
     generation = frontierGeneration.state;
   }
   return {true, anyChanges, frontier};
-}
-
-std::pair<bool, bool> SearchState::RefineFrontierStep() {
-  bool anyChanges = false;
-
-  auto propagateResult = stable.StabiliseOptions();
-  if (!propagateResult.consistent)
-    return {false, false};
-  anyChanges = anyChanges || propagateResult.changed;
-
-  for (auto &g : frontier.generations) {
-    g.prev.TransferStable(stable);
-    g.state.TransferStable(stable);
-
-    bool updateresult = UpdateActive(g);
-    if (!updateresult)
-      return {false, false};
-
-    auto [result, changes] = SetForced(g);
-    if (!result)
-      return {false, false};
-    anyChanges = anyChanges || changes;
-  }
-
-  if (anyChanges) {
-    auto propagateResult = stable.Propagate();
-    anyChanges = anyChanges || propagateResult.changed;
-
-    if (!propagateResult.consistent)
-      return {false, false};
-  }
-
-  LifeState unknowns;
-  for (auto &generation : frontier.generations) {
-    unknowns |= generation.frontierCells;
-  }
-  propagateResult = stable.TestUnknowns(unknowns);
-  if (!propagateResult.consistent)
-    return {false, false};
-  anyChanges = anyChanges || propagateResult.changed;
-
-  return {true, anyChanges};
-}
-
-std::pair<bool, bool> SearchState::RefineFrontier() {
-  bool anyChanges = false;
-
-  bool done = false;
-  while (!done) {
-    auto [consistent, changed] = RefineFrontierStep();
-    if (!consistent)
-      return {false, false};
-    anyChanges = anyChanges || changed;
-    done = !changed;
-  }
-
-  // Have to end with this
-  if (anyChanges) {
-    auto propagateResult = stable.StabiliseOptions();
-    if (!propagateResult.consistent)
-      return {false, false};
-    anyChanges = anyChanges || propagateResult.changed;
-  }
-  return {true, anyChanges};
 }
 
 std::pair<bool, bool> SearchState::TryAdvance() {
@@ -565,45 +536,57 @@ std::pair<bool, bool> SearchState::TryAdvance() {
   return {true, didAdvance};
 }
 
-std::pair<bool, Frontier> SearchState::CalculateFrontier() {
+bool SearchState::CalculateFrontier() {
+  current.TransferStable(stable);
+
+  // bool consistent = FastLookahead();
+  // if (!consistent) {
+  //   return false;
+  // }
   bool consistent;
 
   bool anyChanges = true;
   while (anyChanges) {
     anyChanges = false;
+
     bool someChanges;
     std::tie(consistent, someChanges, frontier) = PopulateFrontier();
-    if (!consistent)
-      return {false, frontier};
+    if (!consistent) {
+      return false;
+    }
     anyChanges = anyChanges || someChanges;
+
+    auto propagateResult = stable.Propagate();
+    if (!propagateResult.consistent)
+      return false;
+    anyChanges = anyChanges || propagateResult.changed;
+
+    // for (int i = 0; i < frontier.size; i++) {
+    //   auto &g = frontier.generations[i];
+    //   g.prev.TransferStable(stable);
+    //   g.state.TransferStable(stable);
+    //   auto [testConsistent, changed] = TestActive(g);
+    //   if (!testConsistent)
+    //     return false;
+    //   anyChanges = anyChanges || changed;
+    // }
 
     // This is more important now than in old Barrister: we otherwise
     // spend a fair bit of time searching uncompletable parts of the
     // search space
-
     propagateResult = stable.TestUnknowns(stable.Vulnerable().ZOI());
-    if (!propagateResult.consistent)
-      return {false, frontier};
+    if (!propagateResult.consistent) {
+      return false;
+    }
     anyChanges = anyChanges || propagateResult.changed;
 
     stable.SanityCheck();
-
-    // Fold into PopulateFrontier?
-    propagateResult = stable.Propagate();
-    if (!propagateResult.consistent)
-      return {false, frontier};
-    anyChanges = anyChanges || propagateResult.changed;
-
-    std::tie(consistent, someChanges) = RefineFrontier();
-    if (!consistent)
-      return {false, frontier};
-    anyChanges = anyChanges || someChanges;
   }
 
   bool didAdvance = false;
   std::tie(consistent, didAdvance) = TryAdvance();
   if (!consistent)
-    return {false, frontier};
+    return false;
   if (didAdvance) {
     if (frontier.size == 0) {
       // We have to start over
@@ -611,18 +594,7 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
     }
   }
 
-#ifdef DEBUG
-  for (auto &generation : frontier.generations) {
-    LifeState remainingCells = generation.frontierCells;
-    for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
-         remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
-      auto allowedTransitions = ::AllowedTransitions(generation, stable, cell);
-      assert(!TransitionIsSingleton(allowedTransitions));
-    }
-  }
-#endif
-
-  return {true, frontier};
+  return true;
 }
 
 bool SearchState::FrontierComplete() const {
@@ -667,41 +639,16 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
 }
 
 void SearchState::SearchStep() {
-  // Don't totally recalculate unless necessary
-  auto [consistent, someChanges] = RefineFrontier();
+  bool consistent = CalculateFrontier();
   if (!consistent)
     return;
 
-  if (FrontierComplete()) {
-    bool consistent = CalculateFrontier();
-    if (!consistent)
-      return;
-  } else {
-    // Everything should work if you omit this step: it is supposed to just speed things up.
-    auto [consistent, someChanges] = RefineFrontier();
-    if (!consistent)
-      return;
-    if (FrontierComplete()) {
-      bool consistent = CalculateFrontier();
-      if (!consistent)
-        return;
-    }
-  }
-
-  SanityCheck();
-
-  // std::cout << "Stable:" << std::endl;
-  // std::cout << stable.RLEWHeader() << std::endl;
-  // std::cout << "Frontier:" << std::endl;
-  // std::cout << "Gen: " << currentGen << std::endl;
-  // for (auto &g : frontier.generations) {
-  //   std::cout << g.state.ToHistory().RLEWHeader() << std::endl;
-  // }
+  stable.SanityCheck();
+  // SanityCheck();
 
   auto [i, branchCell] = ChooseBranchCell();
   assert(branchCell.first != -1);
   auto &frontierGeneration = frontier.generations[i];
-
 
   frontierGeneration.prev.TransferStable(stable, branchCell);
   frontierGeneration.state.TransferStable(stable, branchCell);
@@ -712,7 +659,7 @@ void SearchState::SearchStep() {
 
   // Loop over the possible transitions
   for (auto transition = TransitionHighest(allowedTransitions);
-       transition != Transition::IMPOSSIBLE;
+       allowedTransitions != Transition::IMPOSSIBLE;
        allowedTransitions &= ~transition, transition = TransitionHighest(allowedTransitions)) {
 
     auto newoptions = stable.GetOptions(branchCell) & OptionsFor(frontierGeneration.prev, branchCell, transition);
@@ -740,10 +687,20 @@ void SearchState::SearchStep() {
       }
     }
 
+    // TODO: seems unnecessary
     newSearch.current.TransferStable(newSearch.stable);
 
     newSearch.SearchStep();
   }
+  // TODO: Do the last iteration without copying the state, a small performance improvement
+  // (Should be identical to the body of the loop, except newSearch is a reference)
+  // TODO: move body to a function, make sure it becomes a tail call correctly
+  // {
+  //   SearchState &newSearch = *this;
+  //   ...
+  //   [[clang::musttail]]
+  //   return newSearch.SearchStep();
+  // }
 }
 
 SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions) : currentGen{0}, hasInteracted{false}, interactionStart{0} {
