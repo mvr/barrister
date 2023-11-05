@@ -89,9 +89,7 @@ public:
     return !(*this == b);
   }
 
-  // This does not allow unknown cells to become known
   LifeUnknownState StepMaintaining(const LifeStableState &stable) const;
-  // This does allow unknown cells to become known
   std::tuple<uint64_t, uint64_t, uint64_t> StepMaintainingColumn(const LifeStableState &stable, int i) const;
 
   // bool CanCleanlyAdvance(const LifeStableState &stable) const;
@@ -330,10 +328,9 @@ std::tuple<uint64_t, uint64_t, uint64_t> LifeUnknownState::StepMaintainingColumn
 
   uint64_t activeUnknownZOI = (unknown & ~unknownStable).ZOIColumn(i);
 
-  // This part is different
-  uint64_t result_state = (naive_next_on & ~naive_next_unknown) | (next_on & ~activeUnknownZOI);
-  uint64_t result_unknown = naive_next_unknown & (next_unknown & ~activeUnknownZOI);
-  uint64_t result_unknownStable = naive_next_unknown & (next_unknown_stable & ~activeUnknownZOI);
+  uint64_t result_state = (naive_next_on & activeUnknownZOI) | (next_on & ~activeUnknownZOI);
+  uint64_t result_unknown = (naive_next_unknown & activeUnknownZOI) | (next_unknown & ~activeUnknownZOI);
+  uint64_t result_unknownStable = (next_unknown_stable & ~activeUnknownZOI);
 
   return {result_state, result_unknown, result_unknownStable};
 }
