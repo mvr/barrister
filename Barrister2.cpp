@@ -129,7 +129,8 @@ Transition AllowedTransitions(const FrontierGeneration &generation,
 
 
 struct Frontier {
-  std::vector<FrontierGeneration> generations;
+  std::array<FrontierGeneration, maxFrontierGens> generations;
+  int size;
 };
 
 class SearchState {
@@ -414,7 +415,7 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
   current.TransferStable(stable);
 
   Frontier frontier;
-  frontier.generations.reserve(maxFrontierGens);
+  frontier.size = 0;
 
   LifeUnknownState generation = current;
   unsigned gen = currentGen;
@@ -442,8 +443,8 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
       return {false, false, frontier};
     anyChanges = anyChanges || someForced;
 
-    if(!frontierGeneration.frontierCells.IsEmpty())
-      frontier.generations.push_back(frontierGeneration);
+    frontier.generations[frontier.size] = frontierGeneration;
+    frontier.size++;
 
     if (!frontierGeneration.IsAlive())
       break;
@@ -532,8 +533,9 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     current = next;
     currentGen += 1;
 
-    if (frontier.generations.size() > 0 && frontier.generations[0].gen == currentGen) {
-      frontier.generations.erase(frontier.generations.begin());
+    if (frontier.size > 0 && frontier.generations[0].gen == currentGen) {
+      std::copy(std::begin(frontier.generations) + 1, std::end(frontier.generations), std::begin(frontier.generations));
+      frontier.size--;
     }
 
     if (hasInteracted) {
@@ -603,7 +605,7 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
   if (!consistent)
     return {false, frontier};
   if (didAdvance) {
-    if (frontier.generations.size() == 0) {
+    if (frontier.size == 0) {
       // We have to start over
       return CalculateFrontier();
     }
@@ -625,7 +627,8 @@ std::pair<bool, Frontier> SearchState::CalculateFrontier() {
 
 bool SearchState::FrontierComplete() const {
   bool isEmpty = true;
-  for (auto &g : frontier.generations) {
+  for (int i = 0; i < frontier.size; i++) {
+    auto &g = frontier.generations[i];
     if (g.gen > currentGen + maxBranchingGens)
       break;
     if (!g.frontierCells.IsEmpty()) {
@@ -651,9 +654,13 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
   //       return {i, branchCell};
   //   }
   // }
-  for (i = 0; i < frontier.generations.size(); i++) {
-    branchCell = frontier.generations[i].frontierCells.FirstOn();
-    if(branchCell.first != -1) break;
+  for (i = 0; i < frontier.size; i++) {
+    auto &g = frontier.generations[i];
+    if (g.gen > currentGen + maxBranchingGens)
+      break;
+    branchCell = g.frontierCells.FirstOn();
+    if (branchCell.first != -1)
+      return {i, branchCell};
   }
 
   return {i, branchCell};
@@ -756,7 +763,8 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
 
   TryAdvance();
 
-  frontier = {std::vector<FrontierGeneration>()};
+  frontier = {};
+  frontier.size = 0;
 
   everActive = LifeState();
   // activeTimer = LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
@@ -800,7 +808,8 @@ void SearchState::ReportSolution() {
 
 LifeState SearchState::FrontierCells() const {
   LifeState result;
-  for (auto &g : frontier.generations) {
+  for (int i = 0; i < frontier.size; i++) {
+    auto &g = frontier.generations[i];
     result |= g.frontierCells;
   }
   return result;
