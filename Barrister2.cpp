@@ -321,7 +321,7 @@ StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
 
 bool SearchState::UpdateActive(FrontierGeneration &generation) {
   generation.active = generation.state.ActiveComparedTo(stable) & stable.stateZOI;
-  generation.changes = generation.state.ChangesComparedTo(generation.state) & stable.stateZOI;
+  generation.changes = generation.state.ChangesComparedTo(generation.prev) & stable.stateZOI;
 
   everActive |= generation.active;
 
@@ -415,7 +415,7 @@ bool SearchState::FastLookahead() {
     generation = prev.StepMaintaining(stable);
 
     LifeState active = generation.ActiveComparedTo(stable) & stable.stateZOI;
-    LifeState changes = generation.ChangesComparedTo(generation) & stable.stateZOI;
+    LifeState changes = generation.ChangesComparedTo(prev) & stable.stateZOI;
 
     everActive |= active;
 
