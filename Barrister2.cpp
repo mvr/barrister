@@ -81,7 +81,7 @@ struct FrontierGeneration {
 
 Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
                               bool forcedInactive, bool forcedUnchanging, bool inzoi, Transition unperturbed) {
-  auto result = Transition::ANY;
+  auto result = Transition::ANY & ~Transition::STABLE_TO_STABLE;
 
   // If current state is known, remove options with the wrong previous state
   if (!unknownstable && state)
@@ -108,7 +108,7 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
   }
 
   if (forcedUnchanging && inzoi)
-    result &= Transition::OFF_TO_OFF | Transition::ON_TO_ON | Transition::STABLE_TO_STABLE;
+    result &= Transition::OFF_TO_OFF | Transition::ON_TO_ON;
 
   return result;
 }
@@ -118,13 +118,13 @@ Transition AllowedTransitions(const FrontierGeneration &generation,
                               std::pair<int, int> cell) {
   auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
 
-  auto allowedTransitions = ::AllowedTransitions(
+  auto allowedTransitions = AllowedTransitions(
       generation.prev.state.Get(cell), stable.unknown.Get(cell),
       stable.state.Get(cell), generation.forcedInactive.Get(cell),
       generation.forcedUnchanging.Get(cell), stable.stateZOI.Get(cell),
       generation.prev.UnperturbedTransitionFor(cell));
 
-  return TransitionSimplify(possibleTransitions & allowedTransitions);
+  return possibleTransitions & allowedTransitions;
 }
 
 
@@ -348,52 +348,49 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
   for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
        remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
 
+    stable.SynchroniseStateKnown(cell);
     generation.prev.TransferStable(stable, cell);
     generation.state.TransferStable(stable, cell);
 
-    auto allowedTransitions = ::AllowedTransitions(generation, stable, cell);
+    auto allowedTransitions = AllowedTransitions(generation, stable, cell);
 
     if (allowedTransitions == Transition::IMPOSSIBLE) {
       return {false, false};
     }
 
-    // Check whether the transition was already figured out by other means
-    if ((!generation.prev.unknown.Get(cell) && !generation.state.unknown.Get(cell)) || generation.state.unknownStable.Get(cell)) {
-      generation.frontierCells.Erase(cell);
-      continue;
+    auto startingOptions = stable.GetOptions(cell);
+    auto possibleOptions = StableOptions::IMPOSSIBLE;
+
+    // See which options and transitions can be actually realised
+    auto remainingTransitions = allowedTransitions;
+    for (auto transition = TransitionHighest(remainingTransitions);
+         remainingTransitions != Transition::IMPOSSIBLE;
+         remainingTransitions &= ~transition, transition = TransitionHighest(remainingTransitions)) {
+
+      auto transitionOptions = startingOptions & OptionsFor(generation.prev, cell, transition);
+      possibleOptions |= transitionOptions;
+      if (transitionOptions == StableOptions::IMPOSSIBLE)
+        allowedTransitions &= ~transition;
     }
 
+    auto newOptions = possibleOptions & startingOptions;
+    if (newOptions == StableOptions::IMPOSSIBLE)
+      return {false, false};
+
+    stable.RestrictOptions(cell, newOptions);
+    stable.SynchroniseStateKnown(cell);
+
+    bool alreadyFixed = startingOptions == newOptions;
+    if (!alreadyFixed) {
+      anyChanges = true;
+    }
+
+    allowedTransitions = TransitionSimplify(allowedTransitions);
+
     // Force the transition to occur if it is the only one allowed
-    // TODO: don't we possibly gain information even if it's not a singleton?
     if (TransitionIsSingleton(allowedTransitions)) {
-      auto transition = allowedTransitions; // Just a rename
-
-      auto startingOptions = stable.GetOptions(cell);
-      auto options = OptionsFor(generation.prev, cell, transition);
-      stable.RestrictOptions(cell, options);
-      stable.SynchroniseStateKnown(cell);
-      auto newOptions = stable.GetOptions(cell);
-
-      if (newOptions == StableOptions::IMPOSSIBLE)
-        return {false, false};
-
-      // Correct the transition, if we have actually learned the stable state
-      if (transition == Transition::STABLE_TO_STABLE && !stable.unknown.Get(cell)) {
-        anyChanges = true;
-        if (stable.state.Get(cell))
-          transition = Transition::ON_TO_ON;
-        else
-          transition = Transition::OFF_TO_OFF;
-      }
-
-      generation.SetTransition(cell, transition);
-
+      generation.SetTransition(cell, allowedTransitions);
       generation.frontierCells.Erase(cell);
-
-      bool alreadyFixed = startingOptions == newOptions;
-      if (!alreadyFixed) {
-        anyChanges = true;
-      }
 
       // stable.SanityCheck();
       // generation.prev.SanityCheck(stable);
@@ -649,7 +646,9 @@ void SearchState::SearchStep() {
 
   frontierGeneration.prev.TransferStable(stable, branchCell);
   frontierGeneration.state.TransferStable(stable, branchCell);
-  auto allowedTransitions = ::AllowedTransitions(frontierGeneration, stable, branchCell);
+
+  auto allowedTransitions = AllowedTransitions(frontierGeneration, stable, branchCell);
+  allowedTransitions = TransitionSimplify(allowedTransitions);
   // The cell should not still be in the frontier in this case
   assert(allowedTransitions != Transition::IMPOSSIBLE);
   assert(!TransitionIsSingleton(allowedTransitions));
@@ -683,9 +682,6 @@ void SearchState::SearchStep() {
         newSearch.interactionStart = frontierGeneration.gen;
       }
     }
-
-    // TODO: seems unnecessary
-    newSearch.current.TransferStable(newSearch.stable);
 
     newSearch.SearchStep();
   }

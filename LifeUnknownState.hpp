@@ -50,17 +50,18 @@ unsigned TransitionCount(Transition t) {
 }
 
 Transition TransitionSimplify(Transition transition) {
+  bool has_on  = (transition & Transition::ON_TO_ON)   == Transition::ON_TO_ON;
+  bool has_off = (transition & Transition::OFF_TO_OFF) == Transition::OFF_TO_OFF;
+  bool has_stable = (transition & Transition::STABLE_TO_STABLE) == Transition::STABLE_TO_STABLE;
+
   // No need to branch them separately
-  if (((transition & Transition::ON_TO_ON) == Transition::ON_TO_ON) &&
-      !((transition & Transition::OFF_TO_OFF) == Transition::OFF_TO_OFF))
-    transition &= ~Transition::STABLE_TO_STABLE;
-
-  if (!((transition & Transition::ON_TO_ON) == Transition::ON_TO_ON) &&
-      ((transition & Transition::OFF_TO_OFF) == Transition::OFF_TO_OFF))
-    transition &= ~Transition::STABLE_TO_STABLE;
-
-  if ((transition & Transition::STABLE_TO_STABLE) == Transition::STABLE_TO_STABLE)
+  if (has_on && has_off) {
+    transition |= Transition::STABLE_TO_STABLE;
     transition &= ~(Transition::ON_TO_ON | Transition::OFF_TO_OFF);
+  }
+  if (has_on && !has_off) transition &= ~Transition::STABLE_TO_STABLE;
+  if (!has_on && has_off) transition &= ~Transition::STABLE_TO_STABLE;
+  if (has_stable) transition &= ~(Transition::ON_TO_ON | Transition::OFF_TO_OFF);
 
   return transition;
 }

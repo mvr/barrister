@@ -21,6 +21,12 @@ enum class StableOptions : unsigned char {
   DEAD = DEAD0 | DEAD1 | DEAD2 | DEAD4 | DEAD5 | DEAD6,
 };
 
+StableOptions StableOptionsHighest(StableOptions t) {
+  if (t == StableOptions::IMPOSSIBLE) return StableOptions::IMPOSSIBLE;
+  unsigned int bits = static_cast<unsigned int>(t);
+  return static_cast<StableOptions>(static_cast<unsigned char>(1 << (8*sizeof(bits)-1-__builtin_clz(bits))));
+}
+
 constexpr inline StableOptions operator~ (StableOptions a) { return static_cast<StableOptions>( ~static_cast<std::underlying_type<StableOptions>::type>(a) ); }
 constexpr inline StableOptions operator| (StableOptions a, StableOptions b) { return static_cast<StableOptions>( static_cast<std::underlying_type<StableOptions>::type>(a) | static_cast<std::underlying_type<StableOptions>::type>(b) ); }
 constexpr inline StableOptions operator& (StableOptions a, StableOptions b) { return static_cast<StableOptions>( static_cast<std::underlying_type<StableOptions>::type>(a) & static_cast<std::underlying_type<StableOptions>::type>(b) ); }
