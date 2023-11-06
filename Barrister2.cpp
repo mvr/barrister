@@ -457,11 +457,12 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
   for (unsigned i = 0; i < maxFrontierGens; i++) {
     gen++;
 
-    FrontierGeneration frontierGeneration = {
-        generation,  generation.StepMaintaining(stable),
-        LifeState(), LifeState(),
-        LifeState(), LifeState(),
-        LifeState(), gen};
+    auto &frontierGeneration = frontier.generations[frontier.size];
+    frontier.size++;
+
+    frontierGeneration.prev = generation;
+    frontierGeneration.state = generation.StepMaintaining(stable);
+    frontierGeneration.gen = gen;
 
     bool updateresult = UpdateActive(frontierGeneration);
     if (!updateresult)
@@ -476,9 +477,6 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
     if (!result)
       return {false, false};
     anyChanges = anyChanges || someForced;
-
-    frontier.generations[frontier.size] = frontierGeneration;
-    frontier.size++;
 
     if (!frontierGeneration.IsAlive())
       break;
