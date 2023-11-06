@@ -803,6 +803,21 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
     nearbyUnknown[i] = unknown[c];
   }
 
+  std::array<uint64_t, 4> nearbylive2, nearbylive3,
+      nearbydead0, nearbydead1, nearbydead2, nearbydead4, nearbydead5, nearbydead6;
+
+  for (int i = 1; i < 5; i++) {
+    int c = (column + i - 2 + N) % N;
+    nearbylive2[i-1] = live2[c];
+    nearbylive3[i-1] = live3[c];
+    nearbydead0[i-1] = dead0[c];
+    nearbydead1[i-1] = dead1[c];
+    nearbydead2[i-1] = dead2[c];
+    nearbydead4[i-1] = dead4[c];
+    nearbydead5[i-1] = dead5[c];
+    nearbydead6[i-1] = dead6[c];
+  }
+
   std::array<uint64_t, 4> state3, state2, state1, state0;
   std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
   CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
@@ -813,14 +828,14 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   for (int i = 1; i < 5; i++) {
     int orig = (column + i - 2 + N) % N;
 
-    uint64_t l2 = live2[orig];
-    uint64_t l3 = live3[orig];
-    uint64_t d0 = dead0[orig];
-    uint64_t d1 = dead1[orig];
-    uint64_t d2 = dead2[orig];
-    uint64_t d4 = dead4[orig];
-    uint64_t d5 = dead5[orig];
-    uint64_t d6 = dead6[orig];
+    uint64_t l2 = nearbylive2[i-1];
+    uint64_t l3 = nearbylive3[i-1];
+    uint64_t d0 = nearbydead0[i-1];
+    uint64_t d1 = nearbydead1[i-1];
+    uint64_t d2 = nearbydead2[i-1];
+    uint64_t d4 = nearbydead4[i-1];
+    uint64_t d5 = nearbydead5[i-1];
+    uint64_t d6 = nearbydead6[i-1];
 
     uint64_t s2 = state2[i-1];
     uint64_t s1 = state1[i-1];
@@ -899,6 +914,21 @@ PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
     nearbyUnknown[i] = unknown[c];
   }
 
+  std::array<uint64_t, 4> nearbylive2, nearbylive3,
+      nearbydead0, nearbydead1, nearbydead2, nearbydead4, nearbydead5, nearbydead6;
+
+  for (int i = 1; i < 5; i++) {
+    int c = (column + i - 2 + N) % N;
+    nearbylive2[i-1] = live2[c];
+    nearbylive3[i-1] = live3[c];
+    nearbydead0[i-1] = dead0[c];
+    nearbydead1[i-1] = dead1[c];
+    nearbydead2[i-1] = dead2[c];
+    nearbydead4[i-1] = dead4[c];
+    nearbydead5[i-1] = dead5[c];
+    nearbydead6[i-1] = dead6[c];
+  }
+
   std::array<uint64_t, 4> state3, state2, state1, state0;
   std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
   CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
@@ -937,24 +967,36 @@ PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
 
     int orig = (column + i - 2 + N) % N;
 
-    changes |= l2 & ~live2[orig];
-    changes |= l3 & ~live3[orig];
-    changes |= d0 & ~dead0[orig];
-    changes |= d1 & ~dead1[orig];
-    changes |= d2 & ~dead2[orig];
-    changes |= d4 & ~dead4[orig];
-    changes |= d5 & ~dead5[orig];
-    changes |= d6 & ~dead6[orig];
+    changes |= l2 & ~nearbylive2[i-1];
+    changes |= l3 & ~nearbylive3[i-1];
+    changes |= d0 & ~nearbydead0[i-1];
+    changes |= d1 & ~nearbydead1[i-1];
+    changes |= d2 & ~nearbydead2[i-1];
+    changes |= d4 & ~nearbydead4[i-1];
+    changes |= d5 & ~nearbydead5[i-1];
+    changes |= d6 & ~nearbydead6[i-1];
 
-    live2[orig] |= l2;
-    live3[orig] |= l3;
-    dead0[orig] |= d0;
-    dead1[orig] |= d1;
-    dead2[orig] |= d2;
-    dead4[orig] |= d4;
-    dead5[orig] |= d5;
-    dead6[orig] |= d6;
+    nearbylive2[i-1] |= l2;
+    nearbylive3[i-1] |= l3;
+    nearbydead0[i-1] |= d0;
+    nearbydead1[i-1] |= d1;
+    nearbydead2[i-1] |= d2;
+    nearbydead4[i-1] |= d4;
+    nearbydead5[i-1] |= d5;
+    nearbydead6[i-1] |= d6;
     has_abort |= abort;
+  }
+
+  for (int i = 1; i < 5; i++) {
+    int c = (column + i - 2 + N) % N;
+    live2[c] = nearbylive2[i-1];
+    live3[c] = nearbylive3[i-1];
+    dead0[c] = nearbydead0[i-1];
+    dead1[c] = nearbydead1[i-1];
+    dead2[c] = nearbydead2[i-1];
+    dead4[c] = nearbydead4[i-1];
+    dead5[c] = nearbydead5[i-1];
+    dead6[c] = nearbydead6[i-1];
   }
 
   return {has_abort == 0, changes != 0};
