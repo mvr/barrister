@@ -303,6 +303,7 @@ PropagateResult LifeStableState::PropagateSimpleStep() {
   uint64_t has_signal_on = 0;
   uint64_t has_abort = 0;
 
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
     uint64_t on2 = state2[i];
     uint64_t on1 = state1[i];
@@ -444,6 +445,7 @@ PropagateResult LifeStableState::UpdateOptions() {
   uint64_t has_abort = 0;
   uint64_t changes = 0;
 
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
     uint64_t on2 = state2[i];
     uint64_t on1 = state1[i];
@@ -503,6 +505,7 @@ PropagateResult LifeStableState::SignalNeighbours() {
 
   LifeState new_signal_off(false), new_signal_on(false);
 
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
     uint64_t l2 = live2[i];
     uint64_t l3 = live3[i];
@@ -554,8 +557,6 @@ PropagateResult LifeStableState::StabiliseOptions() {
   bool changedEver = false;
   bool done = false;
   while (!done) {
-    done = false;
-
     PropagateResult knownresult = SynchroniseStateKnown();
     if (!knownresult.consistent)
       return {false, false};
@@ -570,28 +571,36 @@ PropagateResult LifeStableState::StabiliseOptions() {
   return {true, changedEver};
 }
 
-PropagateResult LifeStableState::Propagate() {
-  auto [consistent, changedEver] = PropagateSimple();
-  if (!consistent)
+PropagateResult LifeStableState::PropagateStep() {
+  PropagateResult optionsresult = UpdateOptions();
+  if (!optionsresult.consistent)
     return {false, false};
 
+  PropagateResult knownresult = SynchroniseStateKnown();
+  if (!knownresult.consistent)
+    return {false, false};
+
+  PropagateResult signalresult = SignalNeighbours();
+  if (!signalresult.consistent)
+    return {false, false};
+
+  PropagateResult simpleresult = PropagateSimpleStep();
+  if (!simpleresult.consistent)
+    return {false, false};
+
+  bool changed = simpleresult.changed || optionsresult.changed ||
+                 knownresult.changed || signalresult.changed;
+  return {true, changed};
+}
+
+PropagateResult LifeStableState::Propagate() {
+  bool changedEver = false;
   bool done = false;
   while (!done) {
-    done = false;
-
-    PropagateResult knownresult = SynchroniseStateKnown();
-    if (!knownresult.consistent)
+    PropagateResult result = PropagateStep();
+    if (!result.consistent)
       return {false, false};
-
-    PropagateResult optionsresult = UpdateOptions();
-    if (!optionsresult.consistent)
-      return {false, false};
-
-    PropagateResult signalresult = SignalNeighbours();
-    if (!signalresult.consistent)
-      return {false, false};
-
-    done = !optionsresult.changed && !knownresult.changed && !signalresult.changed;
+    done = !result.changed;
     changedEver = changedEver || !done;
   }
   return {true, changedEver};
@@ -620,7 +629,7 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
 
   uint64_t has_abort = 0;
 
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
     uint64_t on3 = state3[i-1];
     uint64_t on2 = state2[i-1];
@@ -669,7 +678,7 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
   std::array<uint64_t, 6> signalled_off {0};
   std::array<uint64_t, 6> signalled_on {0};
 
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
    uint64_t smear_off = RotateLeft(new_signal_off[i]) | new_signal_off[i] | RotateRight(new_signal_off[i]);
    signalled_off[i-1] |= smear_off;
@@ -688,14 +697,14 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
   }
 
   uint64_t signalled_overlaps = 0;
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < 6; i++) {
     signalled_overlaps |= nearbyUnknown[i] & signalled_off[i] & signalled_on[i];
   }
   if(signalled_overlaps != 0)
     return {false, false};
 
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
     int orig = (column + i - 2 + N) % N;
     state[orig]  |= new_on[i];
@@ -703,7 +712,7 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
     unknown[orig] &= ~new_on[i];
   }
 
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < 6; i++) {
     int orig = (column + i - 2 + N) % N;
     state[orig]  |= signalled_on[i] & nearbyUnknown[i];
@@ -712,7 +721,7 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
   }
 
   uint64_t unknownChanges = 0;
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < 6; i++) {
     int orig = (column + i - 2 + N) % N;
     unknownChanges |= unknown[orig] ^ nearbyUnknown[i];
@@ -850,9 +859,8 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
 
   std::array<uint64_t, 6> new_signal_off, new_signal_on;
 
+  #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
-    int orig = (column + i - 2 + N) % N;
-
     uint64_t l2 = nearbylive2[i-1];
     uint64_t l3 = nearbylive3[i-1];
     uint64_t d0 = nearbydead0[i-1];
@@ -888,7 +896,7 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   std::array<uint64_t, 6> signalled_off {0};
   std::array<uint64_t, 6> signalled_on {0};
 
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
    uint64_t smear_off = RotateLeft(new_signal_off[i]) | new_signal_off[i] | RotateRight(new_signal_off[i]);
    signalled_off[i-1] |= smear_off;
@@ -906,14 +914,14 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   }
 
   uint64_t signalled_overlaps = 0;
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < 6; i++) {
     signalled_overlaps |= nearbyUnknown[i] & signalled_off[i] & signalled_on[i];
   }
   if(signalled_overlaps != 0)
     return {false, false};
 
-  #pragma clang loop vectorize(enable)
+//  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < 6; i++) {
     int orig = (column + i - 2 + N) % N;
     SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
@@ -921,7 +929,7 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   }
 
   uint64_t unknownChanges = 0;
-  #pragma clang loop vectorize(enable)
+  #pragma clang loop vectorize_width(4)
   for (int i = 0; i < 6; i++) {
     unknownChanges |= (signalled_on[i] & nearbyUnknown[i]) | (signalled_off[i] & nearbyUnknown[i]);
   }
@@ -962,6 +970,7 @@ PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
   uint64_t has_abort = 0;
   uint64_t changes = 0;
 
+  #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
     uint64_t on2 = state2[i-1];
     uint64_t on1 = state1[i-1];
@@ -989,8 +998,6 @@ PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
 // Begin Autogenerated, see bitslicing/stable_count.py
 #include "bitslicing/stable_count.hpp"
 // End Autogenerated
-
-    int orig = (column + i - 2 + N) % N;
 
     changes |= l2 & ~nearbylive2[i-1];
     changes |= l3 & ~nearbylive3[i-1];
@@ -1031,8 +1038,6 @@ PropagateResult LifeStableState::StabiliseOptionsStrip(int column) {
   bool changedEver = false;
   bool done = false;
   while (!done) {
-    done = false;
-
     PropagateResult knownresult = SynchroniseStateKnownStrip(column);
     if (!knownresult.consistent)
       return {false, false};
@@ -1047,28 +1052,36 @@ PropagateResult LifeStableState::StabiliseOptionsStrip(int column) {
   return {true, changedEver};
 }
 
-PropagateResult LifeStableState::PropagateStrip(int column) {
-  auto [consistent, changedEver] = PropagateSimpleStrip(column);
-  if (!consistent)
+PropagateResult LifeStableState::PropagateStepStrip(int column) {
+  PropagateResult optionsresult = UpdateOptionsStrip(column);
+  if (!optionsresult.consistent)
     return {false, false};
 
+  PropagateResult knownresult = SynchroniseStateKnownStrip(column);
+  if (!knownresult.consistent)
+    return {false, false};
+
+  PropagateResult signalresult = SignalNeighboursStrip(column);
+  if (!signalresult.consistent)
+    return {false, false};
+
+  PropagateResult simpleresult = PropagateSimpleStepStrip(column);
+  if (!simpleresult.consistent)
+    return {false, false};
+
+  bool changed = simpleresult.changed || optionsresult.changed ||
+                 knownresult.changed || signalresult.changed;
+  return {true, changed};
+}
+
+PropagateResult LifeStableState::PropagateStrip(int column) {
+  bool changedEver = false;
   bool done = false;
   while (!done) {
-    done = false;
-
-    PropagateResult knownresult = SynchroniseStateKnownStrip(column);
-    if (!knownresult.consistent)
+    PropagateResult result = PropagateStepStrip(column);
+    if (!result.consistent)
       return {false, false};
-
-    PropagateResult optionsresult = UpdateOptionsStrip(column);
-    if (!optionsresult.consistent)
-      return {false, false};
-
-    PropagateResult signalresult = SignalNeighboursStrip(column);
-    if (!signalresult.consistent)
-      return {false, false};
-
-    done = !optionsresult.changed && !knownresult.changed && !signalresult.changed;
+    done = !result.changed;
     changedEver = changedEver || !done;
   }
   return {true, changedEver};
@@ -1108,7 +1121,6 @@ PropagateResult LifeStableState::TestUnknown(std::pair<int, int> cell) {
 
   return {true, change};
 }
-
 
 PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
   // Try all the nearby changes to see if any are forced
@@ -1199,11 +1211,6 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
   {
     LifeStableState &nextState = *this;
     nextState.SetOn(LifeState::Cell(newPlacement));
-
-    // if (currentPop == maxPop - 2) {
-    //   // All remaining unknown cells must be off
-    //   nextState.unknownStable = LifeState();
-    // }
 
     onresult = nextState.CompleteStableStep(timeLimit, minimise, maxPop, best);
   }

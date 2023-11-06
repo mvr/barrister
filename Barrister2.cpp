@@ -557,16 +557,6 @@ bool SearchState::CalculateFrontier() {
       return false;
     anyChanges = anyChanges || propagateResult.changed;
 
-    // for (int i = 0; i < frontier.size; i++) {
-    //   auto &g = frontier.generations[i];
-    //   g.prev.TransferStable(stable);
-    //   g.state.TransferStable(stable);
-    //   auto [testConsistent, changed] = TestActive(g);
-    //   if (!testConsistent)
-    //     return false;
-    //   anyChanges = anyChanges || changed;
-    // }
-
     // This is more important now than in old Barrister: we otherwise
     // spend a fair bit of time searching uncompletable parts of the
     // search space
