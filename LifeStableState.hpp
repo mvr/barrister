@@ -156,6 +156,25 @@ LifeStableState LifeStableState::Join(const LifeStableState &other) const {
   return result;
 }
 
+LifeState LifeStableState::Differences(const LifeStableState &other) const {
+  LifeState result;
+
+  result |= state ^ other.state;
+  result |= unknown ^ other.unknown;
+  result |= stateZOI ^ other.stateZOI;
+
+  result |= live2 ^ other.live2;
+  result |= live3 ^ other.live3;
+  result |= dead0 ^ other.dead0;
+  result |= dead1 ^ other.dead1;
+  result |= dead2 ^ other.dead2;
+  result |= dead4 ^ other.dead4;
+  result |= dead5 ^ other.dead5;
+  result |= dead6 ^ other.dead6;
+
+  return result;
+}
+
 StableOptions LifeStableState::GetOptions(std::pair<int, int> cell) const {
   auto result = StableOptions::IMPOSSIBLE;
   if(!live2.Get(cell)) result |= StableOptions::LIVE2;

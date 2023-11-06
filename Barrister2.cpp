@@ -145,6 +145,8 @@ public:
   LifeCountdown<maxCellActiveWindowGens> activeTimer;
   LifeCountdown<maxCellActiveStreakGens> streakTimer;
 
+  LifeStableState lastTest;
+
   unsigned currentGen;
 
   bool hasInteracted;
@@ -568,7 +570,10 @@ bool SearchState::CalculateFrontier() {
     // This is more important now than in old Barrister: we otherwise
     // spend a fair bit of time searching uncompletable parts of the
     // search space
-    propagateResult = stable.TestUnknowns(stable.Vulnerable().ZOI());
+
+    LifeState toTest = stable.Vulnerable().ZOI() & stable.Differences(lastTest).ZOI();
+    lastTest = stable;
+    propagateResult = stable.TestUnknowns(toTest);
     if (!propagateResult.consistent) {
       return false;
     }
