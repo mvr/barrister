@@ -181,7 +181,7 @@ public:
   std::pair<bool, bool> TestActive(FrontierGeneration &generation);
 
   bool FastLookahead();
-  std::tuple<bool, bool, Frontier> PopulateFrontier();
+  std::tuple<bool, bool> PopulateFrontier();
   bool CalculateFrontier();
   std::pair<bool, bool> TryAdvance();
 
@@ -444,12 +444,11 @@ bool SearchState::FastLookahead() {
   return true;
 }
 
-std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
+std::tuple<bool, bool> SearchState::PopulateFrontier() {
   bool anyChanges = false;
 
   current.TransferStable(stable);
 
-  Frontier frontier;
   frontier.size = 0;
 
   LifeUnknownState generation = current;
@@ -466,7 +465,7 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
     bool updateresult = UpdateActive(frontierGeneration);
     if (!updateresult)
-      return {false, false, frontier};
+      return {false, false};
 
     LifeState prevUnknownActive = frontierGeneration.prev.unknown & ~frontierGeneration.prev.unknownStable;
     LifeState becomeUnknown = (frontierGeneration.state.unknown & ~frontierGeneration.state.unknownStable) & ~prevUnknownActive;
@@ -475,7 +474,7 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
     auto [result, someForced] = SetForced(frontierGeneration);
     if (!result)
-      return {false, false, frontier};
+      return {false, false};
     anyChanges = anyChanges || someForced;
 
     frontier.generations[frontier.size] = frontierGeneration;
@@ -486,7 +485,7 @@ std::tuple<bool, bool, Frontier> SearchState::PopulateFrontier() {
 
     generation = frontierGeneration.state;
   }
-  return {true, anyChanges, frontier};
+  return {true, anyChanges};
 }
 
 std::pair<bool, bool> SearchState::TryAdvance() {
@@ -550,7 +549,7 @@ bool SearchState::CalculateFrontier() {
     anyChanges = false;
 
     bool someChanges;
-    std::tie(consistent, someChanges, frontier) = PopulateFrontier();
+    std::tie(consistent, someChanges) = PopulateFrontier();
     if (!consistent) {
       return false;
     }
