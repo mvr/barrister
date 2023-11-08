@@ -66,6 +66,7 @@ public:
   bool operator==(const LifeStableState&) const = default;
 
   LifeStableState Join(const LifeStableState &other) const;
+  LifeState Differences(const LifeStableState &other) const;
 
   StableOptions GetOptions(std::pair<int, int> cell) const;
   void RestrictOptions(std::pair<int, int> cell, StableOptions options);

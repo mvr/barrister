@@ -450,37 +450,42 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
 
   frontier.size = 0;
 
-  LifeUnknownState generation = current;
+  LifeUnknownState stepped = current;
   unsigned gen = currentGen;
 
   for (unsigned i = 0; i < maxFrontierGens; i++) {
     gen++;
 
-    auto &frontierGeneration = frontier.generations[frontier.size];
+    auto &generation = frontier.generations[frontier.size];
     frontier.size++;
 
-    frontierGeneration.prev = generation;
-    frontierGeneration.state = generation.StepMaintaining(stable);
-    frontierGeneration.gen = gen;
+    generation.prev = stepped;
+    generation.state = stepped.StepMaintaining(stable);
+    generation.gen = gen;
 
-    bool updateresult = UpdateActive(frontierGeneration);
+    bool updateresult = UpdateActive(generation);
     if (!updateresult)
       return {false, false};
 
-    LifeState prevUnknownActive = frontierGeneration.prev.unknown & ~frontierGeneration.prev.unknownStable;
-    LifeState becomeUnknown = (frontierGeneration.state.unknown & ~frontierGeneration.state.unknownStable) & ~prevUnknownActive;
+    LifeState prevUnknownActive = generation.prev.unknown & ~generation.prev.unknownStable;
+    LifeState becomeUnknown = (generation.state.unknown & ~generation.state.unknownStable) & ~prevUnknownActive;
 
-    frontierGeneration.frontierCells = becomeUnknown & ~prevUnknownActive.ZOI();
+    generation.frontierCells = becomeUnknown & ~prevUnknownActive.ZOI();
 
-    auto [result, someForced] = SetForced(frontierGeneration);
+    auto [result, someForced] = SetForced(generation);
     if (!result)
       return {false, false};
     anyChanges = anyChanges || someForced;
 
-    if (!frontierGeneration.IsAlive())
+    bool isInert = ((generation.prev.state ^ generation.state.state) &
+                   ~generation.prev.unknown & ~generation.state.unknown)
+                      .IsEmpty() ||
+                  (stable.stateZOI & ~generation.state.unknown).IsEmpty();
+
+    if (isInert)
       break;
 
-    generation = frontierGeneration.state;
+    stepped = generation.state;
   }
   return {true, anyChanges};
 }
@@ -637,12 +642,13 @@ void SearchState::SearchStep() {
 
   auto [i, branchCell] = ChooseBranchCell();
   assert(branchCell.first != -1);
-  auto &frontierGeneration = frontier.generations[i];
+  auto &generation = frontier.generations[i];
 
-  frontierGeneration.prev.TransferStable(stable, branchCell);
-  frontierGeneration.state.TransferStable(stable, branchCell);
+  stable.SynchroniseStateKnown(branchCell);
+  generation.prev.TransferStable(stable, branchCell);
+  generation.state.TransferStable(stable, branchCell);
 
-  auto allowedTransitions = AllowedTransitions(frontierGeneration, stable, branchCell);
+  auto allowedTransitions = AllowedTransitions(generation, stable, branchCell);
   allowedTransitions = TransitionSimplify(allowedTransitions);
   // The cell should not still be in the frontier in this case
   assert(allowedTransitions != Transition::IMPOSSIBLE);
@@ -653,7 +659,7 @@ void SearchState::SearchStep() {
        allowedTransitions != Transition::IMPOSSIBLE;
        allowedTransitions &= ~transition, transition = TransitionHighest(allowedTransitions)) {
 
-    auto newoptions = stable.GetOptions(branchCell) & OptionsFor(frontierGeneration.prev, branchCell, transition);
+    auto newoptions = stable.GetOptions(branchCell) & OptionsFor(generation.prev, branchCell, transition);
 
     if (newoptions == StableOptions::IMPOSSIBLE)
       continue;
@@ -669,12 +675,12 @@ void SearchState::SearchStep() {
     newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
     newSearch.frontier.generations[i].SetTransition(branchCell, transition);
 
-    if (frontierGeneration.prev.TransitionIsPerturbation(branchCell, transition)) {
+    if (generation.prev.TransitionIsPerturbation(branchCell, transition)) {
       newSearch.stable.stateZOI.Set(branchCell);
 
       if (!hasInteracted) {
         newSearch.hasInteracted = true;
-        newSearch.interactionStart = frontierGeneration.gen;
+        newSearch.interactionStart = generation.gen;
       }
     }
 

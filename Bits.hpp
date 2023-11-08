@@ -4,17 +4,17 @@
 
 #include "LifeAPI.h"
 
-void inline HalfAdd(uint64_t &out0, uint64_t &out1, const uint64_t ina, const uint64_t inb) {
-  out0 = ina ^ inb;
-  out1 = ina & inb;
+inline void HalfAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina, const uint64_t inb) {
+  outbit = ina ^ inb;
+  outcarry = ina & inb;
 }
 
-void inline FullAdd(uint64_t &out0, uint64_t &out1, const uint64_t ina, const uint64_t inb, const uint64_t inc) {
+inline void FullAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina, const uint64_t inb, const uint64_t inc) {
   uint64_t halftotal = ina ^ inb;
-  out0 = halftotal ^ inc;
+  outbit = halftotal ^ inc;
   uint64_t halfcarry1 = ina & inb;
   uint64_t halfcarry2 = inc & halftotal;
-  out1 = halfcarry1 | halfcarry2;
+  outcarry = halfcarry1 | halfcarry2;
 }
 
 void inline CountRows(const LifeState &state, LifeState &__restrict__ bit0, LifeState &__restrict__ bit1) {
