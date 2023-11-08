@@ -491,24 +491,20 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
 }
 
 std::pair<bool, bool> SearchState::TryAdvance() {
-  current.TransferStable(stable);
-
   bool didAdvance = false;
-  while (true) {
-    auto next = current.StepMaintaining(stable);
+  while (frontier.size > 0) {
+    auto &generation = frontier.generations[0];
 
-    if (!(next.unknown & ~next.unknownStable).IsEmpty())
+    if (!(generation.state.unknown & ~generation.state.unknownStable).IsEmpty())
       break;
 
     didAdvance = true;
 
-    current = next;
+    current = generation.state;
     currentGen += 1;
 
-    if (frontier.size > 0 && frontier.generations[0].gen == currentGen) {
-      std::copy(std::begin(frontier.generations) + 1, std::end(frontier.generations), std::begin(frontier.generations));
-      frontier.size--;
-    }
+    std::copy(std::begin(frontier.generations) + 1, std::end(frontier.generations), std::begin(frontier.generations));
+    frontier.size--;
 
     if (hasInteracted) {
       bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
@@ -636,6 +632,7 @@ void SearchState::SearchStep() {
   bool consistent = CalculateFrontier();
   if (!consistent)
     return;
+  assert(frontier.size > 0);
 
   stable.SanityCheck();
   // SanityCheck();
@@ -712,10 +709,10 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   current.unknown = stable.unknown;
   current.unknownStable = stable.unknown;
 
-  TryAdvance();
-
   frontier = {};
   frontier.size = 0;
+
+  TryAdvance();
 
   everActive = LifeState();
   // activeTimer = LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
