@@ -45,8 +45,9 @@
 // then the current cell is likely to be swamped in the next
 // generation or two
 
-const unsigned maxBranchingGens = 1;
-const unsigned maxFrontierGens = 3;
+const unsigned maxFrontierGens = 4;
+const unsigned maxBranchingGens = maxFrontierGens;
+const unsigned maxBranchFastCount = 1;
 const unsigned maxFastLookaheadGens = 3;
 
 const unsigned maxCellActiveWindowGens = 0;
@@ -116,15 +117,17 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
 Transition AllowedTransitions(const FrontierGeneration &generation,
                               const LifeStableState &stable,
                               std::pair<int, int> cell) {
-  auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
-
   auto allowedTransitions = AllowedTransitions(
       generation.prev.state.Get(cell), stable.unknown.Get(cell),
       stable.state.Get(cell), generation.forcedInactive.Get(cell),
       generation.forcedUnchanging.Get(cell), stable.stateZOI.Get(cell),
       generation.prev.UnperturbedTransitionFor(cell));
 
-  return possibleTransitions & allowedTransitions;
+  return allowedTransitions;
+
+
+  // auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
+  // return possibleTransitions & allowedTransitions;
 }
 
 
@@ -147,6 +150,8 @@ public:
   LifeCountdown<maxCellActiveStreakGens> streakTimer;
 
   LifeStableState lastTest;
+
+  unsigned timeSincePropagate;
 
   unsigned currentGen;
 
@@ -631,13 +636,38 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
 }
 
 void SearchState::SearchStep() {
-  bool consistent = CalculateFrontier();
-  if (!consistent)
-    return;
-  assert(frontier.size > 0);
+  if(frontier.size == 0 || frontier.generations[frontier.start].frontierCells.IsEmpty() || timeSincePropagate > maxBranchFastCount){
+    bool consistent = CalculateFrontier();
+    if (!consistent)
+      return;
+    timeSincePropagate = 0;
 
-  stable.SanityCheck();
-  // SanityCheck();
+    assert(frontier.size > 0);
+    stable.SanityCheck();
+    // SanityCheck();
+  } else {
+    auto &generation = frontier.generations[frontier.start];
+
+    generation.prev.TransferStable(stable);
+    generation.state.TransferStable(stable);
+
+    bool updateresult = UpdateActive(generation);
+    if (!updateresult)
+      return;
+
+    timeSincePropagate++;
+
+    auto [consistent, changed] = SetForced(generation);
+    if (!consistent)
+      return;
+
+    if (generation.frontierCells.IsEmpty()) {
+      bool consistent = CalculateFrontier();
+      if (!consistent)
+        return;
+      timeSincePropagate = 0;
+    }
+  }
 
   auto [i, branchCell] = ChooseBranchCell();
   assert(branchCell.first != -1);
@@ -714,6 +744,8 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   frontier = {};
   frontier.start = 0;
   frontier.size = 0;
+
+  timeSincePropagate = 0;
 
   TryAdvance();
 
