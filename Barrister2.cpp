@@ -130,7 +130,8 @@ Transition AllowedTransitions(const FrontierGeneration &generation,
 
 struct Frontier {
   std::array<FrontierGeneration, maxFrontierGens> generations;
-  int size;
+  unsigned start;
+  unsigned size;
 };
 
 class SearchState {
@@ -448,6 +449,7 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
 
   current.TransferStable(stable);
 
+  frontier.start = 0;
   frontier.size = 0;
 
   LifeUnknownState stepped = current;
@@ -493,7 +495,7 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
 std::pair<bool, bool> SearchState::TryAdvance() {
   bool didAdvance = false;
   while (frontier.size > 0) {
-    auto &generation = frontier.generations[0];
+    auto &generation = frontier.generations[frontier.start];
 
     if (!(generation.state.unknown & ~generation.state.unknownStable).IsEmpty())
       break;
@@ -503,7 +505,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     current = generation.state;
     currentGen += 1;
 
-    std::copy(std::begin(frontier.generations) + 1, std::end(frontier.generations), std::begin(frontier.generations));
+    frontier.start++;
     frontier.size--;
 
     if (hasInteracted) {
@@ -602,6 +604,8 @@ bool SearchState::FrontierComplete() const {
 }
 
 std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
+  unsigned stopGen = std::min(frontier.size, maxBranchingGens);
+
   // Prefer unknown stable cells?
   // Prefer lower numbers of possible transitions?
   // Prefer cells where all options are active?
@@ -616,16 +620,14 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
   //       return {i, branchCell};
   //   }
   // }
-  for (i = 0; i < frontier.size; i++) {
+  for (unsigned i = frontier.start; i < frontier.start + stopGen; i++) {
     auto &g = frontier.generations[i];
-    if (g.gen > currentGen + maxBranchingGens)
-      break;
-    branchCell = g.frontierCells.FirstOn();
+    auto branchCell = g.frontierCells.FirstOn();
     if (branchCell.first != -1)
       return {i, branchCell};
   }
 
-  return {i, branchCell};
+  return {0, {-1, -1}};
 }
 
 void SearchState::SearchStep() {
@@ -710,6 +712,7 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   current.unknownStable = stable.unknown;
 
   frontier = {};
+  frontier.start = 0;
   frontier.size = 0;
 
   TryAdvance();
