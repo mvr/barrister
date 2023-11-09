@@ -69,10 +69,6 @@ struct FrontierGeneration {
     state.SetTransitionResult(cell, transition);
   }
 
-  bool IsAlive() const {
-    return !((prev.state ^ state.state) & ~prev.unknown & ~state.unknown).IsEmpty();
-  }
-  
   std::string RLE() const {
     LifeHistoryState history(state.state, state.unknown & ~state.unknownStable,
                              state.unknownStable, LifeState());
@@ -198,14 +194,12 @@ public:
                            Transition transition) const;
   void ResolveFrontier();
 
-  bool FrontierComplete() const;
   std::pair<unsigned, std::pair<int, int>> ChooseBranchCell() const;
 
   void SearchStep();
 
   void ReportSolution();
 
-  LifeState FrontierCells() const;
   void SanityCheck();
 };
 
@@ -521,8 +515,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
       else
         recoveredTime = 0;
 
-      if (!isRecovered &&
-          currentGen > interactionStart + params->maxActiveWindowGens) {
+      if (!isRecovered && currentGen > interactionStart + params->maxActiveWindowGens) {
         // TODO: This is the place to check for oscillators
         return {false, false};
       }
@@ -594,28 +587,12 @@ bool SearchState::CalculateFrontier() {
   return true;
 }
 
-bool SearchState::FrontierComplete() const {
-  bool isEmpty = true;
-  for (int i = 0; i < frontier.size; i++) {
-    auto &g = frontier.generations[i];
-    if (g.gen > currentGen + maxBranchingGens)
-      break;
-    if (!g.frontierCells.IsEmpty()) {
-      isEmpty = false;
-      break;
-    }
-  }
-  return isEmpty;
-}
-
 std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
   unsigned stopGen = std::min(frontier.size, maxBranchingGens);
 
   // Prefer unknown stable cells?
   // Prefer lower numbers of possible transitions?
   // Prefer cells where all options are active?
-  unsigned i;
-  std::pair<int, int> branchCell = {-1, -1};
   // for (unsigned i = 0; i < generations.size(); i++) {
   //   std::pair<int, int> branchCell = generations[i].frontierCells.FirstOn();
   //   if (branchCell.first != -1) {
@@ -787,15 +764,6 @@ void SearchState::ReportSolution() {
       std::cout << LifeState().RLE() << std::endl;
     }
   }
-}
-
-LifeState SearchState::FrontierCells() const {
-  LifeState result;
-  for (int i = 0; i < frontier.size; i++) {
-    auto &g = frontier.generations[i];
-    result |= g.frontierCells;
-  }
-  return result;
 }
 
 void SearchState::SanityCheck() {
