@@ -611,6 +611,17 @@ bool SearchState::CalculateFrontier() {
     stable.SanityCheck();
   }
 
+  if (params->hasForbidden) {
+    for(auto &f : params->forbiddens) {
+      bool allKnown = (f.mask & stable.unknown).IsEmpty();
+      if (!allKnown)
+        continue;
+      bool matches = ((stable.state ^ f.state) & f.mask).IsEmpty();
+      if (allKnown && matches)
+        return false;
+    }
+  }
+
   bool didAdvance = false;
   std::tie(consistent, didAdvance) = TryAdvance();
   if (!consistent)
