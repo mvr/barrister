@@ -167,20 +167,22 @@ public:
       unsigned gen, const LifeUnknownState &state,
       const LifeStableState &stable,
       const LifeState &active, const LifeState &everActive,
-      const LifeState &changes
-      // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-      // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+      const LifeState &changes,
+      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+      const LifeCountdown<maxCellActiveStreakGens> &streakTimer
                                 ) const;
   LifeState ForcedUnchangingCells(
       unsigned gen, const LifeUnknownState &state,
       const LifeStableState &stable,
       const LifeState &active, const LifeState &everActive,
-      const LifeState &changes
-      // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-      // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+      const LifeState &changes,
+      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+      const LifeCountdown<maxCellActiveStreakGens> &streakTimer
           ) const;
 
-  bool UpdateActive(FrontierGeneration &generation);
+  bool UpdateActive(FrontierGeneration &generation,
+                    LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+                    LifeCountdown<maxCellActiveStreakGens> &streakTimer);
   std::pair<bool, bool> SetForced(FrontierGeneration &generation);
 
   std::pair<bool, bool> TestActive(FrontierGeneration &generation);
@@ -207,9 +209,9 @@ public:
 LifeState SearchState::ForcedInactiveCells(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
     const LifeState &active,
-    const LifeState &everActive, const LifeState &changes
-    // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+    const LifeState &everActive, const LifeState &changes,
+    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+    const LifeCountdown<maxCellActiveStreakGens> &streakTimer
         ) const {
   if (gen < params->minFirstActiveGen) {
     return ~LifeState();
@@ -248,9 +250,9 @@ LifeState SearchState::ForcedInactiveCells(
 LifeState SearchState::ForcedUnchangingCells(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
     const LifeState &active,
-    const LifeState &everActive, const LifeState &changes
-    // const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    // const LifeCountdown<maxCellActiveStreakGens> &streakTimer
+    const LifeState &everActive, const LifeState &changes,
+    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+    const LifeCountdown<maxCellActiveStreakGens> &streakTimer
         ) const {
   return LifeState();
 }
@@ -322,22 +324,24 @@ StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
   return options;
 }
 
-bool SearchState::UpdateActive(FrontierGeneration &generation) {
+bool SearchState::UpdateActive(FrontierGeneration &generation,
+                               LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+                               LifeCountdown<maxCellActiveStreakGens> &streakTimer) {
   generation.active = generation.state.ActiveComparedTo(stable) & stable.stateZOI;
   generation.changes = generation.state.ChangesComparedTo(generation.prev) & stable.stateZOI;
 
   everActive |= generation.active;
 
   generation.forcedInactive = ForcedInactiveCells(
-      generation.gen, generation.state, stable,
-      generation.active, everActive, generation.changes);
+      generation.gen, generation.state, stable, generation.active, everActive,
+      generation.changes, activeTimer, streakTimer);
 
   if (!(generation.active & generation.forcedInactive).IsEmpty())
     return false;
 
   generation.forcedUnchanging = ForcedUnchangingCells(
-      generation.gen, generation.state, stable,
-      generation.active, everActive, generation.changes);
+      generation.gen, generation.state, stable, generation.active, everActive,
+      generation.changes, activeTimer, streakTimer);
 
   if (!(generation.changes & generation.forcedUnchanging).IsEmpty())
     return false;
@@ -420,14 +424,14 @@ bool SearchState::FastLookahead() {
     everActive |= active;
 
     LifeState forcedInactive = ForcedInactiveCells(
-        gen, generation, stable, active, everActive, changes);
+        gen, generation, stable, active, everActive, changes, activeTimer, streakTimer);
 
     if (!(active & forcedInactive).IsEmpty())
       return false;
 
     LifeState forcedUnchanging = ForcedUnchangingCells(
       gen, generation, stable,
-      active, everActive, changes);
+      active, everActive, changes, activeTimer, streakTimer);
 
     if (!(changes & forcedUnchanging).IsEmpty())
       return false;
@@ -452,8 +456,11 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
   frontier.start = 0;
   frontier.size = 0;
 
-  LifeUnknownState stepped = current;
+  LifeUnknownState lookahead = current;
   unsigned gen = currentGen;
+
+  auto lookaheadActiveTimer = activeTimer;
+  auto lookaheadStreakTimer = streakTimer;
 
   for (unsigned i = 0; i < maxFrontierGens; i++) {
     gen++;
@@ -461,13 +468,23 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
     auto &generation = frontier.generations[frontier.size];
     frontier.size++;
 
-    generation.prev = stepped;
-    generation.state = stepped.StepMaintaining(stable);
+    generation.prev = lookahead;
+    generation.state = lookahead.StepMaintaining(stable);
     generation.gen = gen;
 
-    bool updateresult = UpdateActive(generation);
+    bool updateresult = UpdateActive(generation, lookaheadActiveTimer, lookaheadStreakTimer);
     if (!updateresult)
       return {false, false};
+
+    if (params->maxCellActiveWindowGens != -1) {
+      lookaheadActiveTimer.Start(generation.active);
+      lookaheadActiveTimer.Tick();
+    }
+    if (params->maxCellActiveStreakGens != -1) {
+      lookaheadStreakTimer.Reset(~generation.active);
+      lookaheadStreakTimer.Start(generation.active);
+      lookaheadStreakTimer.Tick();
+    }
 
     LifeState prevUnknownActive = generation.prev.unknown & ~generation.prev.unknownStable;
     LifeState becomeUnknown = (generation.state.unknown & ~generation.state.unknownStable) & ~prevUnknownActive;
@@ -487,7 +504,7 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
     if (isInert)
       break;
 
-    stepped = generation.state;
+    lookahead = generation.state;
   }
   return {true, anyChanges};
 }
@@ -507,6 +524,20 @@ std::pair<bool, bool> SearchState::TryAdvance() {
 
     frontier.start++;
     frontier.size--;
+
+    LifeState active = current.ActiveComparedTo(stable) & stable.stateZOI;
+    everActive |= active;
+
+    if (params->maxCellActiveWindowGens != -1) {
+      activeTimer.Start(active);
+      activeTimer.Tick();
+    }
+
+    if (params->maxCellActiveStreakGens != -1) {
+      streakTimer.Reset(~active);
+      streakTimer.Start(active);
+      streakTimer.Tick();
+    }
 
     if (hasInteracted) {
       bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
@@ -635,7 +666,7 @@ void SearchState::SearchStep() {
     generation.prev.TransferStable(stable);
     generation.state.TransferStable(stable);
 
-    bool updateresult = UpdateActive(generation);
+    bool updateresult = UpdateActive(generation, activeTimer, streakTimer);
     if (!updateresult)
       return;
 
