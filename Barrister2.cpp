@@ -710,13 +710,14 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   stable.state = inparams.startingStable;
   stable.unknown = inparams.searchArea;
 
+  current.state = inparams.startingPattern;
+  current.unknown = stable.unknown;
+  current.unknownStable = stable.unknown;
+
   // This needs to be done in this order first, because the counts/options start at all 0
   stable.SynchroniseStateKnown();
   stable.Propagate();
-
-  current.state = inparams.activePattern | stable.state;
-  current.unknown = stable.unknown;
-  current.unknownStable = stable.unknown;
+  current.TransferStable(stable);
 
   frontier = {};
   frontier.start = 0;
