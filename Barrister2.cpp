@@ -48,6 +48,7 @@
 const unsigned maxFrontierGens = 4;
 const unsigned maxBranchingGens = maxFrontierGens;
 const unsigned maxBranchFastCount = 1;
+const unsigned maxCalculateRounds = 1;
 const unsigned maxFastLookaheadGens = 3;
 
 const unsigned maxCellActiveWindowGens = 0;
@@ -542,9 +543,15 @@ bool SearchState::CalculateFrontier() {
   // }
   bool consistent;
 
+  unsigned rounds = 0;
+
   bool anyChanges = true;
   while (anyChanges) {
     anyChanges = false;
+
+    rounds++;
+    if (rounds > maxCalculateRounds)
+      break;
 
     bool someChanges;
     std::tie(consistent, someChanges) = PopulateFrontier();
