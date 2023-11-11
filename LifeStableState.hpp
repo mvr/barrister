@@ -1131,7 +1131,6 @@ PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
     auto cell = remainingCells.FirstOn();
     remainingCells.Erase(cell);
 
-    LifeStableState copy = *this;
     auto result = TestUnknown(cell);
     if (!result.consistent)
       return {false, false};
