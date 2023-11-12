@@ -769,7 +769,7 @@ PropagateResult LifeStableState::SynchroniseStateKnownStrip(int column) {
   // TODO: check this optimises
   bool anyChanges = false;
   for (int i = 0; i < 4; i++) {
-    int c = (column + i - 2 + N) % N;
+    int c = (column + i - 1 + N) % N;
     auto result = SynchroniseStateKnownColumn(c);
     if(!result.consistent)
       return {false, false};
