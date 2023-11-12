@@ -711,7 +711,7 @@ void SearchState::SearchStep() {
 
   // Loop over the possible transitions
   for (auto transition = TransitionHighest(allowedTransitions);
-       allowedTransitions != Transition::IMPOSSIBLE;
+       !TransitionIsSingleton(allowedTransitions);
        allowedTransitions &= ~transition, transition = TransitionHighest(allowedTransitions)) {
 
     auto newoptions = stable.GetOptions(branchCell) & OptionsFor(generation.prev, branchCell, transition);
@@ -741,15 +741,38 @@ void SearchState::SearchStep() {
 
     newSearch.SearchStep();
   }
-  // TODO: Do the last iteration without copying the state, a small performance improvement
-  // (Should be identical to the body of the loop, except newSearch is a reference)
   // TODO: move body to a function, make sure it becomes a tail call correctly
-  // {
-  //   SearchState &newSearch = *this;
-  //   ...
-  //   [[clang::musttail]]
-  //   return newSearch.SearchStep();
-  // }
+  {
+    auto transition = allowedTransitions;
+
+    auto newoptions = stable.GetOptions(branchCell) & OptionsFor(generation.prev, branchCell, transition);
+
+    if (newoptions == StableOptions::IMPOSSIBLE)
+      return;
+
+    SearchState &newSearch = *this;
+    newSearch.stable.RestrictOptions(branchCell, newoptions);
+    newSearch.stable.SynchroniseStateKnown(branchCell);
+
+    auto propagateResult = newSearch.stable.PropagateStrip(branchCell.first);
+    if (!propagateResult.consistent)
+      return;
+
+    newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
+    newSearch.frontier.generations[i].SetTransition(branchCell, transition);
+
+    if (generation.prev.TransitionIsPerturbation(branchCell, transition)) {
+      newSearch.stable.stateZOI.Set(branchCell);
+
+      if (!hasInteracted) {
+        newSearch.hasInteracted = true;
+        newSearch.interactionStart = generation.gen;
+      }
+    }
+
+    [[clang::musttail]]
+    return newSearch.SearchStep();
+  }
 }
 
 SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions) : currentGen{0}, hasInteracted{false}, interactionStart{0} {
