@@ -662,6 +662,13 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
 }
 
 void SearchState::SearchStep() {
+#ifdef DEBUG
+  if (params->hasOracle) {
+    if (!stable.CompatibleWith(params->oracle))
+      return;
+  }
+#endif
+
   if(frontier.size == 0 || frontier.generations[frontier.start].frontierCells.IsEmpty() || timeSincePropagate > maxBranchFastCount){
     bool consistent = CalculateFrontier();
     if (!consistent)

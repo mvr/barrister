@@ -4,6 +4,7 @@
 
 #include "LifeAPI.h"
 #include "LifeHistoryState.hpp"
+#include "LifeStableState.hpp"
 #include "Parsing.hpp"
 
 struct Forbidden {
@@ -69,6 +70,8 @@ public:
   bool pipeResults;
 
   bool debug;
+  bool hasOracle;
+  LifeStableState oracle;
 
   static SearchParams FromToml(toml::value &toml);
 };
@@ -183,6 +186,21 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     }
   } else {
     params.hasForbidden = false;
+  }
+
+  if (toml.contains("oracle")) {
+    std::string oraclerle = toml::find<std::string>(toml, "oracle");
+    LifeHistoryState oracle = LifeHistoryState::ParseWHeader(oraclerle);
+
+    std::vector<int> oracleCenterVec = toml::find_or<std::vector<int>>(toml, "oracle-center", {0, 0});
+    std::pair<int, int> oracleCenter = {-oracleCenterVec[0], -oracleCenterVec[1]};
+    oracle.Move(oracleCenter);
+
+    params.hasOracle = true;
+    params.oracle.state = oracle.state & oracle.marked;
+    params.oracle.StabiliseOptions();
+  } else {
+    params.hasOracle = false;
   }
 
   return params;
