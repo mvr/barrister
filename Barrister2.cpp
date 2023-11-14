@@ -865,6 +865,7 @@ void SearchState::SearchStep() {
       if (!hasInteracted) {
         newSearch.hasInteracted = true;
         newSearch.interactionStart = generation.gen;
+        *stableAtInteraction = stable;
       }
     }
 
