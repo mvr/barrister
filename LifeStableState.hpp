@@ -66,6 +66,7 @@ public:
   bool operator==(const LifeStableState&) const = default;
 
   LifeStableState Join(const LifeStableState &other) const;
+  LifeStableState Graft(const LifeStableState &other) const;
   LifeState Differences(const LifeStableState &other) const;
 
   StableOptions GetOptions(std::pair<int, int> cell) const;
@@ -153,6 +154,25 @@ LifeStableState LifeStableState::Join(const LifeStableState &other) const {
   result.dead4 = dead4 & other.dead4;
   result.dead5 = dead5 & other.dead5;
   result.dead6 = dead6 & other.dead6;
+
+  return result;
+}
+
+LifeStableState LifeStableState::Graft(const LifeStableState &other) const {
+  LifeStableState result;
+
+  result.unknown = unknown & ~(~other.unknown & other.stateZOI);
+  result.state = state | other.state;
+  result.stateZOI = stateZOI | other.stateZOI;
+
+  result.live2 = live2 | (other.live2 & other.stateZOI);
+  result.live3 = live3 | (other.live3 & other.stateZOI);
+  result.dead0 = dead0 | (other.dead0 & other.stateZOI);
+  result.dead1 = dead1 | (other.dead1 & other.stateZOI);
+  result.dead2 = dead2 | (other.dead2 & other.stateZOI);
+  result.dead4 = dead4 | (other.dead4 & other.stateZOI);
+  result.dead5 = dead5 | (other.dead5 & other.stateZOI);
+  result.dead6 = dead6 | (other.dead6 & other.stateZOI);
 
   return result;
 }

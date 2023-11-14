@@ -1,4 +1,6 @@
 #include <cassert>
+#include <cmath>
+#include <stack>
 
 #include "toml/toml.hpp"
 
@@ -53,6 +55,16 @@ const unsigned maxFastLookaheadGens = 3;
 
 const unsigned maxCellActiveWindowGens = 0;
 const unsigned maxCellActiveStreakGens = 0;
+
+struct Solution {
+  LifeState state;
+  LifeState completed;
+  LifeStableState stable;
+  LifeStableState interactionStable;
+  LifeState stator;
+  unsigned interactionGen;
+  unsigned recoveryGen;
+};
 
 struct FrontierGeneration {
   LifeUnknownState prev;
@@ -157,9 +169,11 @@ public:
   unsigned recoveredTime;
 
   SearchParams *params;
-  std::vector<LifeState> *allSolutions;
+  std::vector<Solution> *allSolutions;
+  std::vector<uint64_t> *seenRotors;
+  LifeStableState *stableAtInteraction;
 
-  SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions);
+  SearchState(SearchParams &inparams, std::vector<Solution> &outsolutions, std::vector<uint64_t> &outrotors, LifeStableState &stableAtInteraction);
   SearchState(const SearchState &) = default;
   SearchState &operator=(const SearchState &) = default;
 
@@ -201,7 +215,10 @@ public:
 
   void SearchStep();
 
+  unsigned TestOscillating();
+  std::vector<uint64_t> ClassifyRotors(unsigned period);
   void ReportSolution();
+  void OutputSolution(const Solution &solution);
 
   void SanityCheck();
 };
@@ -410,8 +427,8 @@ StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
 bool SearchState::UpdateActive(FrontierGeneration &generation,
                                LifeCountdown<maxCellActiveWindowGens> &activeTimer,
                                LifeCountdown<maxCellActiveStreakGens> &streakTimer) {
-  generation.active = generation.state.ActiveComparedTo(stable) & stable.stateZOI;
-  generation.changes = generation.state.ChangesComparedTo(generation.prev) & stable.stateZOI;
+  generation.active = generation.state.ActiveComparedTo(stable) & stable.stateZOI & ~params->exempt;
+  generation.changes = generation.state.ChangesComparedTo(generation.prev) & stable.stateZOI & ~params->exempt;
 
   everActive |= generation.active;
 
@@ -582,7 +599,7 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
     bool isInert = ((generation.prev.state ^ generation.state.state) &
                    ~generation.prev.unknown & ~generation.state.unknown)
                       .IsEmpty() ||
-                  (stable.stateZOI & ~generation.state.unknown).IsEmpty();
+                  (stable.stateZOI & ~params->exempt & ~generation.state.unknown).IsEmpty();
 
     if (isInert)
       break;
@@ -608,7 +625,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     frontier.start++;
     frontier.size--;
 
-    LifeState active = current.ActiveComparedTo(stable) & stable.stateZOI;
+    LifeState active = current.ActiveComparedTo(stable) & stable.stateZOI & ~params->exempt;
     everActive |= active;
 
     if (params->maxCellActiveWindowGens != -1) {
@@ -623,20 +640,38 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     }
 
     if (hasInteracted) {
-      bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI).IsEmpty();
+      bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI & ~params->exempt).IsEmpty();
 
       if (isRecovered)
         recoveredTime++;
       else
         recoveredTime = 0;
 
-      if (!isRecovered && currentGen > interactionStart + params->maxActiveWindowGens) {
-        // TODO: This is the place to check for oscillators
-        return {false, false};
+      if (isRecovered && recoveredTime == params->minStableInterval) {
+        if(!params->reportOscillators)
+          ReportSolution();
+        if(!params->continueAfterSuccess)
+          return {false, false};
       }
 
-      if (isRecovered && recoveredTime == params->minStableInterval) {
-        ReportSolution();
+      if (currentGen > interactionStart + params->maxActiveWindowGens) {
+        if(params->reportOscillators) {
+          unsigned period = TestOscillating();
+          if (period > 4) {
+            auto rotors = ClassifyRotors(period);
+            bool anyNew = false;
+            for(uint64_t r : rotors) {
+              if(std::find(seenRotors->begin(), seenRotors->end(), r) == seenRotors->end()) {
+                anyNew = true;
+                seenRotors->push_back(r);
+              }
+            }
+            if(anyNew) {
+              std::cout << "Oscillating! Period: " << period << std::endl;
+              ReportSolution();
+            }
+          }
+        }
         return {false, false};
       }
     } else {
@@ -865,21 +900,18 @@ void SearchState::SearchStep() {
   }
 }
 
-SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolutions) : currentGen{0}, hasInteracted{false}, interactionStart{0} {
+SearchState::SearchState(SearchParams &inparams,
+                         std::vector<Solution> &outsolutions,
+                         std::vector<uint64_t> &outrotors,
+                         LifeStableState &inStableAtInteraction)
+    : currentGen{0}, hasInteracted{false}, interactionStart{0} {
   params = &inparams;
   allSolutions = &outsolutions;
+  seenRotors = &outrotors;
+  stableAtInteraction = &inStableAtInteraction;
 
-  stable.state = inparams.startingStable;
-  stable.unknown = inparams.searchArea;
-
-  current.state = inparams.startingPattern;
-  current.unknown = stable.unknown;
-  current.unknownStable = stable.unknown;
-
-  // This needs to be done in this order first, because the counts/options start at all 0
-  stable.SynchroniseStateKnown();
-  stable.Propagate();
-  current.TransferStable(stable);
+  stable = inparams.stable;
+  current = inparams.startingState;
 
   frontier = {};
   frontier.start = 0;
@@ -892,41 +924,121 @@ SearchState::SearchState(SearchParams &inparams, std::vector<LifeState> &outsolu
   everActive = LifeState();
   // activeTimer = LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
   // streakTimer = LifeCountdown<maxCellActiveStreakGens>(params->maxCellActiveStreakGens);
+
+unsigned SearchState::TestOscillating() {
+  // We can trample `current`, because we only do this when we are
+  // going to bail out of the branch anyway.
+
+  std::stack<std::pair<uint64_t, int>> minhashes;
+
+  // TODO: is 60 reasonable?
+  for (unsigned i = 1; i < 60; i++) {
+    LifeState active = stable.state ^ current.state;
+
+    uint64_t newhash = active.GetHash();
+
+    while(true) {
+      if(minhashes.empty())
+        break;
+      if(minhashes.top().first < newhash)
+        break;
+
+      if(minhashes.top().first == newhash) {
+        unsigned p = i - minhashes.top().second;
+        return p;
+      }
+
+      if(minhashes.top().first > newhash)
+        minhashes.pop();
+    }
+
+    minhashes.push({newhash, i});
+
+    current = current.StepMaintaining(stable);
+  }
+  return 0;
+}
+
+std::vector<uint64_t> SearchState::ClassifyRotors(unsigned period) {
+  // We shouldn't use the stable state in here, because at this point
+  // we don't care what the original background of the rotor was
+  LifeState startState = current.state;
+
+  LifeState allRotorCells;
+  for(unsigned i = 0; i < period; i++) {
+    LifeState active = startState ^ current.state;
+    allRotorCells |= active;
+    current = current.StepMaintaining(stable);
+  }
+
+  std::vector<uint64_t> result;
+
+  auto rotorLocations = allRotorCells.Components();
+  for(auto &rotorLocation : rotorLocations) {
+    LifeState rotorZOI = rotorLocation.ZOI();
+    LifeState rotorStart = current.state & rotorZOI;
+
+    uint64_t rotorHash = 0;
+    for(unsigned i = 0; i < period; i++) {
+      LifeState rotorState = rotorZOI & ~(current.state & allRotorCells);
+      rotorHash ^= rotorState.GetOctoHash();
+      current = current.StepMaintaining(stable);
+      if((current.state & rotorZOI) == rotorStart)
+        break;
+    }
+    result.push_back(rotorHash);
+  }
+  return result;
+}
+
+void SearchState::OutputSolution(const Solution &solution) {
+  std::cout << "Winner:" << std::endl;
+  std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  LifeState marked = solution.stable.unknown | solution.stable.state;
+  std::cout << LifeBellmanRLEFor(solution.state, marked) << std::endl;
+
+  if(!solution.completed.IsEmpty()){
+    // std::cout << "Completed:" << std::endl;
+    // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+    // LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
+    // LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
+    // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
+    // std::cout << history.RLE() << std::endl;
+    std::cout << "Completed Plain:" << std::endl;
+    std::cout << solution.state.RLE() << std::endl;
+  } else {
+    // std::cout << "Completion failed!" << std::endl;
+    // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+    // LifeHistoryState history;
+    // std::cout << history.RLE() << std::endl;
+
+    std::cout << "Completion Failed!" << std::endl;
+    std::cout << LifeState().RLE() << std::endl;
+  }
 }
 
 void SearchState::ReportSolution() {
-  std::cout << "Winner:" << std::endl;
-  std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-  LifeState starting = params->startingPattern;
-  LifeState startingStableOff = params->startingStable & ~params->startingPattern;
-  LifeState state = params->startingPattern | (stable.state & ~startingStableOff);
-  LifeState marked = stable.unknown | (stable.state & ~startingStableOff);
-  std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
+  Solution solution;
+  solution.stable = stable;
+  solution.interactionStable = *stableAtInteraction;
+  solution.interactionGen = interactionStart;
+  solution.recoveryGen = currentGen - params->minStableInterval + 1;
 
+  LifeState completed;
   if(params->stabiliseResults) {
-    LifeState completed = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
-
-    if(!completed.IsEmpty()){
-      // std::cout << "Completed:" << std::endl;
-      // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-      // LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
-      // LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
-      // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
-      // std::cout << history.RLE() << std::endl;
-
-      std::cout << "Completed Plain:" << std::endl;
-      std::cout << ((completed & ~startingStableOff) | starting).RLE() << std::endl;
-      allSolutions->push_back((completed & ~startingStableOff) | starting);
-    } else {
-      // std::cout << "Completion failed!" << std::endl;
-      // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-      // LifeHistoryState history;
-      // std::cout << history.RLE() << std::endl;
-
-      std::cout << "Completion Failed!" << std::endl;
-      std::cout << LifeState().RLE() << std::endl;
-    }
+    completed = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
   }
+
+  LifeState starting = params->startingState.state;
+  LifeState startingStableOff = params->stable.state & ~params->startingState.state;
+
+  solution.state = (completed & ~startingStableOff) | starting;
+  solution.completed = completed;
+
+  allSolutions->push_back(solution);
+
+  if (!params->metasearch)
+    OutputSolution(solution);
 }
 
 void SearchState::SanityCheck() {
@@ -950,14 +1062,134 @@ void SearchState::SanityCheck() {
 #endif
 }
 
-void PrintSummary(std::vector<LifeState> &pats) {
-  std::cout << "Summary:" << std::endl;
+void PrintSummary(std::vector<Solution> &pats) {
   std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
   for (unsigned i = 0; i < pats.size(); i += 8) {
-    std::vector<LifeState> row =
-      std::vector<LifeState>(pats.begin() + i, pats.begin() + std::min((unsigned)pats.size(), i + 8));
+    std::vector<Solution> rowSolutions = std::vector<Solution>(pats.begin() + i, pats.begin() + std::min((unsigned)pats.size(), i + 8));
+    std::vector<LifeState> row;
+    for (auto &s : rowSolutions) {
+      row.push_back(s.state);
+    }
     std::cout << RowRLE(row) << std::endl;
   }
+}
+
+bool PassesFilters(const SearchParams &params, const Solution &solution) {
+  LifeUnknownState state = params.startingState;
+  state.TransferStable(solution.stable);
+
+  unsigned filterTime = 0;
+  for (auto &f : params.filters) {
+    filterTime = std::max(filterTime, f.gen);
+  }
+
+  // TODO:
+  std::vector<bool> filterPassed(params.filters.size(), false);
+  for (unsigned i = 0; i < filterTime; i++) {
+    state = state.StepMaintaining(solution.stable);
+
+    if (i < solution.interactionGen)
+      continue;
+
+    for (int fi = 0; fi < params.filters.size(); fi++) {
+      auto &f = params.filters[fi];
+      if (((state.state ^ f.state) & f.mask & ~state.unknown).IsEmpty())
+        filterPassed[fi] = true;
+    }
+  }
+
+  for (bool b : filterPassed) {
+    if (!b)
+      return false;
+  }
+  return true;
+}
+
+std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> &solutions) {
+  unsigned maxGen = params.maxFirstActiveGen + params.maxActiveWindowGens + params.minStableInterval;
+  // A list of hashes per generation
+  std::vector<std::vector<uint64_t>> hashes(maxGen);
+  std::vector<Solution> results;
+  for (auto &s : solutions) {
+    LifeUnknownState state = params.startingState;
+    state.TransferStable(s.stable);
+
+    LifeState stator = s.stable.stateZOI & ~s.stable.unknown;
+
+    // Fast forward to when the catalyst has just recovered
+    for (unsigned i = 0; i < s.recoveryGen; i++) {
+      state = state.StepMaintaining(s.stable);
+      stator &= ~state.ActiveComparedTo(s.stable);
+    }
+
+    s.stator = stator;
+
+    bool isNew = true;
+    // Add hashes to the list until the catalyst is destroyed/interacted with a second time
+    for (unsigned i = s.recoveryGen; i < maxGen; i++) {
+      bool isRecovered = ((s.stable.state ^ state.state) & s.stable.stateZOI & ~params.exempt).IsEmpty();
+      if (!isRecovered) {
+        break;
+      }
+
+      uint64_t hash = (state.state & ~s.stable.state).GetHash();
+      bool hashSeen = std::find(hashes[i].begin(), hashes[i].end(), hash) != hashes[i].end();
+      if (hashSeen) {
+        isNew = false;
+        break;
+      }
+
+      hashes[i].push_back(hash);
+      state = state.StepMaintaining(s.stable);
+    }
+    if(isNew)
+      results.push_back(s);
+  }
+  return results;
+}
+
+void MetaSearchStep(unsigned round, SearchParams &params) {
+  std::vector<Solution> allSolutions;
+  std::vector<uint64_t> seenRotors;
+  LifeStableState stableAtInteraction;
+
+  std::cout << "Depth: " << round << std::endl;
+  std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  std::cout << LifeBellmanRLEFor(params.stable.state | params.startingState.state, params.stable.unknown | params.stable.state) << std::endl;
+
+  SearchState search(params, allSolutions, seenRotors, stableAtInteraction);
+  search.SearchStep();
+
+  auto trimmed = TrimSolutions(params, allSolutions);
+
+  if (round == params.metasearchRounds) {
+    std::vector<Solution> filtered;
+    for (auto &s : trimmed) {
+      if (PassesFilters(params, s))
+        filtered.push_back(s);
+    }
+    if (filtered.size() > 0) {
+      std::cout << "Winner!" << std::endl;
+      PrintSummary(filtered);
+    }
+    return;
+  }
+
+  for (auto &s : trimmed) {
+    SearchParams newParams = params;
+    newParams.minFirstActiveGen = s.interactionGen;
+    newParams.stable = s.interactionStable.Graft(s.stable);
+    newParams.startingState.TransferStable(newParams.stable);
+    newParams.exempt |= newParams.stable.stateZOI & ~s.stator;
+    newParams.stabiliseResults = round + 1 == params.metasearchRounds;
+    newParams.stator |= s.stator;
+
+    MetaSearchStep(round + 1, newParams);
+  }
+}
+
+void MetaSearch(SearchParams &params) {
+  MetaSearchStep(1, params);
 }
 
 int main(int, char *argv[]) {
@@ -975,12 +1207,33 @@ int main(int, char *argv[]) {
   //   hardcoded value!" << std::endl; exit(1);
   // }
 
-  std::vector<LifeState> allSolutions;
-  // std::vector<uint64_t> seenRotors;
+  if (params.metasearch) {
+    MetaSearch(params);
+  } else {
+    std::vector<Solution> allSolutions;
+    std::vector<uint64_t> seenRotors;
+    LifeStableState stableAtInteraction;
 
-  SearchState search(params, allSolutions);
-  search.SearchStep();
+    SearchState search(params, allSolutions, seenRotors, stableAtInteraction);
+    search.SearchStep();
 
-  if (params.printSummary)
-    PrintSummary(allSolutions);
+    if (params.printSummary) {
+      std::cout << "All solutions:" << std::endl;
+      PrintSummary(allSolutions);
+      std::cout << "Unique:" << std::endl;
+      auto trimmed = TrimSolutions(params, allSolutions);
+      PrintSummary(trimmed);
+
+      std::vector<Solution> filtered;
+      for (auto &s : trimmed) {
+        if (PassesFilters(params, s))
+          filtered.push_back(s);
+      }
+      std::cout << "Filtered:" << std::endl;
+      PrintSummary(filtered);
+    }
+  }
 }
+
+
+// Meta search

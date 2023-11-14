@@ -4,8 +4,21 @@
 
 #include "LifeAPI.h"
 #include "LifeHistoryState.hpp"
+#include "LifeUnknownState.hpp"
 #include "LifeStableState.hpp"
 #include "Parsing.hpp"
+
+enum class FilterType {
+  EXACT,
+  EVER
+};
+
+struct Filter {
+  LifeState mask;
+  LifeState state;
+  unsigned gen;
+  FilterType type;
+};
 
 struct Forbidden {
   LifeState mask;
@@ -46,28 +59,26 @@ public:
   int maxCellStationaryDistance;
   int maxCellStationaryStreakGens;
 
-  LifeState startingPattern;
-  LifeState activePattern;
-  LifeState startingStable;
-  LifeState searchArea;
+  LifeUnknownState startingState;
+  LifeStableState stable;
   LifeState stator;
+  LifeState exempt;
   bool hasStator;
 
-  // TODO: of course we might want more than one of these
-  int filterGen;
-  LifeState filterMask;
-  LifeState filterPattern;
+  bool hasFilter;
+  std::vector<Filter> filters;
 
   bool hasForbidden;
   std::vector<Forbidden> forbiddens;
+
+  bool metasearch;
+  unsigned metasearchRounds;
 
   bool stabiliseResults;
   unsigned stabiliseResultsTimeout;
   bool minimiseResults;
   bool reportOscillators;
-  bool skipGlancing;
   bool continueAfterSuccess;
-  // bool forbidEater2;
   bool printSummary;
   bool pipeResults;
 
@@ -133,9 +144,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.stabiliseResultsTimeout = toml::find_or(toml, "stabilise-results-timeout", 3);
   params.minimiseResults = toml::find_or(toml, "minimise-results", false);
   params.reportOscillators = toml::find_or(toml, "report-oscillators", false);
-  params.skipGlancing = toml::find_or(toml, "skip-glancing", true);
   params.continueAfterSuccess = toml::find_or(toml, "continue-after-success", false);
-  // params.forbidEater2 = toml::find_or(toml, "forbid-eater2", false);
   params.printSummary = toml::find_or(toml, "print-summary", true);
 
   params.pipeResults = toml::find_or(toml, "pipe-results", false);
@@ -146,34 +155,56 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     params.printSummary = false;
   }
 
-  params.debug = toml::find_or(toml, "debug", false);
-
   std::string rle = toml::find<std::string>(toml, "pattern");
   LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
 
   std::vector<int> patternCenterVec = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
   std::pair<int, int> patternCenter = {-patternCenterVec[0], -patternCenterVec[1]};
-
   pat.Move(patternCenter);
 
-  params.startingPattern = pat.state;
-  params.activePattern = pat.state & ~pat.marked;
-  params.startingStable = pat.marked;
-  params.searchArea = pat.history;
+  params.stable.state = pat.marked;
+  params.stable.unknown = pat.history;
+
+  params.startingState.state = pat.state;
+  params.startingState.unknown = pat.history;
+  params.startingState.unknownStable = pat.history;
+
+  // This needs to be done in this order first, because the counts/options start at all 0
+  params.stable.SynchroniseStateKnown();
+  params.stable.Propagate();
+  params.startingState.TransferStable(params.stable);
+
   params.stator = pat.original;
   params.hasStator = !params.stator.IsEmpty();
 
-  params.filterGen = toml::find_or(toml, "filter-gen", -1);
-  if(params.filterGen != -1) {
-    std::string rle = toml::find_or<std::string>(toml, "filter", "");
-    LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
+  // TODO: parse
+  params.exempt = LifeState();
 
-    std::vector<int> patternCenterVec =
-        toml::find_or<std::vector<int>>(toml, "filter-pos", {0, 0});
-    pat.Move(patternCenterVec[0], patternCenterVec[1]);
+  if(toml.contains("filter")) {
+    params.hasFilter = true;
 
-    params.filterMask = pat.marked;
-    params.filterPattern = pat.state;
+    auto filters = toml::find<std::vector<toml::value>>(toml, "filter");
+    for(auto &f : filters) {
+      std::string rle = toml::find_or<std::string>(f, "filter", "");
+      std::vector<int> filterCenterVec = toml::find_or<std::vector<int>>(f, "filter-pos", {0, 0});
+      LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
+      unsigned filterGen = toml::find_or(f, "filter-gen", -1);
+
+      FilterType filterType;
+      std::string filterTypeStr = toml::find_or<std::string>(f, "filter-type", "EXACT");
+      if (filterTypeStr == "EXACT") {
+        filterType = FilterType::EXACT;
+      }
+      if (filterTypeStr == "EVER") {
+        filterType = FilterType::EVER;
+      }
+
+      pat.Move(filterCenterVec[0], filterCenterVec[1]);
+
+      params.filters.push_back({pat.marked, pat.state, filterGen, filterType});
+    }
+  } else {
+    params.hasFilter = false;
   }
 
   if(toml.contains("forbidden")) {
@@ -194,6 +225,11 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     params.hasForbidden = false;
   }
 
+  params.metasearch = toml::find_or(toml, "metasearch", false);
+  params.metasearchRounds = toml::find_or(toml, "metasearch-rounds", 5);
+
+  params.debug = toml::find_or(toml, "debug", false);
+  
   if (toml.contains("oracle")) {
     std::string oraclerle = toml::find<std::string>(toml, "oracle");
     LifeHistoryState oracle = LifeHistoryState::ParseWHeader(oraclerle);
