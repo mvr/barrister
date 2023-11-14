@@ -108,13 +108,17 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
       result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_ON);
   }
 
+  // if (forcedInactive && !inzoi) {
+  //   if (unknownstable) {
+  //     result &= Transition::UNCHANGING;
+  //   }
+  //   if (!unknownstable) {
+  //     result &= unperturbed;
+  //   }
+  // }
+
   if (forcedInactive && !inzoi) {
-    if (unknownstable) {
-      result &= Transition::UNCHANGING;
-    }
-    if (!unknownstable) {
-      result &= unperturbed;
-    }
+    result &= unperturbed;
   }
 
   if (forcedUnchanging && inzoi)
