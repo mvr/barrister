@@ -219,12 +219,10 @@ LifeState SearchState::ForcedInactiveCells(
 
   auto activePop = active.GetPop();
 
-  if (hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens) {
+  if (hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens)
     return ~LifeState();
-  }
 
-  if (params->maxActiveCells != -1 &&
-      activePop > (unsigned)params->maxActiveCells)
+  if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
     return ~LifeState();
 
   LifeState result;
@@ -236,25 +234,110 @@ LifeState SearchState::ForcedInactiveCells(
     result |= ~active.BufferAround(params->activeBounds);
   }
 
-  if (params->maxEverActiveCells != -1 &&
-      everActive.GetPop() == (unsigned)params->maxEverActiveCells) {
+  if (params->maxEverActiveCells != -1 && everActive.GetPop() == (unsigned)params->maxEverActiveCells) {
     result |= ~everActive; // Or maybe just return
   }
 
-  if (params->everActiveBounds.first != -1 && activePop > 0) {
+  if (params->everActiveBounds.first != -1) {
     result |= ~everActive.BufferAround(params->everActiveBounds);
+  }
+
+  if (params->maxComponentActiveCells != -1 && activePop > (unsigned)params->maxComponentActiveCells) {
+    for (auto &c : active.Components()) {
+      auto componentPop = c.GetPop();
+      if(componentPop > (unsigned)params->maxComponentActiveCells)
+        return ~LifeState();
+      if(componentPop == (unsigned)params->maxComponentActiveCells)
+        result |= ~active & c.BigZOI();
+    }
+  }
+
+  if (params->maxComponentEverActiveCells != -1 && everActive.GetPop() > (unsigned)params->maxComponentEverActiveCells) {
+    for (auto &c : everActive.Components()) {
+      auto componentPop = c.GetPop();
+      if(componentPop > (unsigned)params->maxComponentEverActiveCells)
+        return ~LifeState();
+      if(componentPop == (unsigned)params->maxComponentEverActiveCells)
+        result |= ~c & c.BigZOI();
+    }
+  }
+
+  if (params->componentEverActiveBounds.first != -1) {
+    for (auto &c : everActive.Components()) {
+      auto wh = c.WidthHeight();
+      if (wh.first > params->componentEverActiveBounds.first ||
+          wh.second > params->componentEverActiveBounds.second)
+        return ~LifeState();
+
+      result |= ~c.BufferAround(params->componentEverActiveBounds) & c.BigZOI();
+    }
+  }
+
+  if (params->maxCellActiveWindowGens != -1 &&
+      hasInteracted &&
+      gen > interactionStart + (unsigned)params->maxCellActiveWindowGens)
+    result |= activeTimer.finished;
+
+  if (params->maxCellActiveStreakGens != -1 &&
+      hasInteracted &&
+      gen > interactionStart + (unsigned)params->maxCellActiveStreakGens)
+    result |= streakTimer.finished;
+
+  if (params->maxCellStationaryDistance != -1) {
+    LifeState unchanging = ~(changes | (state.unknown & ~state.unknownStable));
+    result |= unchanging.MatchLive(LifeState::NZOIAround({0, 0}, params->maxCellStationaryDistance));
   }
 
   return result;
 }
+
 LifeState SearchState::ForcedUnchangingCells(
     unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
-    const LifeState &active,
-    const LifeState &everActive, const LifeState &changes,
+    const LifeState &active, const LifeState &everActive,
+    const LifeState &changes,
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    const LifeCountdown<maxCellActiveStreakGens> &streakTimer
-        ) const {
-  return LifeState();
+    const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
+
+  LifeState result;
+  if (params->maxChanges != -1) {
+    unsigned changesPop = changes.GetPop();
+    if (changesPop > (unsigned)params->maxChanges)
+      return ~LifeState();
+    if (changesPop == (unsigned)params->maxChanges) {
+      result |= ~changes;
+    }
+  }
+
+  if (params->maxComponentChanges != -1) {
+    for (auto &c : changes.Components()) {
+      unsigned changesPop = c.GetPop();
+      if (changesPop > (unsigned)params->maxComponentChanges)
+        return ~LifeState();
+      if (changesPop == (unsigned)params->maxComponentChanges) {
+        result |= ~changes & c.BigZOI();
+      }
+    }
+  }
+
+  if (params->changesBounds.first != -1) {
+    result |= ~changes.BufferAround(params->changesBounds);
+  }
+
+  if (params->componentChangesBounds.first != -1) {
+    for (auto &c : changes.Components()) {
+      auto wh = c.WidthHeight();
+      if (wh.first > params->componentChangesBounds.first ||
+          wh.second > params->componentChangesBounds.second)
+        return ~LifeState();
+
+      result |= ~c.BufferAround(params->componentChangesBounds) & c.BigZOI();
+    }
+  }
+
+  if (params->hasStator)
+    result |= params->stator;
+
+  return result;
 }
 
 StableOptions OptionsFor(bool currentstate, bool nextstate, unsigned currenton,

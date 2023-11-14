@@ -29,6 +29,8 @@ public:
 
   int maxEverActiveCells;
   std::pair<int, int> everActiveBounds;
+  int maxComponentEverActiveCells;
+  std::pair<int, int> componentEverActiveBounds;
 
   int changesGrace;
   int maxChanges;
@@ -99,6 +101,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   std::vector<int> everActiveBounds = toml::find_or<std::vector<int>>(toml, "ever-active-bounds", {-1, -1});
   params.everActiveBounds.first = everActiveBounds[0];
   params.everActiveBounds.second = everActiveBounds[1];
+  params.maxComponentEverActiveCells = toml::find_or(toml, "max-component-ever-active", -1);
+  std::vector<int> componentEverActiveBounds = toml::find_or<std::vector<int>>(toml, "component-ever-active-bounds", {-1, -1});
+  params.componentEverActiveBounds.first = componentEverActiveBounds[0];
+  params.componentEverActiveBounds.second = componentEverActiveBounds[1];
 
   params.maxCellActiveWindowGens = toml::find_or(toml, "max-cell-active-window", -1);
   params.maxCellActiveStreakGens = toml::find_or(toml, "max-cell-active-streak", -1);
