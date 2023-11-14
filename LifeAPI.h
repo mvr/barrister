@@ -1193,7 +1193,10 @@ public:
   LifeState BufferAround(std::pair<int, int> size) const {
     auto bounds = XYBounds();
 
-    if(bounds[0] == -1)
+    if (bounds[0] == -1 &&
+        bounds[1] == -1 &&
+        bounds[2] == -1 &&
+        bounds[3] == -1)
       return ~LifeState();
 
     int width = bounds[2] - bounds[0] + 1;
