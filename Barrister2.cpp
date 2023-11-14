@@ -929,6 +929,7 @@ SearchState::SearchState(SearchParams &inparams,
   everActive = LifeState();
   // activeTimer = LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
   // streakTimer = LifeCountdown<maxCellActiveStreakGens>(params->maxCellActiveStreakGens);
+}
 
 unsigned SearchState::TestOscillating() {
   // We can trample `current`, because we only do this when we are
