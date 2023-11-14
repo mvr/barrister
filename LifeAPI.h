@@ -590,7 +590,7 @@ public:
       y += 64;
 
     for (int i = 0; i < N; i++) {
-      int newi = (i + x) % 64;
+      int newi = (i + x) % N;
       result[newi] = RotateLeft(state[i], y);
     }
     return result;
