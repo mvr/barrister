@@ -1098,7 +1098,9 @@ bool PassesFilters(const SearchParams &params, const Solution &solution) {
 
     for (int fi = 0; fi < params.filters.size(); fi++) {
       auto &f = params.filters[fi];
-      if (((state.state ^ f.state) & f.mask & ~state.unknown).IsEmpty())
+      if (!(state.unknown & f.mask).IsEmpty())
+        break;
+      if (((state.state ^ f.state) & f.mask).IsEmpty())
         filterPassed[fi] = true;
     }
   }
