@@ -196,7 +196,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
       unsigned filterGen = toml::find_or(f, "filter-gen", -1);
 
       FilterType filterType;
-      std::string filterTypeStr = toml::find_or<std::string>(f, "filter-type", "EXACT");
+      std::string filterTypeStr = toml::find_or<std::string>(f, "filter-type", "EVER");
       if (filterTypeStr == "EXACT") {
         filterType = FilterType::EXACT;
       }

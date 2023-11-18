@@ -1108,9 +1108,12 @@ bool PassesFilters(const SearchParams &params, const Solution &solution) {
 
     for (int fi = 0; fi < params.filters.size(); fi++) {
       auto &f = params.filters[fi];
+
       if (!(state.unknown & f.mask).IsEmpty())
         break;
-      if (((state.state ^ f.state) & f.mask).IsEmpty())
+
+      bool shouldCheck = f.type == FilterType::EVER || (f.type == FilterType::EXACT && i+1 == f.gen);
+      if (shouldCheck && ((state.state ^ f.state) & f.mask).IsEmpty())
         filterPassed[fi] = true;
     }
   }
