@@ -77,6 +77,8 @@ public:
   bool stabiliseResults;
   unsigned stabiliseResultsTimeout;
   bool minimiseResults;
+  bool trimResults;
+  unsigned minTrimHashes;
   bool reportOscillators;
   bool continueAfterSuccess;
   bool printSummary;
@@ -143,6 +145,10 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.stabiliseResults = toml::find_or(toml, "stabilise-results", true);
   params.stabiliseResultsTimeout = toml::find_or(toml, "stabilise-results-timeout", 3);
   params.minimiseResults = toml::find_or(toml, "minimise-results", false);
+
+  params.trimResults = toml::find_or(toml, "trim-results", true);
+  params.minTrimHashes = toml::find_or(toml, "min-trim-hashes", 5);
+
   params.reportOscillators = toml::find_or(toml, "report-oscillators", false);
   params.continueAfterSuccess = toml::find_or(toml, "continue-after-success", false);
   params.printSummary = toml::find_or(toml, "print-summary", true);

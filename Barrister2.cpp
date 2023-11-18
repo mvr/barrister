@@ -64,6 +64,15 @@ struct Solution {
   LifeState stator;
   unsigned interactionGen;
   unsigned recoveryGen;
+
+  bool operator==(const Solution&) const = default; // I don't really know why I need to say this
+
+  // Doesn't have to be fast
+  auto operator<=>(const Solution &other) const {
+    if (auto c = interactionGen <=> other.interactionGen; c != 0) return c;
+    if (auto c = recoveryGen <=> other.recoveryGen; c != 0) return c;
+    return state.GetHash() <=> other.state.GetHash();
+  }
 };
 
 struct FrontierGeneration {
@@ -1115,9 +1124,9 @@ bool PassesFilters(const SearchParams &params, const Solution &solution) {
 
 std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> &solutions) {
   unsigned maxGen = params.maxFirstActiveGen + params.maxActiveWindowGens + params.minStableInterval;
+
   // A list of hashes per generation
-  std::vector<std::vector<uint64_t>> hashes(maxGen);
-  std::vector<Solution> results;
+  std::vector<std::vector<std::pair<uint64_t, Solution>>> hashes(maxGen);
   for (auto &s : solutions) {
     LifeUnknownState state = params.startingState;
     state.TransferStable(s.stable);
@@ -1132,7 +1141,6 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
 
     s.stator = stator;
 
-    bool isNew = true;
     // Add hashes to the list until the catalyst is destroyed/interacted with a second time
     for (unsigned i = s.recoveryGen; i < maxGen; i++) {
       bool isRecovered = ((s.stable.state ^ state.state) & s.stable.stateZOI & ~params.exempt).IsEmpty();
@@ -1141,18 +1149,39 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
       }
 
       uint64_t hash = (state.state & ~s.stable.state).GetHash();
-      bool hashSeen = std::find(hashes[i].begin(), hashes[i].end(), hash) != hashes[i].end();
-      if (hashSeen) {
-        isNew = false;
-        break;
+      bool hashSeen = false;
+      for (auto &[oldhash, oldsolution] : hashes[i]) {
+        if (hash == oldhash) {
+          unsigned pop = s.stable.state.GetPop();
+          unsigned oldpop = oldsolution.stable.state.GetPop();
+          bool smaller = pop < oldpop || (pop == oldpop && s.stable.state.GetHash() < oldsolution.stable.state.GetHash());
+          if (smaller) {
+            oldsolution = s;
+          }
+          hashSeen = true;
+        }
+      }
+      if (!hashSeen) {
+        hashes[i].push_back({hash, s});
       }
 
-      hashes[i].push_back(hash);
       state = state.StepMaintaining(s.stable);
     }
-    if(isNew)
+  }
+
+  std::map<Solution, unsigned> counts;
+  for (auto &g : hashes) {
+    for(auto &[hash, s] : g) {
+      counts[s]++;
+    }
+  }
+
+  std::vector<Solution> results;
+  for (auto &[s, count] : counts) {
+    if (count >= params.minTrimHashes)
       results.push_back(s);
   }
+
   return results;
 }
 
