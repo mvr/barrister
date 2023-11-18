@@ -1079,16 +1079,20 @@ void SearchState::SanityCheck() {
 #endif
 }
 
-void PrintSummary(std::vector<Solution> &pats) {
-  std::cout << "x = 0, y = 0, rule = B3/S23" << std::endl;
+void PrintSummary(std::vector<Solution> &pats, std::ostream &out) {
+  out << "x = 0, y = 0, rule = B3/S23" << std::endl;
   for (unsigned i = 0; i < pats.size(); i += 8) {
     std::vector<Solution> rowSolutions = std::vector<Solution>(pats.begin() + i, pats.begin() + std::min((unsigned)pats.size(), i + 8));
     std::vector<LifeState> row;
     for (auto &s : rowSolutions) {
       row.push_back(s.state);
     }
-    std::cout << RowRLE(row) << std::endl;
+    out << RowRLE(row) << std::endl;
   }
+}
+
+void PrintSummary(std::vector<Solution> &pats) {
+  PrintSummary(pats, std::cout);
 }
 
 bool PassesFilters(const SearchParams &params, const Solution &solution) {
@@ -1215,6 +1219,10 @@ void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchP
     if (filtered.size() > 0) {
       std::cout << "Winner!" << std::endl;
       PrintSummary(filtered);
+      if (params.outputFile != "") {
+        std::ofstream resultsFile(params.outputFile);
+        PrintSummary(allSolutions, resultsFile);
+      }
     }
     return;
   }
@@ -1237,6 +1245,10 @@ void MetaSearch(SearchParams &params) {
   MetaSearchStep(1, allSolutions, params);
   std::cout << "Summary!" << std::endl;
   PrintSummary(allSolutions);
+  if (params.outputFile != "") {
+    std::ofstream resultsFile(params.outputFile);
+    PrintSummary(allSolutions, resultsFile);
+  }
 }
 
 int main(int, char *argv[]) {

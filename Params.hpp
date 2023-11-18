@@ -83,6 +83,7 @@ public:
   bool continueAfterSuccess;
   bool printSummary;
   bool pipeResults;
+  std::string outputFile;
 
   bool debug;
   bool hasOracle;
@@ -160,6 +161,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     params.minimiseResults = false;
     params.printSummary = false;
   }
+  params.outputFile = toml::find_or(toml, "output-file", "");
 
   std::string rle = toml::find<std::string>(toml, "pattern");
   LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
