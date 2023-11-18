@@ -230,8 +230,8 @@ public:
 
   unsigned TestOscillating();
   std::vector<uint64_t> ClassifyRotors(unsigned period);
-  void ReportSolution();
-  void OutputSolution(const Solution &solution);
+  void RecordSolution();
+  void PrintSolution(const Solution &solution);
 
   void SanityCheck();
 };
@@ -662,7 +662,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
 
       if (isRecovered && recoveredTime == params->minStableInterval) {
         if(!params->reportOscillators)
-          ReportSolution();
+          RecordSolution();
         if(!params->continueAfterSuccess)
           return {false, false};
       }
@@ -681,7 +681,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
             }
             if(anyNew) {
               std::cout << "Oscillating! Period: " << period << std::endl;
-              ReportSolution();
+              RecordSolution();
             }
           }
         }
@@ -1006,7 +1006,7 @@ std::vector<uint64_t> SearchState::ClassifyRotors(unsigned period) {
   return result;
 }
 
-void SearchState::OutputSolution(const Solution &solution) {
+void SearchState::PrintSolution(const Solution &solution) {
   std::cout << "Winner:" << std::endl;
   std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
   LifeState marked = solution.stable.unknown | solution.stable.state;
@@ -1032,7 +1032,7 @@ void SearchState::OutputSolution(const Solution &solution) {
   }
 }
 
-void SearchState::ReportSolution() {
+void SearchState::RecordSolution() {
   Solution solution;
   solution.stable = stable;
   solution.interactionStable = *stableAtInteraction;
@@ -1053,7 +1053,7 @@ void SearchState::ReportSolution() {
   allSolutions->push_back(solution);
 
   if (!params->metasearch)
-    OutputSolution(solution);
+    PrintSolution(solution);
 }
 
 void SearchState::SanityCheck() {
@@ -1188,8 +1188,8 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
   return results;
 }
 
-void MetaSearchStep(unsigned round, SearchParams &params) {
-  std::vector<Solution> allSolutions;
+void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchParams &params) {
+  std::vector<Solution> roundSolutions;
   std::vector<uint64_t> seenRotors;
   LifeStableState stableAtInteraction;
 
@@ -1197,17 +1197,19 @@ void MetaSearchStep(unsigned round, SearchParams &params) {
   std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
   std::cout << LifeBellmanRLEFor(params.stable.state | params.startingState.state, params.stable.unknown | params.stable.state) << std::endl;
 
-  SearchState search(params, allSolutions, seenRotors, stableAtInteraction);
+  SearchState search(params, roundSolutions, seenRotors, stableAtInteraction);
   search.SearchStep();
 
-  auto trimmed = TrimSolutions(params, allSolutions);
+  auto trimmed = TrimSolutions(params, roundSolutions);
+
+  std::vector<Solution> filtered;
+  for (auto &s : trimmed) {
+    if (PassesFilters(params, s))
+      filtered.push_back(s);
+  }
+  allSolutions.insert(allSolutions.end(), filtered.begin(), filtered.end());
 
   if (round == params.metasearchRounds) {
-    std::vector<Solution> filtered;
-    for (auto &s : trimmed) {
-      if (PassesFilters(params, s))
-        filtered.push_back(s);
-    }
     if (filtered.size() > 0) {
       std::cout << "Winner!" << std::endl;
       PrintSummary(filtered);
@@ -1224,12 +1226,15 @@ void MetaSearchStep(unsigned round, SearchParams &params) {
     newParams.stabiliseResults = round + 1 == params.metasearchRounds;
     newParams.stator |= s.stator;
 
-    MetaSearchStep(round + 1, newParams);
+    MetaSearchStep(round + 1, allSolutions, newParams);
   }
 }
 
 void MetaSearch(SearchParams &params) {
-  MetaSearchStep(1, params);
+  std::vector<Solution> allSolutions;
+  MetaSearchStep(1, allSolutions, params);
+  std::cout << "Summary!" << std::endl;
+  PrintSummary(allSolutions);
 }
 
 int main(int, char *argv[]) {
