@@ -1,6 +1,8 @@
 #include <cassert>
 #include <cmath>
 #include <stack>
+#include <map>
+#include <algorithm>
 
 #include "toml/toml.hpp"
 
