@@ -72,8 +72,9 @@ struct Solution {
   // Doesn't have to be fast
   auto operator<=>(const Solution &other) const {
     if (auto c = interactionGen <=> other.interactionGen; c != 0) return c;
+    if (auto c = stable.state.GetPop() <=> other.stable.state.GetPop(); c != 0) return c;
     if (auto c = recoveryGen <=> other.recoveryGen; c != 0) return c;
-    return state.GetHash() <=> other.state.GetHash();
+    return stable.state.GetHash() <=> other.stable.state.GetHash();
   }
 };
 
@@ -1137,34 +1138,34 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
   // A list of hashes per generation
   std::vector<std::vector<std::pair<uint64_t, Solution>>> hashes(maxGen);
   for (auto &s : solutions) {
+    LifeStableState clearedStable = s.stable.ClearUnmodified();
     LifeUnknownState state = params.startingState;
-    state.TransferStable(s.stable);
+    state.TransferStable(clearedStable);
 
-    LifeState stator = s.stable.stateZOI & ~s.stable.unknown;
+    LifeState stator = clearedStable.stateZOI & ~clearedStable.unknown;
 
     // Fast forward to when the catalyst has just recovered
     for (unsigned i = 0; i < s.recoveryGen; i++) {
-      state = state.StepMaintaining(s.stable);
-      stator &= ~state.ActiveComparedTo(s.stable);
+      state = state.StepMaintaining(clearedStable);
+      stator &= ~state.ActiveComparedTo(clearedStable);
     }
 
     s.stator = stator;
 
     // Add hashes to the list until the catalyst is destroyed/interacted with a second time
     for (unsigned i = s.recoveryGen; i < maxGen; i++) {
-      bool isRecovered = ((s.stable.state ^ state.state) & s.stable.stateZOI & ~params.exempt).IsEmpty();
+      bool isRecovered = ((clearedStable.state ^ state.state) & clearedStable.stateZOI & ~params.exempt).IsEmpty();
       if (!isRecovered) {
         break;
       }
 
-      uint64_t hash = (state.state & ~s.stable.state).GetHash();
+      LifeState perturbed = state.state & ~clearedStable.stateZOI;
+
+      uint64_t hash = perturbed.GetHash();
       bool hashSeen = false;
       for (auto &[oldhash, oldsolution] : hashes[i]) {
         if (hash == oldhash) {
-          unsigned pop = s.stable.state.GetPop();
-          unsigned oldpop = oldsolution.stable.state.GetPop();
-          bool smaller = pop < oldpop || (pop == oldpop && s.stable.state.GetHash() < oldsolution.stable.state.GetHash());
-          if (smaller) {
+          if (s < oldsolution) {
             oldsolution = s;
           }
           hashSeen = true;
@@ -1174,13 +1175,13 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
         hashes[i].push_back({hash, s});
       }
 
-      state = state.StepMaintaining(s.stable);
+      state = state.StepMaintaining(clearedStable);
     }
   }
 
   std::map<Solution, unsigned> counts;
   for (auto &g : hashes) {
-    for(auto &[hash, s] : g) {
+    for (auto &[hash, s] : g) {
       counts[s]++;
     }
   }
@@ -1215,15 +1216,16 @@ void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchP
   }
   allSolutions.insert(allSolutions.end(), filtered.begin(), filtered.end());
 
-  if (round == params.metasearchRounds) {
-    if (filtered.size() > 0) {
-      std::cout << "Winner!" << std::endl;
-      PrintSummary(filtered);
-      if (params.outputFile != "") {
-        std::ofstream resultsFile(params.outputFile);
-        PrintSummary(allSolutions, resultsFile);
-      }
+  if (filtered.size() > 0) {
+    std::cout << "Winner!" << std::endl;
+    PrintSummary(filtered);
+    if (params.outputFile != "") {
+      std::ofstream resultsFile(params.outputFile);
+      PrintSummary(allSolutions, resultsFile);
     }
+  }
+
+  if (round == params.metasearchRounds) {
     return;
   }
 

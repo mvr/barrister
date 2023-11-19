@@ -67,6 +67,7 @@ public:
 
   LifeStableState Join(const LifeStableState &other) const;
   LifeStableState Graft(const LifeStableState &other) const;
+  LifeStableState ClearUnmodified() const;
   LifeState Differences(const LifeStableState &other) const;
 
   StableOptions GetOptions(std::pair<int, int> cell) const;
@@ -173,6 +174,20 @@ LifeStableState LifeStableState::Graft(const LifeStableState &other) const {
   result.dead4 = dead4 | (other.dead4 & other.stateZOI);
   result.dead5 = dead5 | (other.dead5 & other.stateZOI);
   result.dead6 = dead6 | (other.dead6 & other.stateZOI);
+
+  return result;
+}
+
+LifeStableState LifeStableState::ClearUnmodified() const {
+  LifeStableState result = *this;
+
+  LifeState toClear = unknown & ~stateZOI;
+
+  result.unknown = unknown & ~toClear;
+  result.state = state;
+  result.stateZOI = stateZOI;
+
+  result.UpdateOptions();
 
   return result;
 }
