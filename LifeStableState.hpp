@@ -1182,7 +1182,6 @@ PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
   return {true, anyChanges};
 }
 
-bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best) {
 void LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best) {
   auto currentTime = std::chrono::system_clock::now();
   if(currentTime > timeLimit)
