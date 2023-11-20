@@ -119,7 +119,7 @@ public:
 
   PropagateResult TestUnknown(std::pair<int, int> cell);
   PropagateResult TestUnknowns(const LifeState &cells);
-  bool CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best);
+  void CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best);
   LifeState CompleteStable(unsigned timeout, bool minimise);
 
   std::string RLE() const;
@@ -1183,28 +1183,29 @@ PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
 }
 
 bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best) {
+void LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best) {
   auto currentTime = std::chrono::system_clock::now();
   if(currentTime > timeLimit)
-    return false;
+    return;
 
   bool consistent = Propagate().consistent;
   if (!consistent)
-    return false;
+    return;
 
   unsigned currentPop = state.GetPop();
 
   if (currentPop >= maxPop) {
-    return false;
+    return;
   }
 
   auto result = TestUnknowns(Vulnerable().ZOI());
   if (!result.consistent)
-    return false;
+    return;
 
   if (result.changed) {
     currentPop = state.GetPop();
     if(currentPop >= maxPop)
-      return false;
+      return;
   }
 
   LifeState settable = PerturbedUnknowns();
@@ -1213,7 +1214,7 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
     // We win
     best = state;
     maxPop = state.GetPop();
-    return true;
+    return;
   }
 
   LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
@@ -1228,29 +1229,25 @@ bool LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
   if(newPlacement.first == -1)
     newPlacement = settable.FirstOn();
   if(newPlacement.first == -1)
-    return false;
-
-  bool onresult = false;
-  bool offresult = false;
+    return;
 
   // Try off
   {
     LifeStableState nextState = *this;
     nextState.SetOff(LifeState::Cell(newPlacement));
-    offresult = nextState.CompleteStableStep(timeLimit, minimise, maxPop, best);
+    nextState.CompleteStableStep(timeLimit, minimise, maxPop, best);
   }
-  if (!minimise && offresult)
-    return true;
+  if (!minimise && !best.IsEmpty())
+    return;
 
   // Then must be on
   {
     LifeStableState &nextState = *this;
     nextState.SetOn(LifeState::Cell(newPlacement));
 
-    onresult = nextState.CompleteStableStep(timeLimit, minimise, maxPop, best);
+    [[clang::musttail]]
+    return nextState.CompleteStableStep(timeLimit, minimise, maxPop, best);
   }
-
-  return offresult || onresult;
 }
 
 LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
