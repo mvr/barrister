@@ -130,7 +130,7 @@ Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
   // }
 
   if (forcedInactive && !inzoi) {
-    result &= unperturbed;
+    result &= unperturbed | Transition::OFF_TO_OFF | Transition::ON_TO_ON;
   }
 
   if (forcedUnchanging && inzoi)
