@@ -1216,16 +1216,30 @@ void LifeStableState::CompleteStableStep(const LifeState &seed, std::chrono::sys
     return;
   }
 
-  // Prefer cells close to the original
+  if(minimise) {
+    // Prefer cells close to the original
+    LifeState seedZOI = seed;
+    while (true) {
+      if (!(settable & seedZOI).IsEmpty())
+        break;
+      seedZOI = seedZOI.ZOI();
+    }
+    settable &= seedZOI;
+  }
+
+  LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
+  CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
+
+  // Now make a guess for the best cell to branch on
   std::pair<int, int> newPlacement = {-1, -1};
 
-  LifeState seedZOI = seed;
-  while (true) {
-    newPlacement = (settable & seedZOI).FirstOn();
-    if (newPlacement.first != -1)
-      break;
-    seedZOI = seedZOI.ZOI();
-  }
+  newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & ~unknown0)).FirstOn();
+  if(newPlacement.first == -1)
+    newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & unknown0)).FirstOn();
+  if(newPlacement.first == -1)
+    newPlacement = settable.FirstOn();
+  if(newPlacement.first == -1)
+    return;
 
   // Try off
   {
@@ -1258,22 +1272,23 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
   auto timeLimit = startTime + std::chrono::seconds(timeout);
 
   // First find a solution with small BB
-  LifeState searchArea = state | PerturbedUnknowns();
+  LifeState searchArea = stateZOI;
   while(!(unknown & ~searchArea).IsEmpty()) {
-    searchArea = searchArea.ZOI();
     LifeStableState copy = *this;
     copy.unknown &= searchArea;
-    copy.CompleteStableStep(state, timeLimit, false, maxPop, best);
+    copy.CompleteStableStep(stateZOI, timeLimit, false, maxPop, best);
 
     auto currentTime = std::chrono::system_clock::now();
     if (best.GetPop() > 0 || currentTime > timeLimit)
       break;
+
+    searchArea = searchArea.ZOI();
   }
 
   if (minimise) {
     // Then try again with no restriction
     LifeStableState copy = *this;
-    copy.CompleteStableStep(state, timeLimit, minimise, maxPop, best);
+    copy.CompleteStableStep(stateZOI, timeLimit, minimise, maxPop, best);
   }
 
   return best;
