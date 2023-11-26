@@ -65,6 +65,24 @@ public:
 
   bool operator==(const LifeStableState&) const = default;
 
+  void Move(int x, int y) {
+    state.Move(x, y);
+    unknown.Move(x, y);
+    stateZOI.Move(x, y);
+    live2.Move(x, y);
+    live3.Move(x, y);
+    dead0.Move(x, y);
+    dead1.Move(x, y);
+    dead2.Move(x, y);
+    dead4.Move(x, y);
+    dead5.Move(x, y);
+    dead6.Move(x, y);
+  }
+
+  void Move(std::pair<int, int> vec) {
+    Move(vec.first, vec.second);
+  }
+
   LifeStableState Join(const LifeStableState &other) const;
   LifeStableState Graft(const LifeStableState &other) const;
   LifeStableState ClearUnmodified() const;
