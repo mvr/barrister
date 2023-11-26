@@ -936,11 +936,11 @@ SearchState::SearchState(SearchParams &inparams,
 
   timeSincePropagate = 0;
 
-  TryAdvance();
-
   everActive = LifeState();
-  // activeTimer = LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
-  // streakTimer = LifeCountdown<maxCellActiveStreakGens>(params->maxCellActiveStreakGens);
+  activeTimer = LifeCountdown<maxCellActiveWindowGens>(params->maxCellActiveWindowGens);
+  streakTimer = LifeCountdown<maxCellActiveStreakGens>(params->maxCellActiveStreakGens);
+
+  TryAdvance();
 }
 
 unsigned SearchState::TestOscillating() {
