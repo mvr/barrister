@@ -1257,16 +1257,14 @@ int main(int, char *argv[]) {
   auto toml = toml::parse(argv[1]);
   SearchParams params = SearchParams::FromToml(toml);
 
-  // if (params.maxCellActiveWindowGens != -1 &&
-  // (unsigned)params.maxCellActiveWindowGens > maxCellActiveWindowGens) {
-  //   std::cout << "max-cell-active-window is higher than allowed by the
-  //   hardcoded value!" << std::endl; exit(1);
-  // }
-  // if (params.maxCellActiveStreakGens != -1 &&
-  // (unsigned)params.maxCellActiveStreakGens > maxCellActiveStreakGens) {
-  //   std::cout << "max-cell-active-streak is higher than allowed by the
-  //   hardcoded value!" << std::endl; exit(1);
-  // }
+  if (params.maxCellActiveWindowGens != -1 &&
+  (unsigned)params.maxCellActiveWindowGens > maxCellActiveWindowGens) {
+    std::cout << "max-cell-active-window is higher than allowed by the hardcoded value!" << std::endl; exit(1);
+  }
+  if (params.maxCellActiveStreakGens != -1 &&
+  (unsigned)params.maxCellActiveStreakGens > maxCellActiveStreakGens) {
+    std::cout << "max-cell-active-streak is higher than allowed by the hardcoded value!" << std::endl; exit(1);
+  }
 
   if (params.metasearch) {
     MetaSearch(params);
