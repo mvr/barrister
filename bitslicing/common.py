@@ -33,9 +33,19 @@ def life_stable(center, count):
     if center == OFF:
         return not count == 3
 
-def int2bin(n, count=24):
-    """returns the binary of integer n, using count number of digits"""
+def int2bin(n, count):
     return "".join([str((n >> y) & 1) for y in range(count-1, -1, -1)])
+
+def int2hot(n, count):
+    result = ["0"] * count
+    result[n] = "1"
+    return "".join(result)
+
+def int2twos(n, count):
+    if n >= 0:
+        return int2bin(n, count)
+    else:
+        return int2bin((1 << count) + n, count)
 
 # Counts not including the center square
 @dataclass
@@ -258,8 +268,10 @@ def run_espresso(data, innames, outnames):
     print(header)
     print(data)
     # p = subprocess.run(["./espresso", "-Dexact", "-S1"],
-    p = subprocess.run(["./espresso", "-Dopoall"],
+    p = subprocess.run(["./espresso", "-Dopoall", "-S1"],
+    # p = subprocess.run(["./espresso", "-Dopoall"],
     # p = subprocess.run(["./espresso", "-Dso_both", "-S1"],
+    # p = subprocess.run(["./espresso", "-Dso_both"],
                        text = True,
                        input = header + data,
                        capture_output = True)

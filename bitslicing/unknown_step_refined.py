@@ -28,15 +28,13 @@ def unknown_step_function(stable_options, current_center, stable_neighbours, liv
         if stepped != n.center:
             maybe_unstable = True
 
-    # return maybe_on, maybe_off, False
-
     # Unknown but stable
     # We don't ever want an unknown cell to become known
     if stable_options.to_three_state() == UNKNOWN:
         if maybe_unstable:
-            return DONTCARE, True, False
+            return DONTCARE, DONTCARE, False
         else:
-            return DONTCARE, True, True
+            return DONTCARE, DONTCARE, True
 
     if maybe_on and not maybe_off:
         return True, False, DONTCARE
@@ -45,9 +43,7 @@ def unknown_step_function(stable_options, current_center, stable_neighbours, liv
         return False, False, DONTCARE
 
     if maybe_on and maybe_off:
-        return DONTCARE, True, False
-
-    # # return DONTCARE, DONTCARE, DONTCARE
+        return DONTCARE, True, DONTCARE
 
     print("shouldn't happen")
     exit(0)
@@ -56,11 +52,13 @@ def unknown_step_function(stable_options, current_center, stable_neighbours, liv
 # exit(0)
 
 def emit_boolean(state, current_center, stable_center, stable_count, live_count, unknown_count, result):
-    if result[0] == DONTCARE and result[2] == DONTCARE: return ""
+    if result[0] == DONTCARE and result[1] == DONTCARE and result[2] == DONTCARE: return ""
+    diff = stable_count - live_count
     inputs = state.espresso_str() \
         + int2bin(current_center, 2) \
         + int2bin(stable_count, 3) \
         + int2bin(live_count, 4) \
+        + int2twos(diff, 4) \
         # + int2bin(unknown_count, 4)
     outputs = espresso_char(result[0]) + espresso_char(result[1]) + espresso_char(result[2])
     # outputs = espresso_char(result[0]) + espresso_char(result[2])
@@ -71,7 +69,8 @@ innames = ["l2", "l3", "d0", "d1", "d2", "d4", "d5", "d6",
            "current_unknown", "current_on", 
            # "stable_unknown", "stable_on",
            "s2", "s1", "s0",
-           "on3", "on2", "on1", "on0"]
+           "on3", "on2", "on1", "on0",
+           "m3", "m2", "m1", "m0",]
 outnames = ["next_on",
             "next_unknown",
             "next_unknown_stable"]
@@ -80,11 +79,14 @@ data = ""
 for stable_center in [OFF, ON, UNKNOWN]:
     for current_center in [OFF, ON, UNKNOWN]:
         if stable_center == UNKNOWN and current_center != UNKNOWN: continue
+        if stable_center != UNKNOWN and current_center == UNKNOWN: continue
         for unknown_count in range(0, 9+1):
             if stable_center == UNKNOWN and unknown_count == 0: continue
             for stab_count in range(0, 9+1 - unknown_count):
                 for live_count in range(0, 9+1 - unknown_count):
-                    if stable_center == ON and live_count == 0: continue
+                    if stable_center == ON and stab_count == 0: continue
+                    if current_center == ON and live_count == 0: continue
+
                     stab_neighbours = stab_count
                     live_neighbours = live_count
                     unknown_neighbours = unknown_count

@@ -17,7 +17,122 @@ inline void FullAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina, co
   outcarry = halfcarry1 | halfcarry2;
 }
 
+inline void HalfAdd(LifeState &outbit, LifeState &outcarry, const LifeState &ina, const LifeState &inb) {
+  outbit = ina ^ inb;
+  outcarry = ina & inb;
+}
+
+inline void FullAdd(LifeState &outbit, LifeState &outcarry, const LifeState &ina, const LifeState &inb, const LifeState &inc) {
+  LifeState halftotal = ina ^ inb;
+  outbit = halftotal ^ inc;
+  LifeState halfcarry1 = ina & inb;
+  LifeState halfcarry2 = inc & halftotal;
+  outcarry = halfcarry1 | halfcarry2;
+}
+
+inline void FourBitAdd(const LifeState &a3,
+                       const LifeState &a2,
+                       const LifeState &a1,
+                       const LifeState &a0,
+                       const LifeState &b3,
+                       const LifeState &b2,
+                       const LifeState &b1,
+                       const LifeState &b0,
+                       const LifeState &incarry,
+                       LifeState &result3,
+                       LifeState &result2,
+                       LifeState &result1,
+                       LifeState &result0) {
+  LifeState carry = incarry;
+  FullAdd(result0, carry, a0, b0, carry);
+  FullAdd(result1, carry, a1, b1, carry);
+  FullAdd(result2, carry, a2, b2, carry);
+  FullAdd(result3, carry, a3, b3, carry);
+}
+
+inline void FourBitAdd(const LifeState &a3,
+                       const LifeState &a2,
+                       const LifeState &a1,
+                       const LifeState &a0,
+                       const LifeState &b3,
+                       const LifeState &b2,
+                       const LifeState &b1,
+                       const LifeState &b0,
+                       LifeState &result3,
+                       LifeState &result2,
+                       LifeState &result1,
+                       LifeState &result0) {
+  FourBitAdd(a3, a2, a1, a0, b3, b2, b1, b0, LifeState(), result3, result2, result1, result0);
+}
+
+// Two's complement
+inline void FourBitSubtract(const LifeState &a3,
+                       const LifeState &a2,
+                       const LifeState &a1,
+                       const LifeState &a0,
+                       const LifeState &b3,
+                       const LifeState &b2,
+                       const LifeState &b1,
+                       const LifeState &b0,
+                       LifeState &result3,
+                       LifeState &result2,
+                       LifeState &result1,
+                       LifeState &result0) {
+  FourBitAdd(a3, a2, a1, a0, ~b3, ~b2, ~b1, ~b0, ~LifeState(), result3, result2, result1, result0);
+}
+
+inline void FullAdd(std::array<uint64_t, 4> &outbit,
+                    std::array<uint64_t, 4> &outcarry,
+                    const std::array<uint64_t, 4> &ina,
+                    const std::array<uint64_t, 4> &inb,
+                    const std::array<uint64_t, 4> &inc) {
+  for(unsigned i = 0; i < 4; i++) {
+    uint64_t halftotal = ina[i] ^ inb[i];
+    outbit[i] = halftotal ^ inc[i];
+    uint64_t halfcarry1 = ina[i] & inb[i];
+    uint64_t halfcarry2 = inc[i] & halftotal;
+    outcarry[i] = halfcarry1 | halfcarry2;
+  }
+}
+
+inline void FourBitAdd(const std::array<uint64_t, 4> &a3,
+                       const std::array<uint64_t, 4> &a2,
+                       const std::array<uint64_t, 4> &a1,
+                       const std::array<uint64_t, 4> &a0,
+                       const std::array<uint64_t, 4> &b3,
+                       const std::array<uint64_t, 4> &b2,
+                       const std::array<uint64_t, 4> &b1,
+                       const std::array<uint64_t, 4> &b0,
+                       const std::array<uint64_t, 4> &incarry,
+                       std::array<uint64_t, 4> &result3,
+                       std::array<uint64_t, 4> &result2,
+                       std::array<uint64_t, 4> &result1,
+                       std::array<uint64_t, 4> &result0) {
+  std::array<uint64_t, 4> carry = incarry;
+  FullAdd(result0, carry, a0, b0, carry);
+  FullAdd(result1, carry, a1, b1, carry);
+  FullAdd(result2, carry, a2, b2, carry);
+  FullAdd(result3, carry, a3, b3, carry);
+}
+
+inline void FourBitAdd(const std::array<uint64_t, 4> &a3,
+                       const std::array<uint64_t, 4> &a2,
+                       const std::array<uint64_t, 4> &a1,
+                       const std::array<uint64_t, 4> &a0,
+                       const std::array<uint64_t, 4> &b3,
+                       const std::array<uint64_t, 4> &b2,
+                       const std::array<uint64_t, 4> &b1,
+                       const std::array<uint64_t, 4> &b0,
+                       std::array<uint64_t, 4> &result3,
+                       std::array<uint64_t, 4> &result2,
+                       std::array<uint64_t, 4> &result1,
+                       std::array<uint64_t, 4> &result0) {
+  FourBitAdd(a3, a2, a1, a0, b3, b2, b1, b0, {0, 0, 0, 0}, result3, result2, result1, result0);
+}
+
 void inline CountRows(const LifeState &state, LifeState &__restrict__ bit0, LifeState &__restrict__ bit1) {
+  LifeState col0(false), col1(false);
+
   for (int i = 0; i < N; i++) {
     uint64_t a = state.state[i];
     uint64_t l = RotateLeft(a);
