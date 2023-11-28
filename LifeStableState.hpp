@@ -1225,7 +1225,7 @@ void LifeStableState::CompleteStableStep(const LifeState &seed, std::chrono::sys
       return;
   }
 
-  LifeState settable = PerturbedUnknowns() & stateZOI.ZOI();
+  LifeState settable = PerturbedUnknowns();
 
   if (settable.IsEmpty()) {
     // We win
@@ -1290,23 +1290,23 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
   auto timeLimit = startTime + std::chrono::seconds(timeout);
 
   // First find a solution with small BB
-  LifeState searchArea = stateZOI;
-  while(!(unknown & ~searchArea).IsEmpty()) {
+  LifeState searchArea = state;
+  while (!(unknown & ~searchArea).IsEmpty()) {
+    searchArea = searchArea.ZOI();
+
     LifeStableState copy = *this;
     copy.unknown &= searchArea;
-    copy.CompleteStableStep(stateZOI, timeLimit, false, maxPop, best);
+    copy.CompleteStableStep(state, timeLimit, false, maxPop, best);
 
     auto currentTime = std::chrono::system_clock::now();
     if (best.GetPop() > 0 || currentTime > timeLimit)
       break;
-
-    searchArea = searchArea.ZOI();
   }
 
   if (minimise) {
     // Then try again with no restriction
     LifeStableState copy = *this;
-    copy.CompleteStableStep(stateZOI, timeLimit, minimise, maxPop, best);
+    copy.CompleteStableStep(state, timeLimit, minimise, maxPop, best);
   }
 
   return best;
