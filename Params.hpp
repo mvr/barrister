@@ -187,7 +187,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.stator = pat.original;
   params.hasStator = !params.stator.IsEmpty();
 
-  params.exempt = pat.marked.ZOI();
+  params.exempt = (pat.marked | pat.original).ZOI() & ~pat.original;
 
   if(toml.contains("filter")) {
     params.hasFilter = true;

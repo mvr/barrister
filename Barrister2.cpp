@@ -450,14 +450,14 @@ bool SearchState::UpdateActive(FrontierGeneration &generation,
 
   generation.forcedInactive = ForcedInactiveCells(
       generation.gen, generation.state, stable, generation.active, everActive,
-      generation.changes, activeTimer, streakTimer);
+      generation.changes, activeTimer, streakTimer) & ~params->exempt;
 
   if (!(generation.active & generation.forcedInactive).IsEmpty())
     return false;
 
   generation.forcedUnchanging = ForcedUnchangingCells(
       generation.gen, generation.state, stable, generation.active, everActive,
-      generation.changes, activeTimer, streakTimer);
+      generation.changes, activeTimer, streakTimer) & ~params->exempt;
 
   if (!(generation.changes & generation.forcedUnchanging).IsEmpty())
     return false;
