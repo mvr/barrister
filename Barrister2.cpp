@@ -1023,7 +1023,7 @@ void SearchState::PrintSolution(const Solution &solution) {
     // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
     // std::cout << history.RLE() << std::endl;
     std::cout << "Completed Plain:" << std::endl;
-    std::cout << solution.state.RLE() << std::endl;
+    std::cout << (solution.state | solution.completed).RLE() << std::endl;
   } else {
     // std::cout << "Completion failed!" << std::endl;
     // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
