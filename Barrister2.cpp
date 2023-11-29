@@ -1238,7 +1238,7 @@ void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchP
     newParams.stabiliseResults = round + 1 == params.metasearchRounds;
     newParams.stator |= s.stator;
     if (round == 1) {
-      newParams.minFirstActiveGen = params.minMetaFirstActiveGen;
+      newParams.minFirstActiveGen = std::max(s.interactionGen, params.minMetaFirstActiveGen);
       newParams.maxFirstActiveGen = params.maxMetaFirstActiveGen;
     }
 
