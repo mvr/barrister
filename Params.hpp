@@ -251,7 +251,8 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
     oracle.Move(oracleCenter);
 
     params.hasOracle = true;
-    params.oracle.state = oracle.state & oracle.marked;
+    params.oracle = LifeStableState();
+    params.oracle.state = (oracle.state & oracle.marked) | oracle.original;
     params.oracle.StabiliseOptions();
   } else {
     params.hasOracle = false;
