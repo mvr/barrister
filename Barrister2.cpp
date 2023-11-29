@@ -1237,6 +1237,10 @@ void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchP
     newParams.exempt |= newParams.stable.stateZOI & ~s.stator;
     newParams.stabiliseResults = round + 1 == params.metasearchRounds;
     newParams.stator |= s.stator;
+    if (round == 1) {
+      newParams.minFirstActiveGen = params.minMetaFirstActiveGen;
+      newParams.maxFirstActiveGen = params.maxMetaFirstActiveGen;
+    }
 
     MetaSearchStep(round + 1, allSolutions, newParams);
   }

@@ -73,6 +73,8 @@ public:
 
   bool metasearch;
   unsigned metasearchRounds;
+  unsigned minMetaFirstActiveGen;
+  unsigned maxMetaFirstActiveGen;
 
   bool stabiliseResults;
   unsigned stabiliseResultsTimeout;
@@ -234,6 +236,9 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
 
   params.metasearch = toml::find_or(toml, "metasearch", false);
   params.metasearchRounds = toml::find_or(toml, "metasearch-rounds", 5);
+  std::vector<unsigned> metaFirstRange = toml::find_or<std::vector<unsigned>>(toml, "meta-first-active-range", {params.minFirstActiveGen, params.maxFirstActiveGen});
+  params.minMetaFirstActiveGen = metaFirstRange[0];
+  params.maxMetaFirstActiveGen = metaFirstRange[1];
 
   params.debug = toml::find_or(toml, "debug", false);
   
