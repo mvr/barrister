@@ -1307,7 +1307,7 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
     // Then try again with a little more space
     LifeStableState copy = *this;
     copy.unknown &= searchArea.BigZOI();
-    copy.CompleteStableStep(timeLimit, minimise, true, best, maxPop, best);
+    copy.CompleteStableStep(timeLimit, minimise, true, state | best, maxPop, best);
   }
 
   return best;
