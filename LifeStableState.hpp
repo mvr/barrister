@@ -137,7 +137,7 @@ public:
 
   PropagateResult TestUnknown(std::pair<int, int> cell);
   PropagateResult TestUnknowns(const LifeState &cells);
-  void CompleteStableStep(const LifeState &seed, std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best);
+  void CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, bool useSeed, const LifeState &seed, unsigned &maxPop, LifeState &best);
   LifeState CompleteStable(unsigned timeout, bool minimise);
 
   std::string RLE() const;
@@ -1200,7 +1200,7 @@ PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
   return {true, anyChanges};
 }
 
-void LifeStableState::CompleteStableStep(const LifeState &seed, std::chrono::system_clock::time_point &timeLimit, bool minimise, unsigned &maxPop, LifeState &best) {
+void LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, bool useSeed, const LifeState &seed, unsigned &maxPop, LifeState &best) {
   auto currentTime = std::chrono::system_clock::now();
   if(currentTime > timeLimit)
     return;
@@ -1225,7 +1225,7 @@ void LifeStableState::CompleteStableStep(const LifeState &seed, std::chrono::sys
       return;
   }
 
-  LifeState settable = PerturbedUnknowns();
+  LifeState settable = PerturbedUnknowns() & stateZOI.ZOI();
 
   if (settable.IsEmpty()) {
     // We win
@@ -1234,7 +1234,7 @@ void LifeStableState::CompleteStableStep(const LifeState &seed, std::chrono::sys
     return;
   }
 
-  if(minimise) {
+  if(useSeed) {
     // Prefer cells close to the original
     LifeState seedZOI = seed;
     while (true) {
@@ -1263,7 +1263,7 @@ void LifeStableState::CompleteStableStep(const LifeState &seed, std::chrono::sys
   {
     LifeStableState nextState = *this;
     nextState.SetOff(LifeState::Cell(newPlacement));
-    nextState.CompleteStableStep(seed, timeLimit, minimise, maxPop, best);
+    nextState.CompleteStableStep(timeLimit, minimise, useSeed, seed, maxPop, best);
   }
   if (!minimise && !best.IsEmpty())
     return;
@@ -1274,7 +1274,7 @@ void LifeStableState::CompleteStableStep(const LifeState &seed, std::chrono::sys
     nextState.SetOn(LifeState::Cell(newPlacement));
 
     [[clang::musttail]]
-    return nextState.CompleteStableStep(seed, timeLimit, minimise, maxPop, best);
+    return nextState.CompleteStableStep(timeLimit, minimise, useSeed, seed, maxPop, best);
   }
 }
 
@@ -1296,7 +1296,7 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
 
     LifeStableState copy = *this;
     copy.unknown &= searchArea;
-    copy.CompleteStableStep(state, timeLimit, false, maxPop, best);
+    copy.CompleteStableStep(timeLimit, minimise, false, state, maxPop, best);
 
     auto currentTime = std::chrono::system_clock::now();
     if (best.GetPop() > 0 || currentTime > timeLimit)
@@ -1304,9 +1304,10 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
   }
 
   if (minimise) {
-    // Then try again with no restriction
+    // Then try again with a little more space
     LifeStableState copy = *this;
-    copy.CompleteStableStep(state, timeLimit, minimise, maxPop, best);
+    copy.unknown &= searchArea.BigZOI();
+    copy.CompleteStableStep(timeLimit, minimise, true, best, maxPop, best);
   }
 
   return best;

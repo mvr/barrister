@@ -1047,10 +1047,10 @@ void SearchState::RecordSolution() {
     completed = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
   }
 
-  LifeState starting = params->startingState.state;
+  LifeState startingActive = params->startingState.state & ~params->stable.state;
   LifeState startingStableOff = params->stable.state & ~params->startingState.state;
 
-  solution.state = (completed & ~startingStableOff) | starting;
+  solution.state = (stable.state & ~startingStableOff) | startingActive;
   solution.completed = completed;
 
   allSolutions->push_back(solution);
@@ -1086,7 +1086,7 @@ void PrintSummary(std::vector<Solution> &pats, std::ostream &out) {
     std::vector<Solution> rowSolutions = std::vector<Solution>(pats.begin() + i, pats.begin() + std::min((unsigned)pats.size(), i + 8));
     std::vector<LifeState> row;
     for (auto &s : rowSolutions) {
-      row.push_back(s.state);
+      row.push_back(s.state | s.completed);
     }
     out << RowRLE(row) << std::endl;
   }
