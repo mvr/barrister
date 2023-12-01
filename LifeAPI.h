@@ -965,6 +965,7 @@ public:
         cnt = 0;
       } else if (ch == '!') {
         break;
+      } else if (ch == '\n' || ch == ' ') {
       } else {
         return LifeState();
       }
