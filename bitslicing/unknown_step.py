@@ -1,6 +1,8 @@
 from common import *
 
 def stepactive_function(center, oncount, unkcount):
+    if center == UNKNOWN: return UNKNOWN
+
     u = center
 
     lower = oncount
@@ -37,7 +39,8 @@ def stepactive_function(center, oncount, unkcount):
 
 def emit_boolean(state, live_count, unknown_count, result):
     inputs = int2bin(state, 2) + \
-        int2bin(live_count, 4) + int2bin(unknown_count, 2)
+        int2bin(live_count, 4) + \
+        int2bin(unknown_count, 4)
     outputs = int2bin(result, 2)
 
     return f"{inputs} {outputs}\n"
@@ -50,17 +53,16 @@ def remove(state, live_count, unknown_count):
     if state == UNKNOWN:
         return live_count, unknown_count - 1
 
-innames = ["stateunk", "stateon", "on3", "on2", "on1", "on0", "unk1", "unk0"]
-outnames = ["next_unknown", "next_on"]
-data = f""".i {len(innames)}
-.o {len(outnames)}
-.type fr
-"""
+innames = ["current_unknown", "current_on",
+           "on3", "on2", "on1", "on0",
+           "unk3", "unk2", "unk1", "unk0"]
+outnames = ["naive_next_unknown", "naive_next_on"]
+data = ""
 
 for c in [OFF, ON, UNKNOWN]:
     for live_count in range(0,10):
         if c == ON and live_count == 0: continue
-        for unknown_count in range(0, min(4, 10-live_count)):
+        for unknown_count in range(0, 10-live_count):
             if c == UNKNOWN and unknown_count == 0: continue
 
             live_neighbours = live_count
