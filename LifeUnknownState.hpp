@@ -154,6 +154,13 @@ public:
     return transition != Transition::STABLE_TO_STABLE && transition != UnperturbedTransitionFor(cell);
   }
 
+  // Would this transition be a active cell?
+  bool TransitionIsActive(std::pair<int, int> cell, Transition transition) const {
+    return (transition == Transition::ON_TO_OFF ||
+            transition == Transition::OFF_TO_ON) &&
+           TransitionIsPerturbation(cell, transition);
+  }
+
   std::tuple<bool, bool, bool> StepMaintainingFor(const LifeStableState &stable,
                                                   std::pair<int, int> cell) const {
     auto [next, nextUnknown, nextUnknownStable] = StepMaintainingColumn(stable, cell.first);

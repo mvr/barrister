@@ -514,8 +514,13 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
 
     // Force the transition to occur if it is the only one allowed
     if (TransitionIsSingleton(allowedTransitions)) {
-      generation.SetTransition(cell, allowedTransitions);
+      auto transition = allowedTransitions;
+      generation.SetTransition(cell, transition);
       generation.frontierCells.Erase(cell);
+
+      if (generation.prev.TransitionIsActive(cell, transition)) {
+        everActive.Set(cell);
+      }
 
       // stable.SanityCheck();
       // generation.prev.SanityCheck(stable);
@@ -862,6 +867,9 @@ void SearchState::SearchStep() {
     if (generation.prev.TransitionIsPerturbation(branchCell, transition)) {
       newSearch.stable.stateZOI.Set(branchCell);
 
+      if(transition == Transition::OFF_TO_ON || transition == Transition::ON_TO_OFF)
+        newSearch.everActive.Set(branchCell);
+
       if (!hasInteracted) {
         newSearch.hasInteracted = true;
         newSearch.interactionStart = generation.gen;
@@ -893,6 +901,9 @@ void SearchState::SearchStep() {
 
     if (generation.prev.TransitionIsPerturbation(branchCell, transition)) {
       newSearch.stable.stateZOI.Set(branchCell);
+
+      if(transition == Transition::OFF_TO_ON || transition == Transition::ON_TO_OFF)
+        newSearch.everActive.Set(branchCell);
 
       if (!hasInteracted) {
         newSearch.hasInteracted = true;
