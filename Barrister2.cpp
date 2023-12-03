@@ -231,8 +231,10 @@ public:
 
   void SearchStep();
 
-  unsigned TestOscillating();
+  unsigned DeterminePeriod();
+  void RecordOscillator();
   std::vector<uint64_t> ClassifyRotors(unsigned period);
+
   void RecordSolution();
   void PrintSolution(const Solution &solution);
 
@@ -671,23 +673,9 @@ std::pair<bool, bool> SearchState::TryAdvance() {
       }
 
       if (currentGen > interactionStart + params->maxActiveWindowGens) {
-        if(params->reportOscillators) {
-          unsigned period = TestOscillating();
-          if (period > 4) {
-            auto rotors = ClassifyRotors(period);
-            bool anyNew = false;
-            for(uint64_t r : rotors) {
-              if(std::find(seenRotors->begin(), seenRotors->end(), r) == seenRotors->end()) {
-                anyNew = true;
-                seenRotors->push_back(r);
-              }
-            }
-            if(anyNew) {
-              std::cout << "Oscillating! Period: " << period << std::endl;
-              RecordSolution();
-            }
-          }
-        }
+        if (params->reportOscillators)
+          RecordOscillator();
+
         return {false, false};
       }
     } else {
@@ -944,7 +932,7 @@ SearchState::SearchState(SearchParams &inparams,
   TryAdvance();
 }
 
-unsigned SearchState::TestOscillating() {
+unsigned SearchState::DeterminePeriod() {
   // We can trample `current`, because we only do this when we are
   // going to bail out of the branch anyway.
 
@@ -1033,6 +1021,24 @@ void SearchState::PrintSolution(const Solution &solution) {
 
     std::cout << "Completion Failed!" << std::endl;
     std::cout << LifeState().RLE() << std::endl;
+  }
+}
+
+void SearchState::RecordOscillator() {
+  unsigned period = DeterminePeriod();
+  if (period > 4) {
+    auto rotors = ClassifyRotors(period);
+    bool anyNew = false;
+    for(uint64_t r : rotors) {
+      if(std::find(seenRotors->begin(), seenRotors->end(), r) == seenRotors->end()) {
+        anyNew = true;
+        seenRotors->push_back(r);
+      }
+    }
+    if(anyNew) {
+      std::cout << "Oscillating! Period: " << period << std::endl;
+      RecordSolution();
+    }
   }
 }
 
