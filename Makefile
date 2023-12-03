@@ -16,11 +16,11 @@ endif
 
 all: Barrister2
 
-Barrister: Barrister.cpp LifeAPI.h *.hpp
+Barrister: Barrister.cpp LifeAPI.h *.hpp bitslicing/*.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o Barrister Barrister.cpp $(LDFLAGS)
-Barrister2: Barrister2.cpp LifeAPI.h *.hpp
+Barrister2: Barrister2.cpp LifeAPI.h *.hpp bitslicing/*.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o Barrister2 Barrister2.cpp $(LDFLAGS)
-CompleteStill: CompleteStill.cpp LifeAPI.h *.hpp
+CompleteStill: CompleteStill.cpp LifeAPI.h *.hpp bitslicing/*.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o CompleteStill CompleteStill.cpp $(LDFLAGS)
 
 instrument: Barrister.cpp LifeAPI.h *.hpp
