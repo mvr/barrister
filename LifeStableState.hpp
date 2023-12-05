@@ -273,7 +273,7 @@ void LifeStableState::SetOff(const LifeState &which) {
 
 void LifeStableState::SetOn(int i, uint64_t which) {
   state[i] |= which;
-  stateZOI |= LifeState::ColumnZOI(i, which);
+  // stateZOI |= LifeState::ColumnZOI(i, which);
   unknown[i] &= ~which;
   dead0[i] |= which;
   dead1[i] |= which;
@@ -813,14 +813,26 @@ PropagateResult LifeStableState::SynchroniseStateKnownColumn(int i) {
 }
 
 PropagateResult LifeStableState::SynchroniseStateKnownStrip(int column) {
-  // TODO: check this optimises
   bool anyChanges = false;
-  for (int i = 0; i < 4; i++) {
-    int c = (column + i - 1 + N) % N;
-    auto result = SynchroniseStateKnownColumn(c);
-    if(!result.consistent)
-      return {false, false};
-    anyChanges = anyChanges || result.changed;
+  const unsigned width = 4;
+  const unsigned offset = (width - 1) / 2; // 0, 0, 1, 1, 2, 2
+  if (offset <= column && column + width - 1 - offset < N) {
+    #pragma clang loop vectorize_width(4)
+    for (unsigned i = 0; i < width; i++) {
+      const unsigned c = column + i - offset;
+      auto result = SynchroniseStateKnownColumn(c);
+      if(!result.consistent)
+        return {false, false};
+      anyChanges = anyChanges || result.changed;
+    }
+  } else {
+    for (unsigned i = 0; i < width; i++) {
+      const unsigned c = (column + i + N - offset) % N;
+      auto result = SynchroniseStateKnownColumn(c);
+      if(!result.consistent)
+        return {false, false};
+      anyChanges = anyChanges || result.changed;
+    }
   }
   return {true, anyChanges};
 }
@@ -957,11 +969,21 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   if(signalled_overlaps != 0)
     return {false, false};
 
-//  #pragma clang loop vectorize_width(4)
-  for (int i = 0; i < 6; i++) {
-    int orig = (column + i - 2 + N) % N;
-    SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
-    SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);
+  const unsigned width = 6;
+  const unsigned offset = (width - 1) / 2;
+  if (offset <= column && column + width - 1 - offset < N) {
+    #pragma clang loop vectorize_width(4)
+    for (int i = 0; i < 6; i++) {
+      int orig = column + i - offset;
+      SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
+      SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);
+    }
+  } else {
+    for (int i = 0; i < 6; i++) {
+      int orig = (column + i - offset + N) % N;
+      SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
+      SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);
+    }
   }
 
   uint64_t unknownChanges = 0;
