@@ -221,12 +221,12 @@ public:
   std::tuple<bool, bool> PopulateFrontier();
   bool UpdateFrontierStrip(int column);
   bool CalculateFrontier();
+  bool RefineFrontier();
   std::pair<bool, bool> TryAdvance();
 
   StableOptions OptionsFor(const LifeUnknownState &state,
                            std::pair<int, int> cell,
                            Transition transition) const;
-  void ResolveFrontier();
 
   std::pair<unsigned, std::pair<int, int>> ChooseBranchCell() const;
 
@@ -794,6 +794,31 @@ bool SearchState::CalculateFrontier() {
   return true;
 }
 
+bool SearchState::RefineFrontier() {
+  stable.SynchroniseStateKnown();
+
+  for (unsigned i = frontier.start; i < frontier.start + 1; i++) {
+    auto &generation = frontier.generations[i];
+
+    generation.prev.TransferStable(stable);
+    generation.state.TransferStable(stable);
+
+    bool updateresult = UpdateActive(generation, activeTimer, streakTimer);
+    if (!updateresult) {
+      return false;
+    }
+
+    auto [consistent, changed] = SetForced(generation);
+    if (!consistent) {
+      return false;
+    }
+  }
+
+  timeSincePropagate++;
+
+  return true;
+}
+
 std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
   unsigned stopGen = std::min(frontier.size, maxBranchingGens);
 
@@ -837,22 +862,11 @@ void SearchState::SearchStep() {
     stable.SanityCheck();
     // SanityCheck();
   } else {
-    auto &generation = frontier.generations[frontier.start];
-
-    generation.prev.TransferStable(stable);
-    generation.state.TransferStable(stable);
-
-    bool updateresult = UpdateActive(generation, activeTimer, streakTimer);
-    if (!updateresult)
-      return;
-
-    timeSincePropagate++;
-
-    auto [consistent, changed] = SetForced(generation);
+    bool consistent = RefineFrontier();
     if (!consistent)
       return;
 
-    if (generation.frontierCells.IsEmpty()) {
+    if (frontier.generations[frontier.start].frontierCells.IsEmpty()) {
       bool consistent = CalculateFrontier();
       if (!consistent)
         return;
