@@ -661,14 +661,8 @@ PropagateResult LifeStableState::Propagate() {
 }
 
 PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
-  std::array<uint64_t, 6> nearbyState;
-  std::array<uint64_t, 6> nearbyUnknown;
-
-  for (int i = 0; i < 6; i++) {
-    int c = (column + i - 2 + N) % N;
-    nearbyState[i] = state[c];
-    nearbyUnknown[i] = unknown[c];
-  }
+  std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
+  std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
 
   std::array<uint64_t, 4> state3, state2, state1, state0;
   std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
@@ -882,29 +876,17 @@ PropagateResult LifeStableState::PropagateSimpleStrip(int column) {
 }
 
 PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
-  std::array<uint64_t, 6> nearbyState;
-  std::array<uint64_t, 6> nearbyUnknown;
+  std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
+  std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
 
-  for (int i = 0; i < 6; i++) {
-    int c = (column + i - 2 + N) % N;
-    nearbyState[i] = state[c];
-    nearbyUnknown[i] = unknown[c];
-  }
-
-  std::array<uint64_t, 4> nearbylive2, nearbylive3,
-      nearbydead0, nearbydead1, nearbydead2, nearbydead4, nearbydead5, nearbydead6;
-
-  for (int i = 1; i < 5; i++) {
-    int c = (column + i - 2 + N) % N;
-    nearbylive2[i-1] = live2[c];
-    nearbylive3[i-1] = live3[c];
-    nearbydead0[i-1] = dead0[c];
-    nearbydead1[i-1] = dead1[c];
-    nearbydead2[i-1] = dead2[c];
-    nearbydead4[i-1] = dead4[c];
-    nearbydead5[i-1] = dead5[c];
-    nearbydead6[i-1] = dead6[c];
-  }
+  std::array<uint64_t, 4> nearbylive2 = live2.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbylive3 = live3.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead0 = dead0.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead1 = dead1.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead2 = dead2.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead4 = dead4.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead5 = dead5.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead6 = dead6.GetStrip<4>(column);
 
   std::array<uint64_t, 4> state3, state2, state1, state0;
   std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
@@ -992,29 +974,17 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
 }
 
 PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
-  std::array<uint64_t, 6> nearbyState;
-  std::array<uint64_t, 6> nearbyUnknown;
+  std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
+  std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
 
-  for (int i = 0; i < 6; i++) {
-    int c = (column + i - 2 + N) % N;
-    nearbyState[i] = state[c];
-    nearbyUnknown[i] = unknown[c];
-  }
-
-  std::array<uint64_t, 4> nearbylive2, nearbylive3,
-      nearbydead0, nearbydead1, nearbydead2, nearbydead4, nearbydead5, nearbydead6;
-
-  for (int i = 1; i < 5; i++) {
-    int c = (column + i - 2 + N) % N;
-    nearbylive2[i-1] = live2[c];
-    nearbylive3[i-1] = live3[c];
-    nearbydead0[i-1] = dead0[c];
-    nearbydead1[i-1] = dead1[c];
-    nearbydead2[i-1] = dead2[c];
-    nearbydead4[i-1] = dead4[c];
-    nearbydead5[i-1] = dead5[c];
-    nearbydead6[i-1] = dead6[c];
-  }
+  std::array<uint64_t, 4> nearbylive2 = live2.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbylive3 = live3.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead0 = dead0.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead1 = dead1.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead2 = dead2.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead4 = dead4.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead5 = dead5.GetStrip<4>(column);
+  std::array<uint64_t, 4> nearbydead6 = dead6.GetStrip<4>(column);
 
   std::array<uint64_t, 4> state3, state2, state1, state0;
   std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
@@ -1073,17 +1043,14 @@ PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
     has_abort |= abort;
   }
 
-  for (int i = 1; i < 5; i++) {
-    int c = (column + i - 2 + N) % N;
-    live2[c] = nearbylive2[i-1];
-    live3[c] = nearbylive3[i-1];
-    dead0[c] = nearbydead0[i-1];
-    dead1[c] = nearbydead1[i-1];
-    dead2[c] = nearbydead2[i-1];
-    dead4[c] = nearbydead4[i-1];
-    dead5[c] = nearbydead5[i-1];
-    dead6[c] = nearbydead6[i-1];
-  }
+  live2.SetStrip<4>(column, nearbylive2);
+  live3.SetStrip<4>(column, nearbylive3);
+  dead0.SetStrip<4>(column, nearbydead0);
+  dead1.SetStrip<4>(column, nearbydead1);
+  dead2.SetStrip<4>(column, nearbydead2);
+  dead4.SetStrip<4>(column, nearbydead4);
+  dead5.SetStrip<4>(column, nearbydead5);
+  dead6.SetStrip<4>(column, nearbydead6);
 
   return {has_abort == 0, changes != 0};
 }
