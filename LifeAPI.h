@@ -327,6 +327,32 @@ public:
   constexpr uint64_t& operator[](const unsigned i) { return state[i]; }
   constexpr uint64_t operator[](const unsigned i) const { return state[i]; }
 
+  template <unsigned width> std::array<uint64_t, width> GetStrip(unsigned column) const {
+    std::array<uint64_t, width> result;
+    const unsigned offset = (width - 1) / 2; // 0, 0, 1, 1, 2, 2
+
+    if (offset <= column && column + width - 1 - offset < N) {
+      for (unsigned i = 0; i < width; i++) {
+        const unsigned c = column + i - offset;
+        result[i] = state[c];
+      }
+    } else {
+      for (unsigned i = 0; i < width; i++) {
+        const unsigned c = (column + i + N - offset) % N;
+        result[i] = state[c];
+      }
+    }
+    return result;
+  }
+
+  template <unsigned width> void SetStrip(unsigned column, std::array<uint64_t, width> value) {
+    const unsigned offset = (width - 1) / 2; // 0, 0, 1, 1, 2, 2
+    for (unsigned i = 0; i < width; i++) {
+      const unsigned c = (column + i + N - offset) % N;
+      state[c] = value[i];
+    }
+  }
+
   uint64_t GetHash() const {
     uint64_t result = 0;
 

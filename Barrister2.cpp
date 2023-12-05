@@ -219,6 +219,7 @@ public:
 
   bool FastLookahead();
   std::tuple<bool, bool> PopulateFrontier();
+  bool UpdateFrontierStrip(int column);
   bool CalculateFrontier();
   std::pair<bool, bool> TryAdvance();
 
@@ -632,6 +633,36 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
   return {true, anyChanges};
 }
 
+bool SearchState::UpdateFrontierStrip(int column) {
+  stable.SynchroniseStateKnown();
+
+  auto &generation = frontier.generations[frontier.start];
+  generation.prev.TransferStable(stable);
+
+  auto stripState = generation.prev.state.GetStrip<4>(column);
+  auto stripUnknown = generation.prev.unknown.GetStrip<4>(column);
+  auto stripUnknownStable = generation.prev.unknownStable.GetStrip<4>(column);
+
+  for (unsigned i = frontier.start; i < frontier.start + frontier.size; i++) {
+    auto &generation = frontier.generations[i];
+
+    if(i != frontier.start) {
+      generation.prev.state.SetStrip<4>(column, stripState);
+      generation.prev.unknown.SetStrip<4>(column, stripUnknown);
+      generation.prev.unknownStable.SetStrip<4>(column, stripUnknownStable);
+    }
+    std::tie(stripState, stripUnknown, stripUnknownStable) = generation.prev.StepMaintainingStrip(stable, column);
+    generation.state.state.SetStrip<4>(column, stripState);
+    generation.state.unknown.SetStrip<4>(column, stripUnknown);
+    generation.state.unknownStable.SetStrip<4>(column, stripUnknownStable);
+
+    bool updateresult = UpdateActive(generation, activeTimer, streakTimer);
+    if (!updateresult)
+      return false;
+  }
+  return true;
+}
+
 std::pair<bool, bool> SearchState::TryAdvance() {
   bool didAdvance = false;
   while (frontier.size > 0) {
@@ -877,6 +908,10 @@ void SearchState::SearchStep() {
       }
     }
 
+    bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
+    if (!quickCheck)
+      continue;
+
     newSearch.SearchStep();
   }
   // TODO: move body to a function, make sure it becomes a tail call correctly
@@ -911,6 +946,10 @@ void SearchState::SearchStep() {
         *stableAtInteraction = stable;
       }
     }
+
+    bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
+    if (!quickCheck)
+      return;
 
     [[clang::musttail]]
     return newSearch.SearchStep();

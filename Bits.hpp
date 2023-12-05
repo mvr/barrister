@@ -130,6 +130,26 @@ inline void FourBitAdd(const std::array<uint64_t, 4> &__restrict__ a3,
   FourBitAdd(a3, a2, a1, a0, b3, b2, b1, b0, {0, 0, 0, 0}, result3, result2, result1, result0);
 }
 
+inline void FourBitSubtract(const std::array<uint64_t, 4> &__restrict__ a3,
+                       const std::array<uint64_t, 4> &__restrict__ a2,
+                       const std::array<uint64_t, 4> &__restrict__ a1,
+                       const std::array<uint64_t, 4> &__restrict__ a0,
+                       const std::array<uint64_t, 4> &__restrict__ b3,
+                       const std::array<uint64_t, 4> &__restrict__ b2,
+                       const std::array<uint64_t, 4> &__restrict__ b1,
+                       const std::array<uint64_t, 4> &__restrict__ b0,
+                       std::array<uint64_t, 4> &__restrict__ result3,
+                       std::array<uint64_t, 4> &__restrict__ result2,
+                       std::array<uint64_t, 4> &__restrict__ result1,
+                       std::array<uint64_t, 4> &__restrict__ result0) {
+  FourBitAdd(a3, a2, a1, a0,
+             {~b3[0], ~b3[1], ~b3[2], ~b3[3]},
+             {~b2[0], ~b2[1], ~b2[2], ~b2[3]},
+             {~b1[0], ~b1[1], ~b1[2], ~b1[3]},
+             {~b0[0], ~b0[1], ~b0[2], ~b0[3]},
+             {~0ULL, ~0ULL, ~0ULL, ~0ULL}, result3, result2, result1, result0);
+}
+
 void CountRows(const LifeState &__restrict__ state, uint64_t (&__restrict__ col0)[N + 2], uint64_t (&__restrict__ col1)[N + 2]) {
   for (int i = 0; i < N; i++) {
     uint64_t a = state.state[i];
