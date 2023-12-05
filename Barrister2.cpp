@@ -908,9 +908,9 @@ void SearchState::SearchStep() {
       }
     }
 
-    bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
-    if (!quickCheck)
-      continue;
+    // bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
+    // if (!quickCheck)
+    //   continue;
 
     newSearch.SearchStep();
   }
@@ -947,9 +947,9 @@ void SearchState::SearchStep() {
       }
     }
 
-    bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
-    if (!quickCheck)
-      return;
+    // bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
+    // if (!quickCheck)
+    //   return;
 
     [[clang::musttail]]
     return newSearch.SearchStep();
