@@ -758,7 +758,7 @@ bool SearchState::CalculateFrontier() {
     // spend a fair bit of time searching uncompletable parts of the
     // search space
 
-    LifeState toTest = stable.Vulnerable().ZOI() & stable.Differences(lastTest).ZOI();
+    LifeState toTest = stable.Vulnerable() & stable.Differences(lastTest).ZOI();
     lastTest = stable;
     propagateResult = stable.TestUnknowns(toTest);
     if (!propagateResult.consistent) {
