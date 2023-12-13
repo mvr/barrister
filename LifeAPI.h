@@ -293,7 +293,7 @@ constexpr uint64_t RotateRight(uint64_t x) { return RotateRight(x, 1); }
 
 class LifeTarget;
 
-class LifeState {
+class __attribute__((aligned(64))) LifeState {
 public:
   uint64_t state[N];
 
