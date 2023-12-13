@@ -197,6 +197,35 @@ class StableOptions:
             return OFF
         return UNKNOWN
 
+    def single_on(self):
+        count = 0
+        if not self.live2: count += 1
+        if not self.live3: count += 1
+        return count == 1
+
+    def single_off(self):
+        count = 0
+        if not self.dead0: count += 1
+        if not self.dead1: count += 1
+        if not self.dead2: count += 1
+        if not self.dead4: count += 1
+        if not self.dead5: count += 1
+        if not self.dead6: count += 1
+        return count == 1
+
+    def possibilities_count(self):
+        count = 0
+        if not self.live2: count += 1
+        if not self.live3: count += 1
+        if not self.dead0: count += 1
+        if not self.dead1: count += 1
+        if not self.dead2: count += 1
+        if not self.dead4: count += 1
+        if not self.dead5: count += 1
+        if not self.dead6: count += 1
+        return count
+
+
     def to_unknown_neighbourhood(self):
         counts = [n.count for n in self.possible_neighbourhoods()]
         return CellUnknownNeighbourhood(self.to_three_state(), min(counts), max(counts) - min(counts))

@@ -270,11 +270,6 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
 
   #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
-    uint64_t on3 = state3[i];
-    uint64_t on2 = state2[i];
-    uint64_t on1 = state1[i];
-    uint64_t on0 = state0[i];
-
     uint64_t current_on = state[i];
     uint64_t current_unknown = unknown[i];
 
@@ -286,10 +281,6 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
     uint64_t d4 = stable.dead4[i];
     uint64_t d5 = stable.dead5[i];
     uint64_t d6 = stable.dead6[i];
-
-    uint64_t s2 = stable2[i];
-    uint64_t s1 = stable1[i];
-    uint64_t s0 = stable0[i];
 
     uint64_t m3 = diff3[i];
     uint64_t m2 = diff2[i];
@@ -445,10 +436,6 @@ LifeUnknownState::StepMaintainingStrip(const LifeStableState &stable, int column
     uint64_t d4 = nearbydead4[i-1];
     uint64_t d5 = nearbydead5[i-1];
     uint64_t d6 = nearbydead6[i-1];
-
-    uint64_t s2 = stable2[i-1];
-    uint64_t s1 = stable1[i-1];
-    uint64_t s0 = stable0[i-1];
 
     uint64_t m3 = diff3[i-1];
     uint64_t m2 = diff2[i-1];
