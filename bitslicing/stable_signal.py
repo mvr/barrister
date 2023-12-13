@@ -22,14 +22,16 @@ def emit_boolean(center, options, live_count, unknown_count, result):
     inputs = int2bin(center, 2) + \
              options.espresso_str() + \
              int2bin(live_count, 3) + \
-             int2bin(unknown_count, 4)
+             int2bin(live_count + unknown_count, 4)
     outputs = result
 
     return f"{inputs} {outputs}\n"
 
 innames = ["stateunk", "stateon", "l2", "l3", "d0", "d1", "d2", "d4", "d5", "d6",
            "s2", "s1", "s0",
-           "unk3", "unk2", "unk1", "unk0"]
+           # "unk3", "unk2", "unk1", "unk0",
+           "m3", "m2", "m1", "m0",
+           ]
 outnames = ["signalon", "signaloff"]
 data = ""
 

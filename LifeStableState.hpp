@@ -556,9 +556,9 @@ PropagateResult LifeStableState::UpdateOptions() {
 
 PropagateResult LifeStableState::SignalNeighbours() {
   LifeState state3(false), state2(false), state1(false), state0(false);
-  LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
+  LifeState max3(false), max2(false), max1(false), max0(false);
   CountNeighbourhood(state, state3, state2, state1, state0);
-  CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
+  CountNeighbourhood(state | unknown, max3, max2, max1, max0);
 
   LifeState new_signal_off(false), new_signal_on(false);
 
@@ -577,10 +577,10 @@ PropagateResult LifeStableState::SignalNeighbours() {
     uint64_t s1 = state1[i];
     uint64_t s0 = state0[i];
 
-    uint64_t unk3 = unknown3[i];
-    uint64_t unk2 = unknown2[i];
-    uint64_t unk1 = unknown1[i];
-    uint64_t unk0 = unknown0[i];
+    uint64_t m3 = max3[i];
+    uint64_t m2 = max2[i];
+    uint64_t m1 = max1[i];
+    uint64_t m0 = max0[i];
 
     uint64_t stateon = state[i];
     uint64_t stateunk = unknown[i];
@@ -893,6 +893,8 @@ PropagateResult LifeStableState::PropagateSimpleStrip(int column) {
 PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
   std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
+  std::array<uint64_t, 6> nearbyMax;
+  for(int i = 0; i < 6; i++) nearbyMax[i] = nearbyState[i] | nearbyUnknown[i];
 
   std::array<uint64_t, 4> nearbylive2 = live2.GetStrip<4>(column);
   std::array<uint64_t, 4> nearbylive3 = live3.GetStrip<4>(column);
@@ -904,9 +906,9 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   std::array<uint64_t, 4> nearbydead6 = dead6.GetStrip<4>(column);
 
   std::array<uint64_t, 4> state3, state2, state1, state0;
-  std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
+  std::array<uint64_t, 4> max3, max2, max1, max0;
   CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
-  CountNeighbourhoodStrip(nearbyUnknown, unknown3, unknown2, unknown1, unknown0);
+  CountNeighbourhoodStrip(nearbyMax, max3, max2, max1, max0);
 
   std::array<uint64_t, 6> new_signal_off, new_signal_on;
 
@@ -925,10 +927,10 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
     uint64_t s1 = state1[i-1];
     uint64_t s0 = state0[i-1];
 
-    uint64_t unk3 = unknown3[i-1];
-    uint64_t unk2 = unknown2[i-1];
-    uint64_t unk1 = unknown1[i-1];
-    uint64_t unk0 = unknown0[i-1];
+    uint64_t m3 = max3[i-1];
+    uint64_t m2 = max2[i-1];
+    uint64_t m1 = max1[i-1];
+    uint64_t m0 = max0[i-1];
 
     uint64_t stateon = nearbyState[i];
     uint64_t stateunk = nearbyUnknown[i];
