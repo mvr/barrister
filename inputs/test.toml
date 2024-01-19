@@ -3,11 +3,9 @@ min-stable-interval = 5
 
 max-active-window-gens = 20
 
-max-stable-pop = 100
 max-active-cells = 8
 
-stabilise-results = false
-forbid-blocks = true
+stabilise-results = true
 
 pattern = '''
 x = 19, y = 15, rule = LifeHistory

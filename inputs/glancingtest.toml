@@ -1,7 +1,7 @@
 # This should find the same catalyst on the other side
 
-first-active-range = [0, 1]
-active-window-range = [5, 10]
+first-active-range = [0, 2]
+active-window-range = [0, 20]
 min-stable-interval = 4
 
 max-active-cells = 12

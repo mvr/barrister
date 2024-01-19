@@ -1,9 +1,8 @@
 first-active-range = [0, 70]
-active-window-range = [0, 20]
-min-stable-interval = 15
+active-window-range = [0, 70]
+min-stable-interval = 14
 
-max-stable-pop = 100
-max-active-cells = 100
+max-active-cells = 6
 
 stabilise-results = true
 
