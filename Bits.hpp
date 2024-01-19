@@ -151,7 +151,7 @@ inline void FourBitSubtract(const std::array<uint64_t, 4> &__restrict__ a3,
 }
 
 void CountRows(const LifeState &__restrict__ state, uint64_t (&__restrict__ col0)[N + 2], uint64_t (&__restrict__ col1)[N + 2]) {
-  for (int i = 0; i < N; i++) {
+  for (unsigned i = 0; i < N; i++) {
     uint64_t a = state.state[i];
     uint64_t l = RotateLeft(a);
     uint64_t r = RotateRight(a);
@@ -172,7 +172,7 @@ void CountNeighbourhood(const LifeState &__restrict__ state,
 
   col0[0] = col0[N]; col0[N+1] = col0[1];
   col1[0] = col1[N]; col1[N+1] = col1[1];
-  for (int i = 0; i < N; i++) {
+  for (unsigned i = 0; i < N; i++) {
     uint64_t u_on0 = col0[i];
     uint64_t c_on0 = col0[i+1];
     uint64_t l_on0 = col0[i+2];
@@ -208,7 +208,7 @@ std::array<uint64_t, 4> inline CountNeighbourhoodColumn(const LifeState &state, 
   std::array<uint64_t, 4> col0;
   std::array<uint64_t, 4> col1;
 
-  for (int i = 0; i < 4; i++) {
+  for (unsigned i = 0; i < 4; i++) {
     uint64_t a = nearby[i];
     uint64_t l = RotateLeft(a);
     uint64_t r = RotateRight(a);
@@ -254,7 +254,7 @@ void inline CountNeighbourhoodStrip(
   std::array<uint64_t, 6> col0;
   std::array<uint64_t, 6> col1;
 
-  for (int i = 0; i < 6; i++) {
+  for (unsigned i = 0; i < 6; i++) {
     uint64_t a = state[i];
     uint64_t l = RotateLeft(a);
     uint64_t r = RotateRight(a);
@@ -264,7 +264,7 @@ void inline CountNeighbourhoodStrip(
   }
 
   #pragma clang loop vectorize(enable)
-  for (int i = 1; i < 5; i++) {
+  for (unsigned i = 1; i < 5; i++) {
     int idxU = i-1;
     int idxB = i+1;
 

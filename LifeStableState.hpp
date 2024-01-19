@@ -98,8 +98,8 @@ public:
   
   void SetOn(const LifeState &state);
   void SetOff(const LifeState &state);
-  void SetOn(int column, uint64_t which);
-  void SetOff(int column, uint64_t which);
+  void SetOn(unsigned column, uint64_t which);
+  void SetOff(unsigned column, uint64_t which);
   void SetOn(std::pair<int, int> cell);
   void SetOff(std::pair<int, int> cell);
 
@@ -115,17 +115,17 @@ public:
   PropagateResult PropagateStep();
   PropagateResult Propagate();
 
-  PropagateResult SynchroniseStateKnownColumn(int column);
+  PropagateResult SynchroniseStateKnownColumn(unsigned column);
 
-  PropagateResult PropagateSimpleStepStrip(int column);
-  PropagateResult PropagateSimpleStrip(int column);
+  PropagateResult PropagateSimpleStepStrip(unsigned column);
+  PropagateResult PropagateSimpleStrip(unsigned column);
 
-  PropagateResult SynchroniseStateKnownStrip(int column);
-  PropagateResult UpdateOptionsStrip(int column); // Assumes counts and state/unknown are in sync
-  PropagateResult StabiliseOptionsStrip(int column);
-  PropagateResult SignalNeighboursStrip(int column); // Assumes counts and state/unknown are in sync
-  PropagateResult PropagateStepStrip(int column);
-  PropagateResult PropagateStrip(int column);
+  PropagateResult SynchroniseStateKnownStrip(unsigned column);
+  PropagateResult UpdateOptionsStrip(unsigned column); // Assumes counts and state/unknown are in sync
+  PropagateResult StabiliseOptionsStrip(unsigned column);
+  PropagateResult SignalNeighboursStrip(unsigned column); // Assumes counts and state/unknown are in sync
+  PropagateResult PropagateStepStrip(unsigned column);
+  PropagateResult PropagateStrip(unsigned column);
 
   PropagateResult SynchroniseStateKnown(std::pair<int, int> cell);
 
@@ -271,7 +271,7 @@ void LifeStableState::SetOff(const LifeState &which) {
   live3 |= which;
 }
 
-void LifeStableState::SetOn(int i, uint64_t which) {
+void LifeStableState::SetOn(unsigned i, uint64_t which) {
   state[i] |= which;
   // stateZOI |= LifeState::ColumnZOI(i, which);
   unknown[i] &= ~which;
@@ -282,7 +282,7 @@ void LifeStableState::SetOn(int i, uint64_t which) {
   dead5[i] |= which;
   dead6[i] |= which;
 }
-void LifeStableState::SetOff(int i, uint64_t which) {
+void LifeStableState::SetOff(unsigned i, uint64_t which) {
   state[i] &= ~which;
   unknown[i] &= ~which;
   live2[i] |= which;
@@ -663,7 +663,7 @@ PropagateResult LifeStableState::Propagate() {
   return {true, changedEver};
 }
 
-PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
+PropagateResult LifeStableState::PropagateSimpleStepStrip(unsigned column) {
   std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
   std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
 
@@ -782,7 +782,7 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(int column) {
 }
 
 
-PropagateResult LifeStableState::SynchroniseStateKnownColumn(int i) {
+PropagateResult LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
   uint64_t knownOn = ~unknown[i] & state[i];
   dead0[i] |= knownOn;
   dead1[i] |= knownOn;
@@ -815,7 +815,7 @@ PropagateResult LifeStableState::SynchroniseStateKnownColumn(int i) {
   return {true, changes != 0};
 }
 
-PropagateResult LifeStableState::SynchroniseStateKnownStrip(int column) {
+PropagateResult LifeStableState::SynchroniseStateKnownStrip(unsigned column) {
   bool anyChanges = false;
   const unsigned width = 4;
   const unsigned offset = (width - 1) / 2; // 0, 0, 1, 1, 2, 2
@@ -868,7 +868,7 @@ PropagateResult LifeStableState::SynchroniseStateKnown(std::pair<int, int> cell)
   return {true, false};
 }
 
-PropagateResult LifeStableState::PropagateSimpleStrip(int column) {
+PropagateResult LifeStableState::PropagateSimpleStrip(unsigned column) {
   bool done = false;
   bool changed = false;
   while (!done) {
@@ -890,7 +890,7 @@ PropagateResult LifeStableState::PropagateSimpleStrip(int column) {
   return {true, changed};
 }
 
-PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
+PropagateResult LifeStableState::SignalNeighboursStrip(unsigned column) {
   std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
   std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
   std::array<uint64_t, 6> nearbyMax;
@@ -1000,7 +1000,7 @@ PropagateResult LifeStableState::SignalNeighboursStrip(int column) {
   return {true, unknownChanges != 0};
 }
 
-PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
+PropagateResult LifeStableState::UpdateOptionsStrip(unsigned column) {
   std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
   std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
 
@@ -1082,7 +1082,7 @@ PropagateResult LifeStableState::UpdateOptionsStrip(int column) {
   return {has_abort == 0, changes != 0};
 }
 
-PropagateResult LifeStableState::StabiliseOptionsStrip(int column) {
+PropagateResult LifeStableState::StabiliseOptionsStrip(unsigned column) {
   bool changedEver = false;
   bool done = false;
   while (!done) {
@@ -1100,7 +1100,7 @@ PropagateResult LifeStableState::StabiliseOptionsStrip(int column) {
   return {true, changedEver};
 }
 
-PropagateResult LifeStableState::PropagateStepStrip(int column) {
+PropagateResult LifeStableState::PropagateStepStrip(unsigned column) {
   PropagateResult optionsresult = UpdateOptionsStrip(column);
   if (!optionsresult.consistent)
     return {false, false};
@@ -1122,7 +1122,7 @@ PropagateResult LifeStableState::PropagateStepStrip(int column) {
   return {true, changed};
 }
 
-PropagateResult LifeStableState::PropagateStrip(int column) {
+PropagateResult LifeStableState::PropagateStrip(unsigned column) {
   bool changedEver = false;
   bool done = false;
   while (!done) {

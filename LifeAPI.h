@@ -356,7 +356,7 @@ public:
   uint64_t GetHash() const {
     uint64_t result = 0;
 
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       result = HASH::hash64(result, state[i]);
     }
 
@@ -419,7 +419,7 @@ public:
   unsigned GetPop() const {
     unsigned pop = 0;
 
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       pop += __builtin_popcountll(state[i]);
     }
 
@@ -439,7 +439,7 @@ public:
 
   bool IsEmpty() const {
     uint64_t all = 0;
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       all |= state[i];
     }
 
@@ -447,7 +447,7 @@ public:
   }
 
   void Inverse() {
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       state[i] = ~state[i];
     }
   }
@@ -455,7 +455,7 @@ public:
   bool operator==(const LifeState &b) const {
     uint64_t diffs = 0;
 
-    for (int i = 0; i < N; i++)
+    for (unsigned i = 0; i < N; i++)
       diffs |= state[i] ^ b[i];
 
     return diffs == 0;
@@ -467,7 +467,7 @@ public:
 
   LifeState operator~() const {
     LifeState result(false);
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       result[i] = ~state[i];
     }
     return result;
@@ -475,14 +475,14 @@ public:
 
   LifeState operator&(const LifeState &other) const {
     LifeState result(false);
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       result[i] = state[i] & other[i];
     }
     return result;
   }
 
   LifeState& operator&=(const LifeState &other) {
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       state[i] = state[i] & other[i];
     }
     return *this;
@@ -490,14 +490,14 @@ public:
 
   LifeState operator|(const LifeState &other) const {
     LifeState result(false);
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       result[i] = state[i] | other[i];
     }
     return result;
   }
 
   LifeState& operator|=(const LifeState &other) {
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       state[i] = state[i] | other[i];
     }
     return *this;
@@ -505,14 +505,14 @@ public:
 
   LifeState operator^(const LifeState &other) const {
     LifeState result(false);
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       result[i] = state[i] ^ other[i];
     }
     return result;
   }
 
   LifeState& operator^=(const LifeState &other) {
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       state[i] = state[i] ^ other[i];
     }
     return *this;
@@ -524,7 +524,7 @@ public:
 
     uint64_t differences = 0;
     #pragma clang loop vectorize(enable)
-    for (int i = min; i <= max; i++) {
+    for (unsigned i = min; i <= max; i++) {
       uint64_t difference = (~state[i] & pat[i]) ^ (pat[i]);
       differences |= difference;
     }
@@ -538,7 +538,7 @@ public:
 
     uint64_t differences = 0;
     #pragma clang loop vectorize(enable)
-    for (int i = min; i <= max; i++) {
+    for (unsigned i = min; i <= max; i++) {
       uint64_t difference = (state[i] & pat[i]) ^ (pat[i]);
       differences |= difference;
     }
@@ -549,7 +549,7 @@ public:
   bool Contains(const LifeState &pat, int targetDx, int targetDy) const {
     int dy = (targetDy + 64) % 64;
 
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
       if ((RotateRight(state[curX], dy) & pat[i]) != (pat[i]))
@@ -561,7 +561,7 @@ public:
   bool AreDisjoint(const LifeState &pat, int targetDx, int targetDy) const {
     int dy = (targetDy + 64) % 64;
 
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
       if (((~RotateRight(state[curX], dy)) & pat[i]) != pat[i])
@@ -575,7 +575,7 @@ public:
   inline bool Contains(const LifeTarget &target) const;
 
   void Reverse(int idxS, int idxE) {
-    for (int i = 0; idxS + 2*i < idxE; i++) {
+    for (unsigned i = 0; idxS + 2*i < idxE; i++) {
       int l = idxS + i;
       int r = idxE - i;
 
@@ -593,13 +593,13 @@ public:
     if (y < 0)
       y += 64;
 
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       temp[i]   = RotateLeft(state[i], y);
       temp[i+N] = RotateLeft(state[i], y);
     }
 
     const int shift = N - x;
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       state[i] = temp[i+shift];
     }
   }
@@ -615,7 +615,7 @@ public:
     if (y < 0)
       y += 64;
 
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       int newi = (i + x) % N;
       result[newi] = RotateLeft(state[i], y);
     }
@@ -623,7 +623,7 @@ public:
   }
 
   void BitReverse() {
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       state[i] = __builtin_bitreverse64(state[i]);
     }
   }
@@ -665,7 +665,7 @@ public:
 
   LifeState ZOI() const {
     LifeState temp(false);
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       uint64_t col = state[i];
       temp[i] = col | RotateLeft(col) | RotateRight(col);
     }
@@ -688,14 +688,14 @@ public:
   LifeState MooreZOI() const {
     LifeState temp(false);
     LifeState boundary(false);
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       uint64_t col = state[i];
       temp[i] = col | RotateLeft(col) | RotateRight(col);
     }
 
     boundary[0] = state[N - 1] | temp[0] | state[1];
 
-    for (int i = 1; i < N - 1; i++)
+    for (unsigned i = 1; i < N - 1; i++)
       boundary[i] = state[i - 1] | temp[i] | state[i + 1];
 
     boundary[N - 1] = state[N - 2] | temp[N - 1] | state[0];
@@ -712,7 +712,7 @@ public:
     LifeState b(false);
     b[0] = state[0] | RotateLeft(state[0]) | RotateRight(state[0]) |
                  state[N - 1] | state[0 + 1];
-    for (int i = 1; i < N-1; i++) {
+    for (unsigned i = 1; i < N-1; i++) {
       b[i] = state[i] | RotateLeft(state[i]) | RotateRight(state[i]) | state[i-1] | state[i+1];
     }
     b[N-1] = state[N-1] | RotateLeft(state[N-1]) | RotateRight(state[N-1]) |
@@ -720,7 +720,7 @@ public:
 
     LifeState c(false);
     c[0] = b[0] | b[N - 1] | b[0 + 1];
-    for (int i = 1; i < N - 1; i++) {
+    for (unsigned i = 1; i < N - 1; i++) {
       c[i] = b[i] | b[i - 1] | b[i + 1];
     }
     c[N - 1] = b[N - 1] | b[N - 1 - 1] | b[0];
@@ -729,7 +729,7 @@ public:
 
     zoi[0] =
       c[0] | RotateLeft(c[0]) | RotateRight(c[0]);
-    for (int i = 1; i < N - 1; i++) {
+    for (unsigned i = 1; i < N - 1; i++) {
       zoi[i] =
         c[i] | RotateLeft(c[i]) | RotateRight(c[i]);
     }
@@ -740,7 +740,7 @@ public:
   }
 
   static inline void ConvolveInner(LifeState &result, const uint64_t (&doubledother)[N*2], uint64_t x, unsigned int k, unsigned int postshift) {
-    for (int i = 0; i < N; i++) {
+    for (unsigned i = 0; i < N; i++) {
       result[i] |= __builtin_rotateleft64(convolve_uint64_t(x, doubledother[i+k]), postshift);
     }
   }
@@ -824,7 +824,7 @@ public:
   }
 
   void Clear() {
-    for (int i = 0; i < N; i++)
+    for (unsigned i = 0; i < N; i++)
       state[i] = 0;
   }
 
@@ -928,7 +928,7 @@ public:
   void Step();
 
   void Step(int numIters) {
-    for (int i = 0; i < numIters; i++) {
+    for (unsigned i = 0; i < numIters; i++) {
       Step();
     }
   }
@@ -966,7 +966,7 @@ public:
         if (cnt == 0)
           cnt = 1;
 
-        for (int j = 0; j < cnt; j++) {
+        for (unsigned j = 0; j < cnt; j++) {
           result.state[x] |= (1ULL << (y));
           x++;
         }
@@ -1010,7 +1010,7 @@ public:
 
   static LifeState RandomState() {
     LifeState result;
-    for (int i = 0; i < N; i++)
+    for (unsigned i = 0; i < N; i++)
       result[i] = PRNG::dist(PRNG::e2);
 
     return result;
@@ -1052,7 +1052,7 @@ public:
 #else
   std::pair<int, int> FirstOn() const {
     unsigned foundq = N;
-    for (int x = 0; x < N; x += 4) {
+    for (unsigned x = 0; x < N; x += 4) {
       if ((state[x] | state[x + 1] | state[x + 2] | state[x + 3]) != 0ULL) {
         foundq = x;
       }
@@ -1286,7 +1286,7 @@ void LifeState::Step() {
   uint64_t tempxor[N];
   uint64_t tempand[N];
 
-  for (int i = 0; i < N; i++) {
+  for (unsigned i = 0; i < N; i++) {
     uint64_t l = RotateLeft(state[i]);
     uint64_t r = RotateRight(state[i]);
     tempxor[i] = l ^ r ^ state[i];
@@ -1294,7 +1294,7 @@ void LifeState::Step() {
   }
 
   #pragma clang loop unroll(full)
-  for (int i = 0; i < N; i++) {
+  for (unsigned i = 0; i < N; i++) {
     int idxU;
     int idxB;
     if (i == 0)
@@ -1394,8 +1394,8 @@ void LifeState::Transform(SymmetryTransform transf) {
 }
 
 void LifeState::Print() const {
-  for (int j = 0; j < 64; j++) {
-    for (int i = 0; i < N; i++) {
+  for (unsigned j = 0; j < 64; j++) {
+    for (unsigned i = 0; i < N; i++) {
       if (GetSafe(i - (N/2), j - 32) == 0) {
         int hor = 0;
         int ver = 0;

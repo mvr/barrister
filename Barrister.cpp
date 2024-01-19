@@ -219,7 +219,7 @@ public:
 
   bool FastLookahead();
   std::tuple<bool, bool> PopulateFrontier();
-  bool UpdateFrontierStrip(int column);
+  bool UpdateFrontierStrip(unsigned column);
   bool CalculateFrontier();
   bool RefineFrontier();
   std::pair<bool, bool> TryAdvance();
@@ -633,7 +633,7 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
   return {true, anyChanges};
 }
 
-bool SearchState::UpdateFrontierStrip(int column) {
+bool SearchState::UpdateFrontierStrip(unsigned column) {
   stable.SynchroniseStateKnown();
 
   auto &generation = frontier.generations[frontier.start];
