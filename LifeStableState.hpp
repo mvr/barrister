@@ -273,7 +273,7 @@ void LifeStableState::SetOff(const LifeState &which) {
 
 void LifeStableState::SetOn(unsigned i, uint64_t which) {
   state[i] |= which;
-  // stateZOI |= LifeState::ColumnZOI(i, which);
+  stateZOI |= LifeState::ColumnZOI(i, which);
   unknown[i] &= ~which;
   dead0[i] |= which;
   dead1[i] |= which;
