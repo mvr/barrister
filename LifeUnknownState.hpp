@@ -273,6 +273,11 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
     uint64_t current_on = state[i];
     uint64_t current_unknown = unknown[i];
 
+    uint64_t on3 = state3[i];
+    uint64_t on2 = state2[i];
+    uint64_t on1 = state1[i];
+    uint64_t on0 = state0[i];
+
     uint64_t l2 = stable.live2[i];
     uint64_t l3 = stable.live3[i];
     uint64_t d0 = stable.dead0[i];
