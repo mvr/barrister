@@ -6,8 +6,6 @@ max-active-cells = 20
 ever-active-bounds = [8, 8]
 
 stabilise-results = true
-skip-glancing = true
-forbid-eater2 = true
 
 pattern-center = [15, 15]
 pattern = '''

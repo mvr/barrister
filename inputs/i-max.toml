@@ -5,8 +5,6 @@ min-stable-interval = 10
 max-active-cells = 8
 
 stabilise-results = true
-skip-glancing = true
-forbid-eater2 = true
 
 # debug = true
 

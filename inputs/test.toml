@@ -7,7 +7,6 @@ max-stable-pop = 100
 max-active-cells = 8
 
 stabilise-results = false
-skip-glancing = true
 forbid-blocks = true
 
 pattern = '''

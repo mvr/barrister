@@ -5,8 +5,6 @@ min-stable-interval = 4
 max-active-cells = 8
 
 stabilise-results = true
-skip-glancing = true
-forbid-eater2 = true
 
 pattern-center = [15, 15]
 pattern = '''

@@ -6,8 +6,6 @@ max-active-cells = 18
 ever-active-bounds = [8, 8]
 
 stabilise-results = true
-skip-glancing = true
-forbid-eater2 = true
 
 # debug = true
 

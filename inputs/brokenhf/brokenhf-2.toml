@@ -8,8 +8,6 @@ active-bounds = [6, 6]
 ever-active-bounds = [6, 8]
 
 stabilise-results = true
-skip-glancing = true
-forbid-eater2 = true
 
 # debug = true
 
