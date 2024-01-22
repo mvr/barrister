@@ -814,8 +814,6 @@ bool SearchState::RefineFrontier() {
     }
   }
 
-  timeSincePropagate++;
-
   return true;
 }
 
@@ -852,7 +850,7 @@ void SearchState::SearchStep() {
   }
 #endif
 
-  if(frontier.size == 0 || frontier.generations[frontier.start].frontierCells.IsEmpty() || timeSincePropagate > maxBranchFastCount){
+  if(frontier.size == 0 || frontier.generations[frontier.start].frontierCells.IsEmpty() || timeSincePropagate >= maxBranchFastCount){
     bool consistent = CalculateFrontier();
     if (!consistent)
       return;
@@ -862,6 +860,8 @@ void SearchState::SearchStep() {
     stable.SanityCheck();
     // SanityCheck();
   } else {
+    timeSincePropagate++;
+
     bool consistent = RefineFrontier();
     if (!consistent)
       return;
