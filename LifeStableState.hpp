@@ -817,7 +817,8 @@ PropagateResult LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
 
 PropagateResult LifeStableState::SynchroniseStateKnownStrip(unsigned column) {
   bool anyChanges = false;
-  const unsigned width = 4;
+
+  const unsigned width = 8;
   const unsigned offset = (width - 1) / 2; // 0, 0, 1, 1, 2, 2
   if (offset <= column && column + width - 1 - offset < N) {
     #pragma clang loop vectorize_width(4)
