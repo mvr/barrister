@@ -461,7 +461,11 @@ PropagateResult LifeStableState::PropagateSimple() {
 }
 
 PropagateResult LifeStableState::SynchroniseStateKnown() {
+  LifeState changes;
+
   LifeState knownOn = ~unknown & state;
+  LifeState maybeDead = ~(dead0 & dead1 & dead2 & dead4 & dead5 & dead6);
+  changes |= maybeDead & knownOn;
   dead0 |= knownOn;
   dead1 |= knownOn;
   dead2 |= knownOn;
@@ -470,25 +474,23 @@ PropagateResult LifeStableState::SynchroniseStateKnown() {
   dead6 |= knownOn;
 
   LifeState knownOff = ~unknown & ~state;
+  LifeState maybeLive = ~(live2 & live3);
+  changes |= maybeLive & knownOff;
   live2 |= knownOff;
   live3 |= knownOff;
-
-  LifeState maybeLive = ~(live2 & live3);
-  LifeState maybeDead = ~(dead0 & dead1 & dead2 & dead4 & dead5 & dead6);
 
   LifeState impossibles = ~maybeLive & ~maybeDead;
   if (!impossibles.IsEmpty())
     return {false, false};
 
-  LifeState changes;
   changes |= ~state & (maybeLive & ~maybeDead);
-  state = maybeLive & ~maybeDead;
+  state |= maybeLive & ~maybeDead;
 
   changes |= ~stateZOI & state.ZOI();
   stateZOI |= state.ZOI();
 
   changes |= ~unknown & (maybeLive & maybeDead);
-  unknown = maybeLive & maybeDead;
+  unknown &= maybeLive & maybeDead;
 
   return {true, !changes.IsEmpty()};
 }
@@ -783,7 +785,11 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(unsigned column) {
 
 
 PropagateResult LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
+  uint64_t changes = 0;
+
   uint64_t knownOn = ~unknown[i] & state[i];
+  uint64_t maybeDead = ~(dead0[i] & dead1[i] & dead2[i] & dead4[i] & dead5[i] & dead6[i]);
+  changes |= maybeDead & knownOn;
   dead0[i] |= knownOn;
   dead1[i] |= knownOn;
   dead2[i] |= knownOn;
@@ -792,25 +798,23 @@ PropagateResult LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
   dead6[i] |= knownOn;
 
   uint64_t knownOff = ~unknown[i] & ~state[i];
+  uint64_t maybeLive = ~(live2[i] & live3[i]);
+  changes |= maybeLive & knownOff;
   live2[i] |= knownOff;
   live3[i] |= knownOff;
-
-  uint64_t maybeLive = ~(live2[i] & live3[i]);
-  uint64_t maybeDead = ~(dead0[i] & dead1[i] & dead2[i] & dead4[i] & dead5[i] & dead6[i]);
 
   uint64_t impossibles = ~maybeLive & ~maybeDead;
   if (impossibles != 0)
     return {false, false};
 
-  uint64_t changes = 0;
   changes |= ~state[i] & (maybeLive & ~maybeDead);
-  state[i] = maybeLive & ~maybeDead;
+  state[i] |= maybeLive & ~maybeDead;
 
   changes |= ~stateZOI[i] & state.ZOIColumn(i);
   stateZOI[i] |= state.ZOIColumn(i);
 
   changes |= ~unknown[i] & (maybeLive & maybeDead);
-  unknown[i] = maybeLive & maybeDead;
+  unknown[i] &= maybeLive & maybeDead;
 
   return {true, changes != 0};
 }
