@@ -1065,8 +1065,12 @@ std::vector<uint64_t> SearchState::ClassifyRotors(unsigned period) {
 void SearchState::PrintSolution(const Solution &solution) {
   std::cout << "Winner:" << std::endl;
   std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  LifeState state = params->startingState.state | solution.stable.state;
   LifeState marked = solution.stable.unknown | solution.stable.state;
-  std::cout << LifeBellmanRLEFor(solution.state, marked) << std::endl;
+  LifeState startingOff = (params->stable.state & ~params->startingState.state);
+  state &= ~startingOff;
+  marked &= ~startingOff;
+  std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
 
   if(!solution.completed.IsEmpty()){
     // std::cout << "Completed:" << std::endl;
@@ -1076,7 +1080,7 @@ void SearchState::PrintSolution(const Solution &solution) {
     // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
     // std::cout << history.RLE() << std::endl;
     std::cout << "Completed Plain:" << std::endl;
-    std::cout << (solution.state | solution.completed).RLE() << std::endl;
+    std::cout << solution.state.RLE() << std::endl;
   } else {
     // std::cout << "Completion failed!" << std::endl;
     // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
@@ -1121,7 +1125,7 @@ void SearchState::RecordSolution() {
   LifeState startingActive = params->startingState.state & ~params->stable.state;
   LifeState startingStableOff = params->stable.state & ~params->startingState.state;
 
-  solution.state = (stable.state & ~startingStableOff) | startingActive;
+  solution.state = (stable.state | startingActive | completed) & ~startingStableOff;
   solution.completed = completed;
 
   allSolutions->push_back(solution);
@@ -1157,7 +1161,7 @@ void PrintSummary(std::vector<Solution> &pats, std::ostream &out) {
     std::vector<Solution> rowSolutions = std::vector<Solution>(pats.begin() + i, pats.begin() + std::min((unsigned)pats.size(), i + 8));
     std::vector<LifeState> row;
     for (auto &s : rowSolutions) {
-      row.push_back(s.state | s.completed);
+      row.push_back(s.state);
     }
     out << RowRLE(row) << std::endl;
   }

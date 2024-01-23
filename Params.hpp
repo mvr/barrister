@@ -172,7 +172,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   std::pair<int, int> patternCenter = {-patternCenterVec[0], -patternCenterVec[1]};
   pat.Move(patternCenter);
 
-  params.stable.state = pat.marked | pat.original;
+  params.stable.state = pat.marked;
   params.stable.unknown = pat.history;
 
   params.startingState.state = pat.state;
@@ -187,7 +187,9 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.stator = pat.original;
   params.hasStator = !params.stator.IsEmpty();
 
-  params.exempt = (pat.marked | pat.original).ZOI() & ~pat.original;
+  if (toml::find_or(toml, "exempt-existing", true)) {
+    params.exempt = (pat.marked | pat.original).ZOI() & ~pat.original;
+  }
 
   if(toml.contains("filter")) {
     params.hasFilter = true;

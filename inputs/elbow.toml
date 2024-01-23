@@ -1,0 +1,85 @@
+first-active-range = [0, 100]
+active-window-range = [0, 100]
+min-stable-interval = 4
+
+exempt-existing = false
+
+max-cell-active-window = 6
+max-active-cells = 6
+max-cell-stationary-distance = 1
+
+# Some much longer searches: 
+
+# # This should find the 180-degree
+# max-cell-active-window = 12
+# max-active-cells = 14
+# max-cell-stationary-distance = 2
+
+# # This should find the 90-degree
+# max-cell-active-window = 8
+# max-active-cells = 14
+# max-component-active-cells = 9
+# max-cell-stationary-distance = 2
+
+stabilise-results = true
+minimise-results = false
+
+pattern-center = [25, 25]
+pattern = '''
+x = 50, y = 50, rule = LifeHistory
+8.42B$4BC2.C42B$4B6C40B$4B6.40B$4B6C40B$3BC6.40B$3BC.AD4C39B$3BC.C5.
+39B$5BC2.5C37B$5BC.C5.37B$7BC2.5C35B$7BC.C5.35B$9BC2.5C33B$9BC.C5.33B
+$11BC2.5C31B$11BC.C5.31B$13BC2.4C30B$13BC.C34B$15BC34B$15BC34B$50B$
+50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$
+50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B$50B!
+'''
+
+# Avoid continuing the wire
+[[forbidden]]
+forbidden-pos = [-9, -8]
+forbidden = '''
+x = 6, y = 5, rule = LifeHistory
+6D$2D4C$DC$DC$.C!
+'''
+
+# Avoid the almost-elbow
+[[forbidden]]
+forbidden-pos = [-7, -4]
+forbidden = '''
+x = 9, y = 7, rule = LifeHistory
+C.4C.C$C7.C$.7C$7.C$.4C2.C$5.C.2C$5.C!
+'''
+
+# Avoid the 5c/9
+[[forbidden]]
+forbidden-pos = [3, 1]
+forbidden = '''
+x = 5, y = 6, rule = LifeHistory
+.CDC$.CDC$.CDC$2CD2C$5D$5C!
+'''
+[[forbidden]]
+forbidden-pos = [7, 5]
+forbidden = '''
+x = 5, y = 6, rule = LifeHistory
+.CDC$.CDC$.CDC$2CD2C$5D$5C!
+'''
+[[forbidden]]
+forbidden-pos = [6, 3]
+forbidden = '''
+x = 5, y = 6, rule = LifeHistory
+.CDC$.CDC$.CDC$2CD2C$5D$5C!
+'''
+[[forbidden]]
+forbidden-pos = [2, -2]
+forbidden = '''
+x = 5, y = 6, rule = LifeHistory
+.CDC$.CDC$.CDC$2CD2C$5D$5C!
+'''
+
+# Avoid the 90 degree 5c/9
+[[forbidden]]
+forbidden-pos = [1, -9]
+forbidden = '''
+x = 5, y = 6, rule = LifeHistory
+5C$5D$2CD2C$.CDC$.CDC$.CDC!
+'''
