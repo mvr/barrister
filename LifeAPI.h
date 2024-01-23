@@ -1008,6 +1008,10 @@ public:
 
   std::string RLE() const;
 
+  friend std::ostream& operator<<(std::ostream& os, LifeState const& self) {
+    return os << self.RLE();
+  }
+
   static LifeState RandomState() {
     LifeState result;
     for (unsigned i = 0; i < N; i++)

@@ -144,6 +144,9 @@ public:
   std::string RLEWHeader() const {
     return "x = 0, y = 0, rule = LifeBellman\n" + RLE();
   }
+  friend std::ostream& operator<<(std::ostream& os, LifeStableState const& self) {
+    return os << self.RLEWHeader();
+  }
 
   bool CompatibleWith(const LifeState &desired) const;
   bool CompatibleWith(const LifeStableState &desired) const;

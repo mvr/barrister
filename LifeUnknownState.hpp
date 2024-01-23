@@ -197,6 +197,11 @@ public:
   LifeHistoryState ToHistory() const {
     return LifeHistoryState(state, unknown, unknownStable, LifeState());
   }
+
+  friend std::ostream& operator<<(std::ostream& os, LifeUnknownState const& self) {
+    return os << self.ToHistory().RLEWHeader();
+  }
+
   void SanityCheck(const LifeStableState &stable) {
 #ifdef DEBUG
     assert((unknown & state).IsEmpty());
