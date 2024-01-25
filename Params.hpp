@@ -136,7 +136,6 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.componentChangesBounds.second = componentChangesBounds[1];
 
   params.maxCellStationaryDistance = toml::find_or(toml, "max-cell-stationary-distance", -1);
-  params.maxCellStationaryStreakGens = toml::find_or(toml, "max-cell-stationary-streak", -1);
 
   params.usesChanges = params.maxChanges != -1 ||
                        params.changesBounds.first != -1 ||
