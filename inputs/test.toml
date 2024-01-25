@@ -1,11 +1,11 @@
-first-active-range = [0, 10]
+first-active-range = [0, 4]
+active-window-range = [0, 30]
 min-stable-interval = 5
 
-max-active-window-gens = 20
-
-max-active-cells = 8
+max-active-cells = 6
 
 stabilise-results = true
+minimise-results = true
 
 pattern = '''
 x = 19, y = 15, rule = LifeHistory
