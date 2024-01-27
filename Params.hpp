@@ -82,6 +82,7 @@ public:
   bool trimResults;
   unsigned minTrimHashes;
   bool reportOscillators;
+  std::string knownrotorsFile;
   bool continueAfterSuccess;
   bool printSummary;
   bool pipeResults;
@@ -152,6 +153,7 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   params.minTrimHashes = toml::find_or(toml, "min-trim-hashes", 5);
 
   params.reportOscillators = toml::find_or(toml, "report-oscillators", false);
+  params.knownrotorsFile = toml::find_or(toml, "knownrotors-file", "knownrotors");
   params.continueAfterSuccess = toml::find_or(toml, "continue-after-success", false);
   params.printSummary = toml::find_or(toml, "print-summary", true);
 

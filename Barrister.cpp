@@ -2,6 +2,7 @@
 #include <cmath>
 #include <stack>
 #include <map>
+#include <set>
 #include <algorithm>
 
 #include "toml/toml.hpp"
@@ -10,6 +11,7 @@
 #include "LifeAPI.h"
 #include "LifeStableState.hpp"
 #include "LifeUnknownState.hpp"
+#include "RotorDescription.hpp"
 #include "Params.hpp"
 #include "Parsing.hpp"
 
@@ -186,10 +188,10 @@ public:
 
   SearchParams *params;
   std::vector<Solution> *allSolutions;
-  std::vector<uint64_t> *seenRotors;
+  std::set<std::string> *seenRotors;
   LifeStableState *stableAtInteraction;
 
-  SearchState(SearchParams &inparams, std::vector<Solution> &outsolutions, std::vector<uint64_t> &outrotors, LifeStableState &stableAtInteraction);
+  SearchState(SearchParams &inparams, std::vector<Solution> &outsolutions, std::set<std::string> &outrotors, LifeStableState &stableAtInteraction);
   SearchState(const SearchState &) = default;
   SearchState &operator=(const SearchState &) = default;
 
@@ -232,9 +234,7 @@ public:
 
   void SearchStep();
 
-  unsigned DeterminePeriod();
   void RecordOscillator();
-  std::vector<uint64_t> ClassifyRotors(unsigned period);
 
   void RecordSolution();
   void PrintSolution(const Solution &solution);
@@ -972,7 +972,7 @@ void SearchState::SearchStep() {
 
 SearchState::SearchState(SearchParams &inparams,
                          std::vector<Solution> &outsolutions,
-                         std::vector<uint64_t> &outrotors,
+                         std::set<std::string> &outrotors,
                          LifeStableState &inStableAtInteraction)
     : currentGen{0}, hasInteracted{false}, interactionStart{0} {
   params = &inparams;
@@ -994,72 +994,6 @@ SearchState::SearchState(SearchParams &inparams,
   streakTimer = LifeCountdown<maxCellActiveStreakGens>(params->maxCellActiveStreakGens);
 
   TryAdvance();
-}
-
-unsigned SearchState::DeterminePeriod() {
-  // We can trample `current`, because we only do this when we are
-  // going to bail out of the branch anyway.
-
-  std::stack<std::pair<uint64_t, int>> minhashes;
-
-  // TODO: is 60 reasonable?
-  for (unsigned i = 1; i < 60; i++) {
-    LifeState active = stable.state ^ current.state;
-
-    uint64_t newhash = active.GetHash();
-
-    while(true) {
-      if(minhashes.empty())
-        break;
-      if(minhashes.top().first < newhash)
-        break;
-
-      if(minhashes.top().first == newhash) {
-        unsigned p = i - minhashes.top().second;
-        return p;
-      }
-
-      if(minhashes.top().first > newhash)
-        minhashes.pop();
-    }
-
-    minhashes.push({newhash, i});
-
-    current = current.StepMaintaining(stable);
-  }
-  return 0;
-}
-
-std::vector<uint64_t> SearchState::ClassifyRotors(unsigned period) {
-  // We shouldn't use the stable state in here, because at this point
-  // we don't care what the original background of the rotor was
-  LifeState startState = current.state;
-
-  LifeState allRotorCells;
-  for(unsigned i = 0; i < period; i++) {
-    LifeState active = startState ^ current.state;
-    allRotorCells |= active;
-    current = current.StepMaintaining(stable);
-  }
-
-  std::vector<uint64_t> result;
-
-  auto rotorLocations = allRotorCells.Components();
-  for(auto &rotorLocation : rotorLocations) {
-    LifeState rotorZOI = rotorLocation.ZOI();
-    LifeState rotorStart = current.state & rotorZOI;
-
-    uint64_t rotorHash = 0;
-    for(unsigned i = 0; i < period; i++) {
-      LifeState rotorState = rotorZOI & ~(current.state & allRotorCells);
-      rotorHash ^= rotorState.GetOctoHash();
-      current = current.StepMaintaining(stable);
-      if((current.state & rotorZOI) == rotorStart)
-        break;
-    }
-    result.push_back(rotorHash);
-  }
-  return result;
 }
 
 void SearchState::PrintSolution(const Solution &solution) {
@@ -1093,20 +1027,18 @@ void SearchState::PrintSolution(const Solution &solution) {
 }
 
 void SearchState::RecordOscillator() {
-  unsigned period = DeterminePeriod();
+  unsigned period = DeterminePeriod(current, stable);
   if (period > 4) {
-    auto rotors = ClassifyRotors(period);
-    bool anyNew = false;
-    for(uint64_t r : rotors) {
-      if(std::find(seenRotors->begin(), seenRotors->end(), r) == seenRotors->end()) {
-        anyNew = true;
-        seenRotors->push_back(r);
-      }
+    std::cout << "Oscillating! Period: " << period << std::endl;
+    auto rotorDesc = GetRotorDesc(current, stable, period);
+    if (seenRotors->contains(rotorDesc))
+      std::cout << "Known Rotor: " << GetRotorDesc(current, stable, period) << std::endl;
+    else {
+      seenRotors->insert(rotorDesc);
+      std::cout << "New Rotor: " << GetRotorDesc(current, stable, period) << std::endl;
     }
-    if(anyNew) {
-      std::cout << "Oscillating! Period: " << period << std::endl;
-      RecordSolution();
-    }
+
+    RecordSolution();
   }
 }
 
@@ -1272,7 +1204,7 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
 
 void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchParams &params) {
   std::vector<Solution> roundSolutions;
-  std::vector<uint64_t> seenRotors;
+  std::set<std::string> seenRotors;
   LifeStableState stableAtInteraction;
 
   std::cout << "Depth: " << round << std::endl;
@@ -1348,8 +1280,13 @@ int main(int, char *argv[]) {
     MetaSearch(params);
   } else {
     std::vector<Solution> allSolutions;
-    std::vector<uint64_t> seenRotors;
     LifeStableState stableAtInteraction;
+
+    std::set<std::string> seenRotors;
+    if(params.reportOscillators) {
+      for (auto r : ReadRotors(params.knownrotorsFile))
+      seenRotors.insert(r);
+    }
 
     SearchState search(params, allSolutions, seenRotors, stableAtInteraction);
     search.SearchStep();
