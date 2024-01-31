@@ -1028,17 +1028,18 @@ void SearchState::PrintSolution(const Solution &solution) {
 
 void SearchState::RecordOscillator() {
   unsigned period = DeterminePeriod(current, stable);
-  if (period > 4) {
+  if (period >= params->reportOscillatorsMinPeriod) {
     std::cout << "Oscillating! Period: " << period << std::endl;
-    auto rotorDesc = GetRotorDesc(current, stable, period);
-    if (seenRotors->contains(rotorDesc))
-      std::cout << "Known Rotor: " << GetRotorDesc(current, stable, period) << std::endl;
-    else {
-      seenRotors->insert(rotorDesc);
-      std::cout << "New Rotor: " << GetRotorDesc(current, stable, period) << std::endl;
+    for(auto &r : GetSeparatedRotorDesc(current, stable, period)) {
+      auto rotorDesc = r.ToString();
+      if (seenRotors->contains(rotorDesc))
+        std::cout << "Known Rotor: " << rotorDesc << std::endl;
+      else {
+        seenRotors->insert(rotorDesc);
+        std::cout << "New Rotor: " << rotorDesc << std::endl;
+        RecordSolution();
+      }
     }
-
-    RecordSolution();
   }
 }
 

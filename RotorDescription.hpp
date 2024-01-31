@@ -5,7 +5,7 @@
 #include "LifeStableState.hpp"
 #include "LifeUnknownState.hpp"
 
-enum ResultType {
+enum RotorType {
   NORESULT,
   OSC,     // repeats
   FIZZLER, // returns to starting state
@@ -14,33 +14,44 @@ enum ResultType {
 };
 
 struct Rotor {
+  RotorType type;
   unsigned period;
+  unsigned pop;
+  std::pair<unsigned, unsigned> size;
   std::string desc;
   std::string comment;
-  ResultType type;
+
+  std::string ToString() const {
+    std::string firstLetter;
+    switch (type) {
+    case RotorType::OSC:
+      firstLetter += "p";
+      break;
+    case RotorType::FIZZLER:
+      firstLetter += "f";
+      break;
+    }
+
+    return firstLetter + std::to_string(period) +
+           " r" + std::to_string(pop) + " " +
+           std::to_string(size.second) + "x" + std::to_string(size.first) + " " +
+           desc;
+  }
+
+  int compare(const Rotor &other) const {
+    return ToString().compare(other.ToString());
+  }
 };
 
 // assumes rotor occupies 0 <= x < dims.first, 0 <= y < dims.second
-std::string GetUnnormalisedRotorDesc(const LifeState &genZero,
+Rotor GetUnnormalisedRotorDesc(const LifeState &genZero,
                                      const LifeState &stator,
                                      const LifeState &rotor,
-                                     std::pair<int, int> dims, int period,
-                                     ResultType resType) {
-  std::string firstLetter;
-  switch (resType) {
-  case ResultType::OSC:
-    firstLetter = "p";
-    break;
-  case ResultType::FIZZLER:
-    firstLetter = "f";
-    break;
-  }
+                                     std::pair<int, int> dims, unsigned period,
+                                     RotorType resType) {
 
   // rotor descriptions do (height)x(width); input is (width, height)
-  std::string desc = firstLetter + std::to_string(period) + " r" +
-                     std::to_string(rotor.GetPop()) + " " +
-                     std::to_string(dims.second) + "x" +
-                     std::to_string(dims.first) + " ";
+  std::string desc;
 
   for (int row = 0; row < dims.second; ++row) {
     for (int col = 0; col < dims.first; ++col) {
@@ -54,15 +65,15 @@ std::string GetUnnormalisedRotorDesc(const LifeState &genZero,
     if (row + 1 != dims.second)
       desc += " ";
   }
-  return desc;
+  return {RotorType::OSC, period, rotor.GetPop(), dims, desc, ""};
 }
 
 // assumes rotor occupies 0 <= x < dims.first, 0 <= y < dims.second
 // only handles a single gen.
-std::string GetPhaseRotorDesc(const LifeState &genZero, const LifeState &stator,
+Rotor GetPhaseRotorDesc(const LifeState &genZero, const LifeState &stator,
                               const LifeState &rotor, std::pair<int, int> dims,
-                              int period, ResultType resType) {
-  std::string minimalRotorDesc = "";
+                              unsigned period, RotorType resType) {
+  Rotor minimalRotorDesc = {};
   // if non-square half of these transformations are redundant (we always choose
   // an orientation where width >= height) but whatever.
 
@@ -108,16 +119,16 @@ std::string GetPhaseRotorDesc(const LifeState &genZero, const LifeState &stator,
     transfRotor.Transform(transf);
     transfRotor.Move(shiftBy.first, shiftBy.second);
 
-    std::string rotorDesc =
+    Rotor rotorDesc =
         GetUnnormalisedRotorDesc(transfGenZero, transfStator, transfRotor,
                                  transfRotor.WidthHeight(), period, resType);
-    if (minimalRotorDesc.size() == 0 || minimalRotorDesc.compare(rotorDesc) > 0)
+    if (minimalRotorDesc.desc.size() == 0 || minimalRotorDesc.compare(rotorDesc) > 0)
       minimalRotorDesc = rotorDesc;
   }
   return minimalRotorDesc;
 }
 
-std::string GetRotorDesc(const std::vector<LifeState> &states, ResultType res) {
+Rotor GetRotorDesc(const std::vector<LifeState> &states, RotorType res) {
   unsigned period = states.size();
 
   LifeState stator = ~LifeState();
@@ -132,13 +143,13 @@ std::string GetRotorDesc(const std::vector<LifeState> &states, ResultType res) {
   rotor.Move(-bounds[0], -bounds[1]);
   stator.Move(-bounds[0], -bounds[1]);
 
-  std::string minDescSoFar;
+  Rotor minDescSoFar;
   for (auto genZeroState : states) {
     genZeroState.Move(-bounds[0], -bounds[1]);
-    std::string desc =
+    Rotor desc =
         GetPhaseRotorDesc(genZeroState, stator, rotor,
                           rotor.WidthHeight(), period, res);
-    if (minDescSoFar.size() == 0 || minDescSoFar.compare(desc) > 0)
+    if (minDescSoFar.desc.size() == 0 || minDescSoFar.compare(desc) > 0)
       minDescSoFar = desc;
   }
   return minDescSoFar;
@@ -178,14 +189,43 @@ unsigned DeterminePeriod(const LifeUnknownState &state, const LifeStableState &s
   return 0;
 }
 
-std::string GetRotorDesc(const LifeUnknownState &state, const LifeStableState &stable, unsigned period) {
+Rotor GetRotorDesc(const LifeUnknownState &state, const LifeStableState &stable, unsigned period) {
   LifeUnknownState current = state;
   std::vector<LifeState> states;
   for (unsigned i = 0; i < period; i++) {
     states.push_back(current.state);
     current = current.StepMaintaining(stable);
   }
-  return GetRotorDesc(states, ResultType::OSC);
+  return GetRotorDesc(states, RotorType::OSC);
+}
+
+std::vector<Rotor> GetSeparatedRotorDesc(const LifeUnknownState &state, const LifeStableState &stable, unsigned period) {
+  LifeUnknownState current = state;
+  std::vector<LifeState> states;
+
+  LifeState stator = ~LifeState();
+  LifeState rotor  = LifeState();
+  for (unsigned i = 0; i < period; i++) {
+    stator &= current.state;
+    rotor |= current.state;
+    states.push_back(current.state);
+    current = current.StepMaintaining(stable);
+  }
+  rotor &= ~stator;
+
+  std::vector<Rotor> result;
+  for (auto &c : rotor.Components()) {
+    LifeState rotorMask = c.BigZOI();
+    std::vector<LifeState> rotorStates;
+    for (unsigned i = 0; i < period; i++) {
+      LifeState thisPhase = states[i] & rotorMask;
+      if(i > 0 && thisPhase == rotorStates[0])
+        break;
+      rotorStates.push_back(thisPhase);
+    }
+    result.push_back(GetRotorDesc(rotorStates, RotorType::OSC));
+  }
+  return result;
 }
 
 std::vector<std::string> ReadRotors(std::string filename) {

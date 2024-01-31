@@ -68,6 +68,7 @@ memory.)
 | `stabilise-results-timeout`    | `secs`                | How long to spend trying to find a minimal completion (default `3`)                                    |
 | `trim-results`                 | `true` or `false`     | Try and collect catalysts that cause different perturbations (default `true`)                          |
 | `report-oscillators`           | `true` or `false`     | Only report oscillators (with period > 4) (default `false`)                                            |
+| `report-oscillators-min-period` | `true` or `false`     | Minimum period worthy of reporting (default `5`)                                                       |
 
 ### Filters and Forbiddens
 
