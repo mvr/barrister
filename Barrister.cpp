@@ -1030,6 +1030,17 @@ void SearchState::RecordOscillator() {
   unsigned period = DeterminePeriod(current, stable);
   if (period >= params->reportOscillatorsMinPeriod) {
     std::cout << "Oscillating! Period: " << period << std::endl;
+
+    if(!(everActive.ZOI() & stable.unknown).IsEmpty()) {
+      LifeState completed = stable.CompleteStable(
+          params->stabiliseResultsTimeout, params->minimiseResults);
+      if(!completed.IsEmpty()) {
+        stable.SetOn(completed);
+        stable.SetOff(~completed);
+        current.TransferStable(stable);
+      }
+    }
+
     for(auto &r : GetSeparatedRotorDesc(current, stable, period)) {
       auto rotorDesc = r.ToString();
       if (seenRotors->contains(rotorDesc))
