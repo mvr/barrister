@@ -489,8 +489,9 @@ PropagateResult LifeStableState::SynchroniseStateKnown() {
   changes |= ~state & (maybeLive & ~maybeDead);
   state |= maybeLive & ~maybeDead;
 
-  changes |= ~stateZOI & state.ZOI();
-  stateZOI |= state.ZOI();
+  LifeState newZOI = state.ZOI();
+  changes |= ~stateZOI & newZOI;
+  stateZOI |= newZOI;
 
   changes |= ~unknown & (maybeLive & maybeDead);
   unknown &= maybeLive & maybeDead;
