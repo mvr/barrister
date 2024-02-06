@@ -14,43 +14,51 @@ def is_forced(o, n):
     return n2.unknown == 0 or (center_unknown and n2.center != UNKNOWN)
 
 def vulnerable_function(o, n):
-    if n.unknown <= 1: return "0"
+    if n.center != UNKNOWN and n.unknown <= 1: return "00"
+    if n.center == UNKNOWN and n.unknown == 0: return "00"
 
-    n_on = CellUnknownNeighbourhood(n.center, n.count+1, n.unknown-1)
+    n_on  = CellUnknownNeighbourhood(n.center, n.count+1, n.unknown-1)
     n_off = CellUnknownNeighbourhood(n.center, n.count, n.unknown-1)
 
     forced_on  = is_forced(o, n_on)
     forced_off = is_forced(o, n_off)
 
-    if forced_on is None: return "1"
-    if forced_off is None: return "1"
-    if forced_on and forced_off: return "1"
+    onChar = "0"
+    offChar = "0"
 
-    return "0"
+    if forced_on is None: onChar = "1"
+    if forced_off is None: offChar = "1"
+    if forced_on: onChar = "1"
+    if forced_off: offChar = "1"
+
+    return onChar + offChar
 
 def vulnerable_center_function(o, n):
-    if n.unknown == 0: return "0"
-    if n.center != UNKNOWN: return "-"
+    if n.unknown == 0: return "00"
+    if n.center != UNKNOWN: return "--"
 
-    n_on = CellUnknownNeighbourhood(ON, n.count, n.unknown)
+    n_on  = CellUnknownNeighbourhood(ON, n.count, n.unknown)
     n_off = CellUnknownNeighbourhood(OFF, n.count, n.unknown)
 
     forced_on  = is_forced(o, n_on)
     forced_off = is_forced(o, n_off)
 
-    if forced_on is None: return "1"
-    if forced_off is None: return "1"
-    if forced_on and forced_off: return "1"
+    onChar = "0"
+    offChar = "0"
 
-    return "0"
+    if forced_on is None: onChar = "1"
+    if forced_off is None: offChar = "1"
+    if forced_on: onChar = "1"
+    if forced_off: offChar = "1"
+
+    return onChar + offChar
 
 def emit_boolean(options, live_count, unknown_count, result):
     if result == ABORT: return ""
-    inputs = options.espresso_str() + \
-             int2bin(live_count, 3) + \
-             int2bin(unknown_count, 4) + \
-             ""
-             # espresso_char(options.single_off()) + espresso_char(options.single_on()) + \
+    inputs = options.espresso_str()
+    inputs += int2bin(live_count, 3)
+    inputs += int2bin(unknown_count, 4)
+    # inputs += espresso_char(options.single_off()) + espresso_char(options.single_on())
     outputs = result
 
     return f"{inputs} {outputs}\n"
@@ -60,7 +68,8 @@ innames = ["l2", "l3", "d0", "d1", "d2", "d4", "d5", "d6",
            "unk3", "unk2", "unk1", "unk0",
            # "single_off", "single_on",
            ]
-outnames = ["vulnerable", "vulnerable_center"]
+outnames = ["vulnerable_on", "vulnerable_off",
+            "vulnerable_center_on", "vulnerable_center_off"]
 data = ""
 
 
