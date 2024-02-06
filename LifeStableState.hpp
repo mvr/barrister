@@ -1149,33 +1149,33 @@ PropagateResult LifeStableState::TestUnknown(std::pair<int, int> cell) {
   onSearch.SetOn(cell);
   auto onResult = onSearch.PropagateStrip(cell.first);
 
+  if (!onResult.consistent) {
+    SetOff(cell);
+    auto offResult = PropagateStrip(cell.first);
+    if (!offResult.consistent)
+      return {false, false};
+    else
+      return {true, true};
+  }
+
   // Try off
   LifeStableState offSearch = *this;
   offSearch.SetOff(cell);
   auto offResult = offSearch.PropagateStrip(cell.first);
 
-  if (!onResult.consistent && !offResult.consistent)
-    return {false, false};
-
-  bool change = false;
-
   if (onResult.consistent && !offResult.consistent) {
     *this = onSearch;
-    change = true;
-  }
-
-  if (!onResult.consistent && offResult.consistent) {
-    *this = offSearch;
-    change = true;
+    return {true, true};
   }
 
   if (onResult.consistent && offResult.consistent && onResult.changed && offResult.changed) {
     LifeStableState joined = onSearch.Join(offSearch);
-    change = joined != *this;
+    bool change = joined != *this;
     *this = joined;
+    return {true, change};
   }
 
-  return {true, change};
+  return {true, false}; // Impossible
 }
 
 PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
