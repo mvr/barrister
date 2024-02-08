@@ -25,6 +25,9 @@ struct LifeHistoryState {
   std::string RLEWHeader() const {
     return "x = 0, y = 0, rule = LifeHistory\n" + RLE();
   }
+  friend std::ostream& operator<<(std::ostream& os, LifeHistoryState const& self) {
+    return os << self.RLEWHeader();
+  }
 
   static LifeHistoryState Parse(const std::string &s);
   static LifeHistoryState ParseWHeader(const std::string &s);
