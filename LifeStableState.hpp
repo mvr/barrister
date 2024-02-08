@@ -643,12 +643,12 @@ PropagateResult LifeStableState::StabiliseOptions() {
 }
 
 PropagateResult LifeStableState::PropagateStep() {
-  PropagateResult optionsresult = UpdateOptions();
-  if (!optionsresult.consistent)
-    return {false, false};
-
   PropagateResult knownresult = SynchroniseStateKnown();
   if (!knownresult.consistent)
+    return {false, false};
+
+  PropagateResult optionsresult = UpdateOptions();
+  if (!optionsresult.consistent)
     return {false, false};
 
   PropagateResult signalresult = SignalNeighbours();
@@ -1118,21 +1118,22 @@ PropagateResult LifeStableState::StabiliseOptionsStrip(unsigned column) {
 }
 
 PropagateResult LifeStableState::PropagateStepStrip(unsigned column) {
-  PropagateResult optionsresult = UpdateOptionsStrip(column);
-  if (!optionsresult.consistent)
-    return {false, false};
-
   PropagateResult knownresult = SynchroniseStateKnownStrip(column);
   if (!knownresult.consistent)
+    return {false, false};
+
+  PropagateResult optionsresult = UpdateOptionsStrip(column);
+  if (!optionsresult.consistent)
     return {false, false};
 
   PropagateResult signalresult = SignalNeighboursStrip(column);
   if (!signalresult.consistent)
     return {false, false};
 
-  PropagateResult simpleresult = PropagateSimpleStepStrip(column);
-  if (!simpleresult.consistent)
-    return {false, false};
+  // PropagateResult simpleresult = PropagateSimpleStepStrip(column);
+  // if (!simpleresult.consistent)
+  //   return {false, false};
+  PropagateResult simpleresult = {true, false};
 
   bool changed = simpleresult.changed || optionsresult.changed ||
                  knownresult.changed || signalresult.changed;
