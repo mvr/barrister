@@ -694,7 +694,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     }
 
     if (hasInteracted) {
-      bool isRecovered = ((stable.state ^ current.state) & stable.stateZOI & ~params->exempt).IsEmpty();
+      bool isRecovered = active.IsEmpty();
 
       if (isRecovered)
         recoveredTime++;
