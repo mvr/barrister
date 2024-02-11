@@ -17,10 +17,22 @@ $24.8B$6.EC15.9B$5.E.E5.2A.16B$5.E7.2A.16B$4.2E10.16B$8.24B$8.24B$32B
 $32B$32B$32B$32B$32B$32B$32B$32B$32B$32B!
 '''
 
+# The glider gets out:
 [[filter]]
 filter-gen = 46
+filter-type = "EXACT"
 filter-pos = [2, -8]
 filter = '''
 x = 5, y = 5, rule = LifeHistory
 5D$D3CD$3DCD$.DC2D$.3D!
+'''
+
+# The block recovers:
+[[filter]]
+filter-gen = 80
+filter-type = "EVER"
+filter-pos = [-3, -5]
+filter = '''
+x = 4, y = 4, rule = LifeHistory
+4D$D2CD$D2CD$4D!
 '''
