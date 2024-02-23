@@ -66,8 +66,11 @@ struct Solution {
   LifeStableState stable;
   LifeStableState interactionStable;
   LifeState stator;
+
   unsigned interactionGen;
   unsigned recoveryGen;
+
+  CompletionResult completionResult;
 
   bool operator==(const Solution&) const = default; // I don't really know why I need to say this
 
@@ -1006,24 +1009,32 @@ void SearchState::PrintSolution(const Solution &solution) {
   marked &= ~startingOff;
   std::cout << LifeBellmanRLEFor(state, marked) << std::endl;
 
-  if(!solution.completed.IsEmpty()){
-    // std::cout << "Completed:" << std::endl;
-    // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-    // LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
-    // LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
-    // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
-    // std::cout << history.RLE() << std::endl;
-    std::cout << "Completed Plain:" << std::endl;
+  switch (solution.completionResult) {
+  case CompletionResult::COMPLETED:
+    std::cout << "Completed:" << std::endl;
     std::cout << solution.state.RLE() << std::endl;
-  } else {
-    // std::cout << "Completion failed!" << std::endl;
-    // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-    // LifeHistoryState history;
-    // std::cout << history.RLE() << std::endl;
-
-    std::cout << "Completion Failed!" << std::endl;
+  break;
+  case CompletionResult::INCONSISTENT:
+    std::cout << "Completion Failed: Inconsistent" << std::endl;
     std::cout << LifeState().RLE() << std::endl;
+  break;
+  case CompletionResult::TIMEOUT:
+    std::cout << "Completion Failed: Timeout" << std::endl;
+    std::cout << LifeState().RLE() << std::endl;
+  break;
   }
+  // Old:
+  // std::cout << "Completed:" << std::endl;
+  // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+  // LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
+  // LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
+  // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
+  // std::cout << history.RLE() << std::endl;
+
+  // std::cout << "Completion failed!" << std::endl;
+  // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
+  // LifeHistoryState history;
+  // std::cout << history.RLE() << std::endl;
 }
 
 void SearchState::RecordOscillator() {
@@ -1032,7 +1043,7 @@ void SearchState::RecordOscillator() {
     std::cout << "Oscillating! Period: " << period << std::endl;
 
     if(!(everActive.ZOI() & stable.unknown).IsEmpty()) {
-      LifeState completed = stable.CompleteStable(
+      auto [result, completed] = stable.CompleteStable(
           params->stabiliseResultsTimeout, params->minimiseResults);
       if(!completed.IsEmpty()) {
         stable.SetOn(completed);
@@ -1061,16 +1072,14 @@ void SearchState::RecordSolution() {
   solution.interactionGen = interactionStart;
   solution.recoveryGen = currentGen - params->minStableInterval + 1;
 
-  LifeState completed;
-  if(params->stabiliseResults) {
-    completed = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
+  if (params->stabiliseResults) {
+    std::tie(solution.completionResult, solution.completed) = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
   }
 
   LifeState startingActive = params->startingState.state & ~params->stable.state;
   LifeState startingStableOff = params->stable.state & ~params->startingState.state;
 
-  solution.state = (stable.state | startingActive | completed) & ~startingStableOff;
-  solution.completed = completed;
+  solution.state = (stable.state | startingActive | solution.completed) & ~startingStableOff;
 
   allSolutions->push_back(solution);
 

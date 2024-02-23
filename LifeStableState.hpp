@@ -40,6 +40,12 @@ struct PropagateResult {
   bool changed;
 };
 
+enum struct CompletionResult {
+  COMPLETED,
+  INCONSISTENT,
+  TIMEOUT,
+};
+
 class LifeStableState {
 public:
   LifeState state;
@@ -137,8 +143,8 @@ public:
 
   PropagateResult TestUnknown(std::pair<int, int> cell);
   PropagateResult TestUnknowns(const LifeState &cells);
-  void CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, bool useSeed, const LifeState &seed, unsigned &maxPop, LifeState &best);
-  LifeState CompleteStable(unsigned timeout, bool minimise);
+  CompletionResult CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, bool useSeed, const LifeState &seed, unsigned &maxPop, LifeState &best);
+  std::pair<CompletionResult, LifeState> CompleteStable(unsigned timeout, bool minimise);
 
   std::string RLE() const;
   std::string RLEWHeader() const {
@@ -1212,29 +1218,21 @@ PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
   return {true, anyChanges};
 }
 
-void LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &timeLimit, bool minimise, bool useSeed, const LifeState &seed, unsigned &maxPop, LifeState &best) {
+CompletionResult LifeStableState::CompleteStableStep(
+    std::chrono::system_clock::time_point &timeLimit, bool minimise,
+    bool useSeed, const LifeState &seed, unsigned &maxPop, LifeState &best) {
   auto currentTime = std::chrono::system_clock::now();
-  if(currentTime > timeLimit)
-    return;
+  if (currentTime > timeLimit)
+      return CompletionResult::TIMEOUT;
 
   bool consistent = Propagate().consistent;
   if (!consistent)
-    return;
+    return CompletionResult::INCONSISTENT;
 
   unsigned currentPop = state.GetPop();
 
   if (currentPop >= maxPop) {
-    return;
-  }
-
-  auto result = TestUnknowns(Vulnerable().ZOI());
-  if (!result.consistent)
-    return;
-
-  if (result.changed) {
-    currentPop = state.GetPop();
-    if(currentPop >= maxPop)
-      return;
+    return CompletionResult::COMPLETED;
   }
 
   LifeState settable = PerturbedUnknowns() & stateZOI.ZOI();
@@ -1243,7 +1241,7 @@ void LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
     // We win
     best = state;
     maxPop = state.GetPop();
-    return;
+    return CompletionResult::COMPLETED;
   }
 
   if(useSeed) {
@@ -1257,42 +1255,50 @@ void LifeStableState::CompleteStableStep(std::chrono::system_clock::time_point &
     settable &= seedZOI;
   }
 
-  LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
-  CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
-
   // Now make a guess for the best cell to branch on
   std::pair<int, int> newPlacement = {-1, -1};
+  newPlacement = (Vulnerable() & settable).FirstOn();
 
-  newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & ~unknown0)).FirstOn();
-  if(newPlacement.first == -1)
-    newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & unknown0)).FirstOn();
-  if(newPlacement.first == -1)
-    newPlacement = settable.FirstOn();
-  if(newPlacement.first == -1)
-    return;
+  if(newPlacement.first == -1) {
+    LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
+    CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
+
+    newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & ~unknown0)).FirstOn();
+    if(newPlacement.first == -1)
+      newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & unknown0)).FirstOn();
+    if(newPlacement.first == -1)
+      newPlacement = settable.FirstOn();
+    if(newPlacement.first == -1)
+      return CompletionResult::INCONSISTENT;
+  }
 
   // Try off
   {
     LifeStableState nextState = *this;
-    nextState.SetOff(LifeState::Cell(newPlacement));
-    nextState.CompleteStableStep(timeLimit, minimise, useSeed, seed, maxPop, best);
+    nextState.SetOff(newPlacement);
+    auto result = nextState.CompleteStableStep(timeLimit, minimise, useSeed, seed, maxPop, best);
+    if (result == CompletionResult::TIMEOUT)
+      return CompletionResult::TIMEOUT;
+    if (!minimise && result == CompletionResult::COMPLETED)
+      return CompletionResult::COMPLETED;
   }
-  if (!minimise && !best.IsEmpty())
-    return;
 
   // Then must be on
   {
     LifeStableState &nextState = *this;
-    nextState.SetOn(LifeState::Cell(newPlacement));
+    nextState.SetOn(newPlacement);
 
     [[clang::musttail]]
     return nextState.CompleteStableStep(timeLimit, minimise, useSeed, seed, maxPop, best);
   }
 }
 
-LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
+std::pair<CompletionResult, LifeState> LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
+  if (state.IsEmpty()) {
+    return {CompletionResult::COMPLETED, LifeState()};
+  }
   if (unknown.IsEmpty()) {
-    return state;
+    return {CompletionResult::COMPLETED, state};
   }
 
   LifeState best;
@@ -1301,6 +1307,8 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
   auto startTime = std::chrono::system_clock::now();
   auto timeLimit = startTime + std::chrono::seconds(timeout);
 
+  CompletionResult result;
+
   // First find a solution with small BB
   LifeState searchArea = state;
   while (!(unknown & ~searchArea).IsEmpty()) {
@@ -1308,12 +1316,18 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
 
     LifeStableState copy = *this;
     copy.unknown &= searchArea;
-    copy.CompleteStableStep(timeLimit, minimise, false, state, maxPop, best);
+    result = copy.CompleteStableStep(timeLimit, minimise, false, state, maxPop, best);
 
     auto currentTime = std::chrono::system_clock::now();
     if (best.GetPop() > 0 || currentTime > timeLimit)
       break;
   }
+
+  if (result == CompletionResult::TIMEOUT && best.IsEmpty())
+    return {CompletionResult::TIMEOUT, LifeState()};
+
+  if (result == CompletionResult::INCONSISTENT && best.IsEmpty())
+    return {CompletionResult::INCONSISTENT, LifeState()};
 
   if (minimise) {
     // Then try again with a little more space
@@ -1322,7 +1336,7 @@ LifeState LifeStableState::CompleteStable(unsigned timeout, bool minimise) {
     copy.CompleteStableStep(timeLimit, minimise, true, state | best, maxPop, best);
   }
 
-  return best;
+  return {CompletionResult::COMPLETED, best};
 }
 
 
