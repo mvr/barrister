@@ -1315,13 +1315,17 @@ int main(int, char *argv[]) {
     if (params.printSummary) {
       std::cout << "All solutions:" << std::endl;
       PrintSummary(allSolutions);
-      std::cout << "Unique perturbations:" << std::endl;
-      auto trimmed = TrimSolutions(params, allSolutions);
-      PrintSummary(trimmed);
+
+      if(params.trimResults) {
+        std::cout << "Unique perturbations:" << std::endl;
+        auto trimmed = TrimSolutions(params, allSolutions);
+        PrintSummary(trimmed);
+        allSolutions = trimmed;
+      }
 
       if(!params.filters.empty()) {
         std::vector<Solution> filtered;
-        for (auto &s : trimmed) {
+        for (auto &s : allSolutions) {
           if (PassesFilters(params, s))
             filtered.push_back(s);
         }
