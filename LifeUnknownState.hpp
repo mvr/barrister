@@ -200,8 +200,7 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
     result.unknownStable[i] = stable.unknown[i] & toRestore;
   }
 
-  LifeState nearStableUnknown = (unknown & unknownStable).ZOI();
-  LifeState refineable = result.unknown & nearStableUnknown & ~nearUnstableUnknown & (differentCountToStable | (state ^ stable.state));
+  LifeState refineable = result.unknown & ~result.unknownStable & ~restorable & ~nearUnstableUnknown;
 
   if (refineable.IsEmpty())
     return result;
