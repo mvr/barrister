@@ -42,6 +42,12 @@ struct LifeHistoryState {
   void Move(std::pair<int, int> vec) {
     Move(vec.first, vec.second);
   }
+
+  LifeHistoryState Symmetrize(StaticSymmetry sym) {
+    return LifeHistoryState(
+        state.Symmetrize(sym), ~(~history).Symmetrize(sym),
+        marked.Symmetrize(sym), original.Symmetrize(sym));
+  }
 };
 
 char LifeHistoryChar(unsigned mask) {

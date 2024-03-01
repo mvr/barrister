@@ -67,6 +67,8 @@ struct Solution {
   LifeStableState interactionStable;
   LifeState stator;
 
+  StaticSymmetry symmetry;
+
   unsigned interactionGen;
   unsigned recoveryGen;
 
@@ -97,6 +99,12 @@ struct FrontierGeneration {
   void SetTransition(std::pair<int, int> cell, Transition transition) {
     prev.SetTransitionPrev(cell, transition);
     state.SetTransitionResult(cell, transition);
+  }
+
+  void SetTransition(std::pair<int, int> cell, Transition transition, StaticSymmetry sym) {
+    auto [count, array] = Orbit(cell, sym);
+    for (unsigned i = 0; i < count; i++)
+      SetTransition(array[i], transition);
   }
 
   std::string RLE() const {
@@ -174,12 +182,17 @@ public:
 
   Frontier frontier;
 
+  LifeState exempt;
   LifeState everActive;
 
   LifeCountdown<maxCellActiveWindowGens> activeTimer;
   LifeCountdown<maxCellActiveStreakGens> streakTimer;
 
   LifeStableState lastTest;
+
+  // std::array<LifeState, 6> triedOffsets;
+  StaticSymmetry symmetry;
+  LifeState triedOffsets;
 
   unsigned timeSincePropagate;
 
@@ -234,6 +247,8 @@ public:
                            Transition transition) const;
 
   std::pair<unsigned, std::pair<int, int>> ChooseBranchCell() const;
+
+  void TrySymmetry(StaticSymmetryType newSym);
 
   void SearchStep();
 
@@ -449,21 +464,21 @@ StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
 bool SearchState::UpdateActive(FrontierGeneration &generation,
                                LifeCountdown<maxCellActiveWindowGens> &activeTimer,
                                LifeCountdown<maxCellActiveStreakGens> &streakTimer) {
-  generation.active = generation.state.ActiveComparedTo(stable) & stable.stateZOI & ~params->exempt;
-  generation.changes = generation.state.ChangesComparedTo(generation.prev) & stable.stateZOI & ~params->exempt;
+  generation.active = generation.state.ActiveComparedTo(stable) & stable.stateZOI & ~exempt;
+  generation.changes = generation.state.ChangesComparedTo(generation.prev) & stable.stateZOI & ~exempt;
 
   everActive |= generation.active;
 
   generation.forcedInactive = ForcedInactiveCells(
       generation.gen, generation.state, stable, generation.active, everActive,
-      generation.changes, activeTimer, streakTimer) & ~params->exempt;
+      generation.changes, activeTimer, streakTimer) & ~exempt;
 
   if (!(generation.active & generation.forcedInactive).IsEmpty())
     return false;
 
   generation.forcedUnchanging = ForcedUnchangingCells(
       generation.gen, generation.state, stable, generation.active, everActive,
-      generation.changes, activeTimer, streakTimer) & ~params->exempt;
+      generation.changes, activeTimer, streakTimer) & ~exempt;
 
   if (!(generation.changes & generation.forcedUnchanging).IsEmpty())
     return false;
@@ -506,7 +521,7 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
     if (newOptions == StableOptions::IMPOSSIBLE)
       return {false, false};
 
-    stable.RestrictOptions(cell, newOptions);
+    stable.RestrictOptions(cell, newOptions, symmetry);
     stable.SynchroniseStateKnown(cell);
 
     bool alreadyFixed = startingOptions == newOptions;
@@ -519,11 +534,11 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
     // Force the transition to occur if it is the only one allowed
     if (TransitionIsSingleton(allowedTransitions)) {
       auto transition = allowedTransitions;
-      generation.SetTransition(cell, transition);
-      generation.frontierCells.Erase(cell);
+      generation.SetTransition(cell, transition, symmetry);
+      generation.frontierCells.EraseSym(cell, symmetry);
 
       if (generation.prev.TransitionIsActive(cell, transition)) {
-        everActive.Set(cell);
+        everActive.SetSym(cell, symmetry);
       }
 
       // stable.SanityCheck();
@@ -626,7 +641,7 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
     bool isInert = ((generation.prev.state ^ generation.state.state) &
                    ~generation.prev.unknown & ~generation.state.unknown)
                       .IsEmpty() ||
-                  (stable.stateZOI & ~params->exempt & ~generation.state.unknown).IsEmpty();
+                  (stable.stateZOI & ~exempt & ~generation.state.unknown).IsEmpty();
 
     if (isInert)
       break;
@@ -682,7 +697,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     frontier.start++;
     frontier.size--;
 
-    LifeState active = current.ActiveComparedTo(stable) & stable.stateZOI & ~params->exempt;
+    LifeState active = current.ActiveComparedTo(stable) & stable.stateZOI & ~exempt;
     everActive |= active;
 
     if (params->maxCellActiveWindowGens != -1) {
@@ -720,6 +735,10 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     } else {
       if (currentGen > params->maxFirstActiveGen)
         return {false, false};
+    }
+
+    if (symmetry.type == StaticSymmetryType::C1) {
+      TrySymmetry(StaticSymmetryType::C2);
     }
   }
 
@@ -845,6 +864,45 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
   return {0, {-1, -1}};
 }
 
+void SearchState::TrySymmetry(StaticSymmetryType newSym) {
+  LifeState active = current.ActiveComparedTo(stable);
+  // std::cout << LifeHistoryState(current, LifeState(), active) << std::endl;
+  LifeState bit3(false), bit2(false), bit1(false), bit0(false);
+  LifeState active1(false), active2(false), activeMore(false);
+  CountNeighbourhood(active, bit3, bit2, bit1, bit0);
+  active1 = ~active & ~bit3 & ~bit2 & ~bit1 & bit0;
+  active2 = ~active & ~bit3 & ~bit2 & bit1 & ~bit0;
+  activeMore = ~active & (bit3 | bit2 | (bit1 & bit0));
+
+  LifeState newOffsets = InteractingOffsets(active, active1, active2,
+                                            activeMore, symmetry.type, newSym) &
+                         ~triedOffsets;
+  triedOffsets |= newOffsets;
+
+  while (!newOffsets.IsEmpty()) {
+    // Do the placement
+    auto newOffset = newOffsets.FirstOn();
+    newOffsets.Erase(newOffset);
+
+    SearchState newSearch = *this;
+    newSearch.symmetry.type = newSym;
+    newSearch.symmetry.offset = newOffset;
+
+    newSearch.stable = stable.Symmetrize(newSearch.symmetry);
+    newSearch.current = current.Symmetrize(newSearch.symmetry);
+    // std::cout << LifeHistoryState(current.state, LifeState(), active) << std::endl;
+    // std::cout << newSearch.current << std::endl;
+    newSearch.everActive = everActive.Symmetrize(newSearch.symmetry);
+
+    newSearch.exempt = exempt.Symmetrize(newSearch.symmetry);
+    LifeState fundamentalDomain = FundamentalDomain(newSym);
+    fundamentalDomain.Move(newSearch.symmetry.Center());
+    newSearch.exempt |= ~fundamentalDomain;
+
+    newSearch.SearchStep();
+  }
+}
+
 void SearchState::SearchStep() {
 #ifdef DEBUG
   if (params->hasOracle) {
@@ -902,21 +960,21 @@ void SearchState::SearchStep() {
       continue;
 
     SearchState newSearch = *this;
-    newSearch.stable.RestrictOptions(branchCell, newoptions);
+    newSearch.stable.RestrictOptions(branchCell, newoptions, symmetry);
     newSearch.stable.SynchroniseStateKnown(branchCell);
 
     auto propagateResult = newSearch.stable.PropagateStrip(branchCell.first);
     if (!propagateResult.consistent)
       continue;
 
-    newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
-    newSearch.frontier.generations[i].SetTransition(branchCell, transition);
+    newSearch.frontier.generations[i].frontierCells.EraseSym(branchCell, symmetry);
+    newSearch.frontier.generations[i].SetTransition(branchCell, transition, symmetry);
 
     if (generation.prev.TransitionIsPerturbation(branchCell, transition)) {
-      newSearch.stable.stateZOI.Set(branchCell);
+      newSearch.stable.stateZOI.SetSym(branchCell, symmetry);
 
       if(transition == Transition::OFF_TO_ON || transition == Transition::ON_TO_OFF)
-        newSearch.everActive.Set(branchCell);
+        newSearch.everActive.SetSym(branchCell, symmetry);
 
       if (!hasInteracted) {
         newSearch.hasInteracted = true;
@@ -941,21 +999,21 @@ void SearchState::SearchStep() {
       return;
 
     SearchState &newSearch = *this;
-    newSearch.stable.RestrictOptions(branchCell, newoptions);
+    newSearch.stable.RestrictOptions(branchCell, newoptions, symmetry);
     newSearch.stable.SynchroniseStateKnown(branchCell);
 
     auto propagateResult = newSearch.stable.PropagateStrip(branchCell.first);
     if (!propagateResult.consistent)
       return;
 
-    newSearch.frontier.generations[i].frontierCells.Erase(branchCell);
-    newSearch.frontier.generations[i].SetTransition(branchCell, transition);
+    newSearch.frontier.generations[i].frontierCells.EraseSym(branchCell, symmetry);
+    newSearch.frontier.generations[i].SetTransition(branchCell, transition, symmetry);
 
     if (generation.prev.TransitionIsPerturbation(branchCell, transition)) {
-      newSearch.stable.stateZOI.Set(branchCell);
+      newSearch.stable.stateZOI.SetSym(branchCell, symmetry);
 
       if(transition == Transition::OFF_TO_ON || transition == Transition::ON_TO_OFF)
-        newSearch.everActive.Set(branchCell);
+        newSearch.everActive.SetSym(branchCell, symmetry);
 
       if (!hasInteracted) {
         newSearch.hasInteracted = true;
@@ -985,6 +1043,10 @@ SearchState::SearchState(SearchParams &inparams,
 
   stable = inparams.stable;
   current = inparams.startingState;
+
+  exempt = inparams.exempt;
+
+  symmetry = inparams.symmetry;
 
   frontier = {};
   frontier.start = 0;
@@ -1071,12 +1133,14 @@ void SearchState::RecordSolution() {
   solution.interactionStable = *stableAtInteraction;
   solution.interactionGen = interactionStart;
   solution.recoveryGen = currentGen - params->minStableInterval + 1;
+  solution.symmetry = symmetry;
 
   if (params->stabiliseResults) {
     std::tie(solution.completionResult, solution.completed) = stable.CompleteStable(params->stabiliseResultsTimeout, params->minimiseResults);
   }
 
-  LifeState startingActive = params->startingState.state & ~params->stable.state;
+  LifeState symStarting = params->startingState.state.Symmetrize(symmetry);
+  LifeState startingActive = symStarting & ~params->stable.state;
   LifeState startingStableOff = params->stable.state & ~params->startingState.state;
 
   solution.state = (stable.state | startingActive | solution.completed) & ~startingStableOff;
@@ -1264,6 +1328,8 @@ void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchP
     newParams.startingState.TransferStable(newParams.stable);
     newParams.exempt |= newParams.stable.stateZOI & ~s.stator;
     newParams.stator |= s.stator;
+    newParams.symmetry = s.symmetry;
+
     if (round == 1) {
       newParams.minFirstActiveGen = std::max(s.interactionGen, params.minMetaFirstActiveGen);
       newParams.maxFirstActiveGen = params.maxMetaFirstActiveGen;

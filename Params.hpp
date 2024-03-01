@@ -59,6 +59,8 @@ public:
   int maxCellStationaryDistance;
   int maxCellStationaryStreakGens;
 
+  StaticSymmetry symmetry;
+
   LifeUnknownState startingState;
   LifeStableState stable;
   LifeState stator;
@@ -168,12 +170,16 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   }
   params.outputFile = toml::find_or(toml, "output-file", "");
 
+  params.symmetry = {StaticSymmetryType::C1, {0, 0}};
+
   std::string rle = toml::find<std::string>(toml, "pattern");
   LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
 
   std::vector<int> patternCenterVec = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
   std::pair<int, int> patternCenter = {-patternCenterVec[0], -patternCenterVec[1]};
   pat.Move(patternCenter);
+
+  pat = pat.Symmetrize(params.symmetry);
 
   params.stable.state = pat.marked | pat.original;
   params.stable.unknown = pat.history;

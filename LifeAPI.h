@@ -11,11 +11,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <array>
 #include <vector>
 #include <iostream>
 #include <sstream>
 #include <random>
+
+#include "Symmetry.hpp"
 
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -235,50 +236,6 @@ namespace HASH {
 
 enum CopyType { COPY, OR, XOR, AND, ANDNOT, ORNOT };
 
-enum SymmetryTransform {
-  Identity,
-  ReflectAcrossXEven,
-  ReflectAcrossX,
-  ReflectAcrossYEven,
-  ReflectAcrossY,
-  Rotate90Even,
-  Rotate90,
-  Rotate270Even,
-  Rotate270,
-  Rotate180OddBoth,
-  Rotate180EvenHorizontal,
-  Rotate180EvenVertical,
-  Rotate180EvenBoth,
-  ReflectAcrossYeqX,
-  ReflectAcrossYeqNegX,
-  // reflect across y = -x+3/2, fixing (0,0), instead of y=-x+1/2,
-  // sending (0,0) to (-1,-1). Needed for D4x_1 symmetry.
-  ReflectAcrossYeqNegXP1
-};
-
-enum StaticSymmetry {
-  C1,
-  D2AcrossX,
-  D2AcrossXEven,
-  D2AcrossY,
-  D2AcrossYEven,
-  D2negdiagodd,
-  D2diagodd,
-  C2,
-  C2even,
-  C2verticaleven,
-  C2horizontaleven,
-  C4,
-  C4even,
-  D4,
-  D4even,
-  D4verticaleven,
-  D4horizontaleven,
-  D4diag,
-  D4diageven,
-  D8,
-  D8even,
-};
 
 constexpr uint64_t RotateLeft(uint64_t x, unsigned int k) {
   return __builtin_rotateleft64(x, k);
@@ -322,7 +279,17 @@ public:
   void Set(std::pair<int, int> cell, bool val) { Set(cell.first, cell.second, val); };
   bool Get(std::pair<int, int> cell) const { return Get(cell.first, cell.second); };
   void SetSafe(std::pair<int, int> cell, bool val) { SetSafe(cell.first, cell.second, val); };
+  void SetSafe(std::pair<int, int> cell) { SetSafe(cell.first, cell.second, true); };
+  void EraseSafe(std::pair<int, int> cell) { SetSafe(cell.first, cell.second, false); };
   bool GetSafe(std::pair<int, int> cell) const { return GetSafe(cell.first, cell.second); };
+
+  void SetSym(std::pair<int, int> cell, bool val, StaticSymmetry sym) {
+    auto [count, array] = Orbit(cell, sym);
+    for (unsigned i = 0; i < count; i++)
+      Set(array[i], val);
+  };
+  void SetSym(std::pair<int, int> cell, StaticSymmetry sym) { SetSym(cell, true, sym); }
+  void EraseSym(std::pair<int, int> cell, StaticSymmetry sym) { SetSym(cell, false, sym); };
 
   constexpr uint64_t& operator[](const unsigned i) { return state[i]; }
   constexpr uint64_t operator[](const unsigned i) const { return state[i]; }
@@ -657,11 +624,11 @@ public:
   void FlipX() { BitReverse(); }
 
   void Transform(SymmetryTransform transf);
-
   void Transform(int dx, int dy, SymmetryTransform transf) {
     Move(dx, dy);
     Transform(transf);
   }
+  LifeState Symmetrize(StaticSymmetry sym) const;
 
   LifeState ZOI() const {
     LifeState temp(false);
@@ -1397,6 +1364,101 @@ void LifeState::Transform(SymmetryTransform transf) {
   }
 }
 
+LifeState LifeState::Symmetrize(StaticSymmetry sym) const {
+  auto offset = sym.offset;
+  switch (sym.type) {
+  case StaticSymmetryType::C1:
+    return *this;
+  case StaticSymmetryType::C2: {
+    LifeState sym = *this;
+    sym.FlipX();
+    sym.FlipY();
+    sym.Move(offset.first+1, offset.second+1);
+    sym |= *this;
+    return sym;
+  }
+  case StaticSymmetryType::C4: {
+    LifeState sym = *this;
+    sym.Transform(Rotate90);
+    sym.Move(offset);
+    sym |= *this;
+
+    LifeState sym2 = sym;
+    sym2.FlipX();
+    sym2.FlipY();
+    sym2.Move(offset.first - offset.second + 1, offset.second + offset.first + 1);
+    sym |= sym2;
+    return sym;
+  }
+  case StaticSymmetryType::D2AcrossX: {
+    LifeState sym = *this;
+    sym.FlipX();
+    sym.Move(offset.first, offset.second + 1);
+    sym |= *this;
+    return sym;
+  }
+  case StaticSymmetryType::D2AcrossY: {
+    LifeState sym = *this;
+    sym.FlipY();
+    sym.Move(offset.first + 1, offset.second);
+    sym |= *this;
+    return sym;
+  }
+  case StaticSymmetryType::D2diagodd: {
+    LifeState sym = *this;
+    sym.Transform(ReflectAcrossYeqX);
+    sym.Move(offset);
+    sym |= *this;
+    return sym;
+  }
+  case StaticSymmetryType::D2negdiagodd: {
+    LifeState sym = *this;
+    sym.Transpose(true);
+    sym.Move(offset.first + 1, offset.second + 1);
+    sym |= *this;
+    return sym;
+  }
+
+  case StaticSymmetryType::D4: {
+    LifeState acrossx = *this;
+    auto xoffset = PerpComponent(ReflectAcrossX, offset);
+    acrossx.FlipX();
+    acrossx.Move(xoffset.first, xoffset.second + 1);
+    acrossx |= *this;
+
+    LifeState acrossy = acrossx;
+    auto yoffset = PerpComponent(ReflectAcrossY, offset);
+    acrossy.FlipY();
+    acrossy.Move(yoffset.first + 1, yoffset.second);
+    acrossy |= acrossx;
+
+    return acrossy;
+  }
+  case StaticSymmetryType::D4diag: {
+    LifeState acrossy = *this;
+    acrossy.Transform(ReflectAcrossYeqX);
+    auto yoffset = PerpComponent(ReflectAcrossYeqX, offset);
+    acrossy.Move(yoffset);
+    acrossy |= *this;
+
+    LifeState acrossx = acrossy;
+    acrossx.FlipX();
+    acrossx.FlipY();
+    acrossx.Move(offset.first + 1, offset.second+1);
+    acrossx |= acrossy;
+
+    return acrossx;
+  }
+
+  case StaticSymmetryType::D8: {
+    // TODO
+  }
+
+  default:
+    __builtin_unreachable();
+  }
+}
+
 void LifeState::Print() const {
   for (unsigned j = 0; j < 64; j++) {
     for (unsigned i = 0; i < N; i++) {
@@ -1590,4 +1652,151 @@ std::vector<std::pair<int, int>> LifeState::OnCells() const {
     remaining.Erase(cell.first, cell.second);
   }
   return result;
+}
+
+LifeState IntersectingOffsets(const LifeState &pat1, const LifeState &pat2, StaticSymmetryType oldsym, StaticSymmetryType newsym) {
+  // if (oldsym != C1) {
+  //   newsym = D2Continuation(oldsym);
+  // }
+
+  LifeState transformed;
+  switch (newsym) {
+  case StaticSymmetryType::C2:
+    return pat2.Convolve(pat1);
+  case StaticSymmetryType::C4: {
+    transformed = pat1;
+    transformed.Transform(Rotate270);
+
+    // // Very inefficient
+    // LifeState doubledcollisions = pat2.Convolve(pat1);
+    // doubledcollisions.Transform(ReflectAcrossYeqNegXP1);
+    // doubledcollisions = doubledcollisions.Skew().HalveY();
+    // doubledcollisions.Transform(ReflectAcrossYeqNegXP1);
+    // doubledcollisions = doubledcollisions.InvSkew();
+
+    return pat2.Convolve(transformed); // | doubledcollisions;
+  }
+  case StaticSymmetryType::D2AcrossX:
+    transformed = pat1;
+    transformed.Transform(ReflectAcrossY);
+    return pat2.Convolve(transformed);
+  case StaticSymmetryType::D2AcrossY:
+    transformed = pat1;
+    transformed.Transform(ReflectAcrossX);
+    return pat2.Convolve(transformed);
+  case StaticSymmetryType::D2diagodd:
+    transformed = pat1;
+    transformed.Transform(ReflectAcrossYeqNegXP1);
+    return pat2.Convolve(transformed);
+  case StaticSymmetryType::D2negdiagodd:
+    transformed = pat1;
+    transformed.Transform(ReflectAcrossYeqX);
+    return pat2.Convolve(transformed);
+  default:
+    __builtin_unreachable();
+  }
+}
+
+LifeState InteractingOffsets(const LifeState &a, const LifeState &a1,
+                             const LifeState &a2, const LifeState &aMore,
+                             const LifeState &b, const LifeState &b1,
+                             const LifeState &b2, const LifeState &bMore,
+                             StaticSymmetryType oldsym, StaticSymmetryType newsym) {
+  // if (oldsym != C1) {
+  //   newsym = D2Continuation(oldsym);
+  // }
+  switch (newsym) {
+  case StaticSymmetryType::C2:
+  case StaticSymmetryType::C4:
+    return IntersectingOffsets(a1, b2, oldsym, newsym) |
+           IntersectingOffsets(a2, b1, oldsym, newsym) |
+           IntersectingOffsets(a | a1 | a2 | aMore, b | bMore, oldsym, newsym) |
+           IntersectingOffsets(a | aMore, b | b1 | b2 | bMore, oldsym, newsym);
+  case StaticSymmetryType::D2AcrossX:
+  case StaticSymmetryType::D2AcrossY:
+  case StaticSymmetryType::D2diagodd:
+  case StaticSymmetryType::D2negdiagodd:
+    return IntersectingOffsets(a | a1 | a2 | aMore, b | b1 | b2 | bMore, oldsym, newsym);
+  default:
+    __builtin_unreachable();
+  }
+}
+
+// Special, faster case StaticSymmetryType::when the two patterns are the same
+LifeState InteractingOffsets(const LifeState &a, const LifeState &a1,
+                             const LifeState &a2, const LifeState &aMore,
+                             StaticSymmetryType oldsym, StaticSymmetryType newsym) {
+  // if (oldsym != C1) {
+  //   newsym = D2Continuation(oldsym);
+  // }
+  switch (newsym) {
+  case StaticSymmetryType::C2:
+  case StaticSymmetryType::C4:
+    return IntersectingOffsets(a1, a2, oldsym, newsym) |
+           IntersectingOffsets(a | aMore, a | a1 | a2 | aMore, oldsym, newsym);
+  // case StaticSymmetryType::C4:
+  //   return IntersectingOffsets(a1, a2, oldsym, newsym) |
+  //          IntersectingOffsets(a2, a1, oldsym, newsym) |
+  //          IntersectingOffsets(a | aMore, a | a1 | a2 | aMore, oldsym, newsym) |
+  //          IntersectingOffsets(a | a1 | a2 | aMore, a | aMore, oldsym, newsym);
+  case StaticSymmetryType::D2AcrossX:
+  case StaticSymmetryType::D2AcrossY:
+  case StaticSymmetryType::D2diagodd:
+  case StaticSymmetryType::D2negdiagodd:
+    return IntersectingOffsets(a | a1 | a2 | aMore, a | a1 | a2 | aMore, oldsym, newsym);
+  default:
+    __builtin_unreachable();
+  }
+}
+
+LifeState FundamentalDomain(const StaticSymmetryType sym) {
+  switch (sym) {
+  case StaticSymmetryType::C1:
+    return LifeState::ConstantParse(
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$"
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$"
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$"
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o!");
+  case StaticSymmetryType::D2AcrossY:
+    return LifeState::ConstantParse(
+        "32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$"
+        "32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$"
+        "32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$"
+        "32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o!");
+  case StaticSymmetryType::D2AcrossX:
+    return LifeState::ConstantParse(
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$"
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o!");
+  case StaticSymmetryType::D2diagodd:
+    return LifeState::ConstantParse(
+        "o$2o$3o$4o$5o$6o$7o$8o$9o$10o$11o$12o$13o$14o$15o$16o$17o$18o$19o$20o$"
+        "21o$22o$23o$24o$25o$26o$27o$28o$29o$30o$31o$32o$33o$34o$35o$36o$37o$"
+        "38o$39o$40o$41o$42o$43o$44o$45o$46o$47o$48o$49o$50o$51o$52o$53o$54o$"
+        "55o$56o$57o$58o$59o$60o$61o$62o$63o$64o!");
+  case StaticSymmetryType::D2negdiagodd:
+    return LifeState::ConstantParse(
+        "64o$63o$62o$61o$60o$59o$58o$57o$56o$55o$54o$53o$52o$51o$50o$49o$48o$"
+        "47o$46o$45o$44o$43o$42o$41o$40o$39o$38o$37o$36o$35o$34o$33o$32o$31o$"
+        "30o$29o$28o$27o$26o$25o$24o$23o$22o$21o$20o$19o$18o$17o$16o$15o$14o$"
+        "13o$12o$11o$10o$9o$8o$7o$6o$5o$4o$3o$2o$o!");
+  case StaticSymmetryType::C2:
+    return LifeState::ConstantParse(
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$"
+        "64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o$64o!");
+  case StaticSymmetryType::C4:
+  case StaticSymmetryType::D4:
+    return LifeState::ConstantParse(
+        "32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$"
+        "32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o$32o!");
+  case StaticSymmetryType::D4diag:
+    return LifeState::ConstantParse(
+        "o$2o$3o$4o$5o$6o$7o$8o$9o$10o$11o$12o$13o$14o$15o$16o$17o$18o$19o$20o$"
+        "21o$22o$23o$24o$25o$26o$27o$28o$29o$30o$31o$32o$32o$31o$30o$29o$28o$"
+        "27o$26o$25o$24o$23o$22o$21o$20o$19o$18o$17o$16o$15o$14o$13o$12o$11o$"
+        "10o$9o$8o$7o$6o$5o$4o$3o$2o$o!");
+  case StaticSymmetryType::D8:
+    return LifeState::ConstantParse(
+        "o$2o$3o$4o$5o$6o$7o$8o$9o$10o$11o$12o$13o$14o$15o$16o$17o$18o$19o$20o$"
+        "21o$22o$23o$24o$25o$26o$27o$28o$29o$30o$31o$32o!");
+  }
 }

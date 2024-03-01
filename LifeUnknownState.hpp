@@ -14,11 +14,21 @@ public:
   LifeState unknown;
   LifeState unknownStable; // Equal to the stable state
 
+  LifeUnknownState() = default;
+  LifeUnknownState(const LifeState &state, const LifeState &unknown,
+                   const LifeState &unknownStable)
+      : state{state}, unknown{unknown}, unknownStable{unknownStable} {};
+
   bool operator==(const LifeUnknownState &b) const {
     return state == b.state && unknown == b.unknown && unknownStable == b.unknownStable;
   }
   bool operator!=(const LifeUnknownState &b) const {
     return !(*this == b);
+  }
+
+  LifeUnknownState Symmetrize(StaticSymmetry sym) {
+    return LifeUnknownState(state.Symmetrize(sym), ~(~unknown).Symmetrize(sym),
+                            ~(~unknownStable).Symmetrize(sym));
   }
 
   LifeUnknownState StepMaintaining(const LifeStableState &stable) const;

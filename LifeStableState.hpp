@@ -89,6 +89,8 @@ public:
     Move(vec.first, vec.second);
   }
 
+  LifeStableState Symmetrize(StaticSymmetry sym);
+
   LifeStableState Join(const LifeStableState &other) const;
   LifeStableState Graft(const LifeStableState &other) const;
   LifeStableState ClearUnmodified() const;
@@ -96,6 +98,13 @@ public:
 
   StableOptions GetOptions(std::pair<int, int> cell) const;
   void RestrictOptions(std::pair<int, int> cell, StableOptions options);
+  void RestrictOptions(std::pair<int, int> cell, StableOptions options,
+                       StaticSymmetry sym) {
+    auto [count, array] = Orbit(cell, sym);
+    for (unsigned i = 0; i < count; i++) {
+      RestrictOptions(array[i], options);
+    }
+  }
 
   bool SingletonOptions(std::pair<int, int> cell) {
     unsigned char bits = static_cast<unsigned char>(GetOptions(cell));
@@ -166,6 +175,25 @@ public:
 #endif
   }
 };
+
+LifeStableState LifeStableState::Symmetrize(StaticSymmetry sym) {
+  LifeStableState result;
+
+  result.unknown = ~(~unknown).Symmetrize(sym);
+  result.state = state.Symmetrize(sym);
+  result.stateZOI = stateZOI.Symmetrize(sym);
+
+  result.live2 = live2.Symmetrize(sym);
+  result.live3 = live3.Symmetrize(sym);
+  result.dead0 = dead0.Symmetrize(sym);
+  result.dead1 = dead1.Symmetrize(sym);
+  result.dead2 = dead2.Symmetrize(sym);
+  result.dead4 = dead4.Symmetrize(sym);
+  result.dead5 = dead5.Symmetrize(sym);
+  result.dead6 = dead6.Symmetrize(sym);
+
+  return result;
+}
 
 LifeStableState LifeStableState::Join(const LifeStableState &other) const {
   LifeStableState result;
