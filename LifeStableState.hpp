@@ -208,7 +208,7 @@ LifeStableState LifeStableState::Graft(const LifeStableState &other) const {
 LifeStableState LifeStableState::ClearUnmodified() const {
   LifeStableState result = *this;
 
-  LifeState toClear = unknown & ~stateZOI;
+  LifeState toClear = unknown & ~(stateZOI.ZOI());
 
   result.unknown = unknown & ~toClear;
   result.state = state;
