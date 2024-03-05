@@ -51,7 +51,7 @@
 // then the current cell is likely to be swamped in the next
 // generation or two
 
-const unsigned maxFrontierGens = 4;
+const unsigned maxFrontierGens = 6;
 const unsigned maxBranchingGens = maxFrontierGens;
 const unsigned maxBranchFastCount = 1;
 const unsigned maxCalculateRounds = 1;
@@ -154,10 +154,6 @@ Transition AllowedTransitions(const FrontierGeneration &generation,
       generation.prev.UnperturbedTransitionFor(cell));
 
   return allowedTransitions;
-
-
-  // auto possibleTransitions = generation.prev.TransitionsFor(stable, cell);
-  // return possibleTransitions & allowedTransitions;
 }
 
 
@@ -790,6 +786,7 @@ bool SearchState::CalculateFrontier() {
   if (didAdvance) {
     if (frontier.size == 0) {
       // We have to start over
+      [[clang::musttail]]
       return CalculateFrontier();
     }
   }
@@ -1228,9 +1225,9 @@ void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchP
   std::set<std::string> seenRotors;
   LifeStableState stableAtInteraction;
 
-  std::cout << "Depth: " << round << std::endl;
-  std::cout << "x = 0, y = 0, rule = LifeBellman" << std::endl;
-  std::cout << LifeBellmanRLEFor(params.stable.state | params.startingState.state, params.stable.unknown | params.stable.state) << std::endl;
+  std::cerr << "Depth: " << round << std::endl;
+  std::cerr << "x = 0, y = 0, rule = LifeBellman" << std::endl;
+  std::cerr << LifeBellmanRLEFor(params.stable.state | params.startingState.state, params.stable.unknown | params.stable.state) << std::endl;
 
   SearchState search(params, roundSolutions, seenRotors, stableAtInteraction);
   search.SearchStep();

@@ -299,15 +299,15 @@ void LifeStableState::SetOff(unsigned i, uint64_t which) {
 }
 
 void LifeStableState::SetOn(std::pair<int, int> cell) {
-  unknown.Erase(cell);
   state.Set(cell);
+  unknown.Erase(cell);
   stateZOI |= LifeState::CellZOI(cell);
   RestrictOptions(cell, StableOptions::LIVE);
 }
 
 void LifeStableState::SetOff(std::pair<int, int> cell) {
-  unknown.Erase(cell);
   state.Erase(cell);
+  unknown.Erase(cell);
   RestrictOptions(cell, StableOptions::DEAD);
 }
 
@@ -616,11 +616,14 @@ PropagateResult LifeStableState::SignalNeighbours() {
     new_signal_on[i] = signalon;
   }
 
-  LifeState off_zoi = new_signal_off.ZOI() & ~new_signal_off;
-  LifeState on_zoi = new_signal_on.ZOI() & ~new_signal_on;
+  LifeState off_zoi = new_signal_off.ZOI();
+  LifeState on_zoi = new_signal_on.ZOI();
 
   if (!(off_zoi & on_zoi & unknown).IsEmpty())
     return {false, false};
+
+  off_zoi &= ~new_signal_off;
+  on_zoi  &= ~new_signal_on;
 
   LifeState changes = (off_zoi & unknown) | (on_zoi & unknown);
 
@@ -692,8 +695,8 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(unsigned column) {
   CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
   CountNeighbourhoodStrip(nearbyUnknown, unknown3, unknown2, unknown1, unknown0);
 
-  std::array<uint64_t, 6> new_off;
-  std::array<uint64_t, 6> new_on;
+  std::array<uint64_t, 6> new_off {0};
+  std::array<uint64_t, 6> new_on {0};
 
   std::array<uint64_t, 6> new_signal_off {0};
   std::array<uint64_t, 6> new_signal_on {0};
@@ -762,11 +765,6 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(unsigned column) {
    signalled_on[i+1] |= smear_on;
   }
 
-  for (int i = 1; i < 5; i++) {
-   signalled_off[i] &= ~new_signal_off[i];
-   signalled_on[i] &= ~new_signal_on[i];
-  }
-
   uint64_t signalled_overlaps = 0;
   #pragma clang loop vectorize_width(4)
   for (int i = 0; i < 6; i++) {
@@ -774,6 +772,11 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(unsigned column) {
   }
   if(signalled_overlaps != 0)
     return {false, false};
+
+  for (int i = 1; i < 5; i++) {
+   signalled_off[i] &= ~new_signal_off[i];
+   signalled_on[i] &= ~new_signal_on[i];
+  }
 
   #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
@@ -984,10 +987,6 @@ PropagateResult LifeStableState::SignalNeighboursStrip(unsigned column) {
    signalled_on[i]   |= smear_on;
    signalled_on[i+1] |= smear_on;
   }
-  for (int i = 1; i < 5; i++) {
-   signalled_off[i] &= ~new_signal_off[i];
-   signalled_on[i] &= ~new_signal_on[i];
-  }
 
   uint64_t signalled_overlaps = 0;
   #pragma clang loop vectorize_width(4)
@@ -997,17 +996,22 @@ PropagateResult LifeStableState::SignalNeighboursStrip(unsigned column) {
   if(signalled_overlaps != 0)
     return {false, false};
 
+  for (int i = 1; i < 5; i++) {
+   signalled_off[i] &= ~new_signal_off[i];
+   signalled_on[i] &= ~new_signal_on[i];
+  }
+
   const unsigned width = 6;
   const unsigned offset = (width - 1) / 2;
   if (offset <= column && column + width - 1 - offset < N) {
     #pragma clang loop vectorize_width(4)
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < width; i++) {
       int orig = column + i - offset;
       SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
       SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);
     }
   } else {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < width; i++) {
       int orig = (column + i - offset + N) % N;
       SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
       SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);

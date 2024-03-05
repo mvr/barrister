@@ -41,6 +41,7 @@ public:
       unknownStable.Erase(cell);
     }
   }
+
   void SetTransitionResult(std::pair<int, int> cell, Transition transition) {
     switch (transition) {
     case Transition::OFF_TO_OFF:

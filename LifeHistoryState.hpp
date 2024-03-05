@@ -32,6 +32,9 @@ struct LifeHistoryState {
   static LifeHistoryState Parse(const std::string &s);
   static LifeHistoryState ParseWHeader(const std::string &s);
 
+  static LifeHistoryState ParseBellman(const std::string &s);
+  static LifeHistoryState ParseBellmanWHeader(const std::string &s);
+
   void Move(int x, int y) {
     state.Move(x, y);
     history.Move(x, y);
@@ -140,4 +143,67 @@ LifeHistoryState LifeHistoryState::ParseWHeader(const std::string &s) {
   }
 
   return Parse(rle);
+}
+
+LifeHistoryState LifeHistoryState::ParseBellman(const std::string &rle) {
+  LifeHistoryState result;
+
+  int cnt;
+  int x, y;
+  x = 0;
+  y = 0;
+  cnt = 0;
+
+  for (char const ch : rle) {
+
+    if (ch >= '0' && ch <= '9') {
+      cnt *= 10;
+      cnt += (ch - '0');
+    } else if (ch == '$') {
+      if (cnt == 0)
+        cnt = 1;
+
+      if (cnt == 129)
+        // TODO: error
+        return result;
+
+      y += cnt;
+      x = 0;
+      cnt = 0;
+    } else if (ch == '!') {
+      break;
+    } else if (ch == '\n' || ch == ' ') {
+      continue;
+    } else {
+      if (cnt == 0)
+        cnt = 1;
+
+      for (int j = 0; j < cnt; j++) {
+        switch(ch) {
+        case 'C':
+          result.state.Set(x, y);
+          break;
+        case 'E':
+          result.history.Set(x, y);
+          break;
+        }
+        x++;
+      }
+
+      cnt = 0;
+    }
+  }
+  return result;
+}
+
+LifeHistoryState LifeHistoryState::ParseBellmanWHeader(const std::string &s) {
+  std::string rle;
+  std::istringstream iss(s);
+
+  for (std::string line; std::getline(iss, line); ) {
+    if(line[0] != 'x')
+      rle += line;
+  }
+
+  return ParseBellman(rle);
 }
