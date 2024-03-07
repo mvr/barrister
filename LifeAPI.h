@@ -5,13 +5,8 @@
 
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <bit>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <array>
 #include <vector>
 #include <iostream>
@@ -25,9 +20,6 @@
 // Best if multiple of 4
 #define N 64
 // #define N 32
-
-#define SUCCESS 1
-#define FAIL 0
 
 // GCC
 #ifdef __GNUC__
@@ -49,8 +41,6 @@ constexpr uint64_t reverse_uint64_t(uint64_t x) {
   return x;
 }
 
-#define __builtin_rotateleft64 __rolq
-#define __builtin_rotateright64 __rorq
 #define __builtin_bitreverse64 ::reverse_uint64_t
 #endif
 #endif
@@ -58,15 +48,6 @@ constexpr uint64_t reverse_uint64_t(uint64_t x) {
 // MSVC
 #ifdef __MSC_VER
 #include <intrin.h>
-#define __builtin_popcount __popcnt64
-#define __builtin_rotateleft64 _rotl64
-#define __builtin_rotateright64 _rotr64
-
-constexpr int __builtin_ctzll(uint64_t x) {
-  unsigned long log2;
-  _BitScanReverse64(&log2, x);
-  return log2;
-}
 #endif
 
 constexpr unsigned longest_run_uint64_t(uint64_t x) {
@@ -189,20 +170,6 @@ namespace PRNG {
   std::random_device rd;
   std::mt19937_64 e2(rd());
   std::uniform_int_distribution<uint64_t> dist(std::llround(std::pow(2,61)), std::llround(std::pow(2,62)));
-// Public domain PRNG by Sebastian Vigna 2014, see http://xorshift.di.unimi.it
-
-uint64_t s[16] = {0x12345678};
-int p = 0;
-
-uint64_t rand64() {
-  uint64_t s0 = s[p];
-  uint64_t s1 = s[p = (p + 1) & 15];
-  s1 ^= s1 << 31; // a
-  s1 ^= s1 >> 11; // b
-  s0 ^= s0 >> 30; // c
-  return (s[p] = s0 ^ s1) * 1181783497276652981ULL;
-}
-
 } // namespace PRNG
 
 // Taken from https://github.com/wangyi-fudan/wyhash
@@ -233,8 +200,6 @@ namespace HASH {
     return _wymix(A^0xa0761d6478bd642full, B^0xe7037ed1a0b428dbull);
   }
 } // namespace HASH
-
-enum CopyType { COPY, OR, XOR, AND, ANDNOT, ORNOT };
 
 enum SymmetryTransform {
   Identity,
@@ -375,37 +340,6 @@ public:
 public:
   void Print() const;
 
-  void JoinWSymChain(const LifeState &state, int x, int y,
-                     const std::vector<SymmetryTransform> &symChain) {
-    // instead of passing in the symmetry group {id, g_1, g_2,...g_n} and
-    // applying each to default orientation we pass in a "chain" of symmetries
-    // {h_1, ...h_n-1} that give the group when "chained together": g_j =
-    // product of h_1 thru h_j that way, we don't need to initialize a new
-    // LifeState for each symmetry.
-
-    LifeState transformed = state;
-    transformed.Move(x, y);
-
-    for (auto sym : symChain) {
-      LifeState soFar = transformed;
-      soFar.Transform(sym);
-      transformed |= soFar;
-    }
-    *this |= transformed;
-  }
-
-  void JoinWSymChain(const LifeState &state,
-                     const std::vector<SymmetryTransform> &symChain) {
-    LifeState transformed = state;
-
-    for (auto sym : symChain) {
-      LifeState soFar = transformed;
-      soFar.Transform(sym);
-      transformed |= soFar;
-    }
-    *this |= transformed;
-  }
-
   unsigned GetPop() const {
     unsigned pop = 0;
 
@@ -417,15 +351,6 @@ public:
   }
 
   std::vector<std::pair<int, int>> OnCells() const;
-
-  // bool IsEmpty() const {
-  //   for (int i = 0; i < N; i++) {
-  //     if(state[i] != 0)
-  //       return false;
-  //   }
-
-  //   return true;
-  // }
 
   bool IsEmpty() const {
     uint64_t all = 0;
@@ -509,12 +434,9 @@ public:
   }
 
   inline bool AreDisjoint(const LifeState &pat) const {
-    int min = 0;
-    int max = N - 1;
-
     uint64_t differences = 0;
     #pragma clang loop vectorize(enable)
-    for (unsigned i = min; i <= max; i++) {
+    for (unsigned i = 0; i < N; i++) {
       uint64_t difference = (~state[i] & pat[i]) ^ (pat[i]);
       differences |= difference;
     }
@@ -523,12 +445,9 @@ public:
   }
 
   inline bool Contains(const LifeState &pat) const {
-    int min = 0;
-    int max = N - 1;
-
     uint64_t differences = 0;
     #pragma clang loop vectorize(enable)
-    for (unsigned i = min; i <= max; i++) {
+    for (unsigned i = 0; i < N; i++) {
       uint64_t difference = (state[i] & pat[i]) ^ (pat[i]);
       differences |= difference;
     }
@@ -564,7 +483,7 @@ public:
   inline bool Contains(const LifeTarget &target, int dx, int dy) const;
   inline bool Contains(const LifeTarget &target) const;
 
-  void Reverse(int idxS, int idxE) {
+  void Reverse(unsigned idxS, unsigned idxE) {
     for (unsigned i = 0; idxS + 2*i < idxE; i++) {
       int l = idxS + i;
       int r = idxE - i;
@@ -914,7 +833,7 @@ private:
 public:
   void Step();
 
-  void Step(int numIters) {
+  void Step(unsigned numIters) {
     for (unsigned i = 0; i < numIters; i++) {
       Step();
     }
