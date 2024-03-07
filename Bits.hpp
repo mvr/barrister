@@ -153,8 +153,8 @@ inline void FourBitSubtract(const std::array<uint64_t, 4> &__restrict__ a3,
 void CountRows(const LifeState &__restrict__ state, uint64_t (&__restrict__ col0)[N + 2], uint64_t (&__restrict__ col1)[N + 2]) {
   for (unsigned i = 0; i < N; i++) {
     uint64_t a = state.state[i];
-    uint64_t l = RotateLeft(a);
-    uint64_t r = RotateRight(a);
+    uint64_t l = std::rotl(a, 1);
+    uint64_t r = std::rotr(a, 1);
 
     col0[i+1] = l ^ r ^ a;
     col1[i+1] = ((l ^ r) & a) | (l & r);
@@ -210,8 +210,8 @@ std::array<uint64_t, 4> inline CountNeighbourhoodColumn(const LifeState &state, 
 
   for (unsigned i = 0; i < 4; i++) {
     uint64_t a = nearby[i];
-    uint64_t l = RotateLeft(a);
-    uint64_t r = RotateRight(a);
+    uint64_t l = std::rotl(a, 1);
+    uint64_t r = std::rotr(a, 1);
 
     col0[i] = l ^ r ^ a;
     col1[i] = ((l ^ r) & a) | (l & r);
@@ -256,8 +256,8 @@ void inline CountNeighbourhoodStrip(
 
   for (unsigned i = 0; i < 6; i++) {
     uint64_t a = state[i];
-    uint64_t l = RotateLeft(a);
-    uint64_t r = RotateRight(a);
+    uint64_t l = std::rotl(a, 1);
+    uint64_t r = std::rotr(a, 1);
 
     col0[i] = l ^ r ^ a;
     col1[i] = ((l ^ r) & a) | (l & r);

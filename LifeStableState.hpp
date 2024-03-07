@@ -754,12 +754,12 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(unsigned column) {
 
   #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
-   uint64_t smear_off = RotateLeft(new_signal_off[i]) | new_signal_off[i] | RotateRight(new_signal_off[i]);
+    uint64_t smear_off = std::rotl(new_signal_off[i], 1) | new_signal_off[i] | std::rotr(new_signal_off[i], 1);
    signalled_off[i-1] |= smear_off;
    signalled_off[i]   |= smear_off;
    signalled_off[i+1] |= smear_off;
 
-   uint64_t smear_on  = RotateLeft(new_signal_on[i])  | new_signal_on[i]  | RotateRight(new_signal_on[i]);
+   uint64_t smear_on  = std::rotl(new_signal_on[i], 1)  | new_signal_on[i]  | std::rotr(new_signal_on[i], 1);
    signalled_on[i-1] |= smear_on;
    signalled_on[i]   |= smear_on;
    signalled_on[i+1] |= smear_on;
@@ -977,12 +977,12 @@ PropagateResult LifeStableState::SignalNeighboursStrip(unsigned column) {
 
   #pragma clang loop vectorize_width(4)
   for (int i = 1; i < 5; i++) {
-   uint64_t smear_off = RotateLeft(new_signal_off[i]) | new_signal_off[i] | RotateRight(new_signal_off[i]);
+    uint64_t smear_off = std::rotl(new_signal_off[i], 1) | new_signal_off[i] | std::rotr(new_signal_off[i], 1);
    signalled_off[i-1] |= smear_off;
    signalled_off[i]   |= smear_off;
    signalled_off[i+1] |= smear_off;
 
-   uint64_t smear_on  = RotateLeft(new_signal_on[i])  | new_signal_on[i]  | RotateRight(new_signal_on[i]);
+   uint64_t smear_on  = std::rotl(new_signal_on[i], 1)  | new_signal_on[i]  | std::rotr(new_signal_on[i], 1);
    signalled_on[i-1] |= smear_on;
    signalled_on[i]   |= smear_on;
    signalled_on[i+1] |= smear_on;

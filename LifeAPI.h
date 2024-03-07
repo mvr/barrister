@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,7 +79,7 @@ constexpr unsigned longest_run_uint64_t(uint64_t x) {
   std::array<uint64_t, 6> pow2runs = {0};
   for (unsigned n = 0; n < 6; n++) {
     pow2runs[n] = x;
-    x &= __builtin_rotateleft64(x, 1 << n);
+    x &= std::rotl(x, 1 << n);
   }
 
   unsigned last = 5;
@@ -93,7 +94,7 @@ constexpr unsigned longest_run_uint64_t(uint64_t x) {
   unsigned count = 1 << last;
 
   for (int n = 5; n >= 0; n--) {
-    uint64_t y = (x & __builtin_rotateleft64(x, 1 << n));
+    uint64_t y = (x & std::rotl(x, 1 << n));
     if (y != 0 && (unsigned)n < last) {
       count += 1 << n;
       x = y;
@@ -108,13 +109,13 @@ constexpr unsigned populated_width_uint64_t(uint64_t x) {
     return 0;
 
   // First, shift to try and make it 2^n-1
-  int lzeroes = __builtin_ctzll(x);
-  x = __builtin_rotateright64(x, lzeroes);
-  int tones = __builtin_clzll(~x);
-  x = __builtin_rotateleft64(x, tones);
+  int lzeroes = std::countr_zero(x);
+  x = std::rotr(x, lzeroes);
+  int tones = std::countl_one(x);
+  x = std::rotl(x, tones);
 
   if ((x & (x + 1)) == 0)
-    return __builtin_ctzll(~x);
+    return std::countr_one(x);
 
   // Otherwise do the long way
   return 64 - longest_run_uint64_t(~x);
@@ -130,7 +131,7 @@ constexpr unsigned longest_run_uint32_t(uint32_t x) {
   std::array<uint32_t, 5> pow2runs = {0};
   for (unsigned n = 0; n < 5; n++) {
     pow2runs[n] = x;
-    x &= __builtin_rotateleft64(x, 1 << n);
+    x &= std::rotl(x, 1 << n);
   }
 
   unsigned last = 4;
@@ -145,7 +146,7 @@ constexpr unsigned longest_run_uint32_t(uint32_t x) {
   unsigned count = 1 << last;
 
   for (int n = 4; n >= 0; n--) {
-    uint64_t y = (x & __builtin_rotateleft64(x, 1 << n));
+    uint64_t y = (x & std::rotl(x, 1 << n));
     if (y != 0 && (unsigned)n < last) {
       count += 1 << n;
       x = y;
@@ -160,13 +161,13 @@ constexpr unsigned populated_width_uint32_t(uint32_t x) {
     return 0;
 
   // First, shift to try and make it 2^n-1
-  int lzeroes = __builtin_ctz(x);
-  x = __builtin_rotateright32(x, lzeroes);
-  int tones = __builtin_clz(~x);
-  x = __builtin_rotateleft32(x, tones);
+  int lzeroes = std::countr_zero(x);
+  x = std::rotr(x, lzeroes);
+  int tones = std::countl_one(x);
+  x = std::rotl(x, tones);
 
   if ((x & (x + 1)) == 0)
-    return __builtin_ctz(~x);
+    return std::countr_one(x);
 
   return 32 - longest_run_uint32_t(~x);
 }
@@ -177,8 +178,8 @@ constexpr uint64_t convolve_uint64_t(uint64_t x, uint64_t y) {
 
   uint64_t result = 0;
   while (x != 0) {
-    int lsb = __builtin_ctzll(x);
-    result |= __builtin_rotateleft64(y, lsb);
+    int lsb = std::countr_zero(x);
+    result |= std::rotl(y, lsb);
     x &= ~(((uint64_t)1) << lsb);
   }
   return result;
@@ -279,17 +280,6 @@ enum StaticSymmetry {
   D8,
   D8even,
 };
-
-constexpr uint64_t RotateLeft(uint64_t x, unsigned int k) {
-  return __builtin_rotateleft64(x, k);
-}
-
-constexpr uint64_t RotateRight(uint64_t x, unsigned int k) {
-  return __builtin_rotateright64(x, k);
-}
-
-constexpr uint64_t RotateLeft(uint64_t x) { return RotateLeft(x, 1); }
-constexpr uint64_t RotateRight(uint64_t x) { return RotateRight(x, 1); }
 
 class LifeTarget;
 
@@ -420,7 +410,7 @@ public:
     unsigned pop = 0;
 
     for (unsigned i = 0; i < N; i++) {
-      pop += __builtin_popcountll(state[i]);
+      pop += std::popcount(state[i]);
     }
 
     return pop;
@@ -552,7 +542,7 @@ public:
     for (unsigned i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
-      if ((RotateRight(state[curX], dy) & pat[i]) != (pat[i]))
+      if ((std::rotr(state[curX], dy) & pat[i]) != (pat[i]))
         return false;
     }
     return true;
@@ -564,7 +554,7 @@ public:
     for (unsigned i = 0; i < N; i++) {
       int curX = (N + i + targetDx) % N;
 
-      if (((~RotateRight(state[curX], dy)) & pat[i]) != pat[i])
+      if (((~std::rotr(state[curX], dy)) & pat[i]) != pat[i])
         return false;
     }
 
@@ -594,8 +584,8 @@ public:
       y += 64;
 
     for (unsigned i = 0; i < N; i++) {
-      temp[i]   = RotateLeft(state[i], y);
-      temp[i+N] = RotateLeft(state[i], y);
+      temp[i]   = std::rotl(state[i], y);
+      temp[i+N] = std::rotl(state[i], y);
     }
 
     const int shift = N - x;
@@ -617,7 +607,7 @@ public:
 
     for (unsigned i = 0; i < N; i++) {
       int newi = (i + x) % N;
-      result[newi] = RotateLeft(state[i], y);
+      result[newi] = std::rotl(state[i], y);
     }
     return result;
   }
@@ -667,7 +657,7 @@ public:
     LifeState temp(false);
     for (unsigned i = 0; i < N; i++) {
       uint64_t col = state[i];
-      temp[i] = col | RotateLeft(col) | RotateRight(col);
+      temp[i] = col | std::rotl(col, 1) | std::rotr(col, 1);
     }
 
     LifeState boundary(false);
@@ -682,7 +672,7 @@ public:
 
   uint64_t ZOIColumn(int i) const {
     uint64_t col = state[(i - 1 + N) % N] | state[i] | state[(i + 1) % N];
-    return RotateLeft(col) | col | RotateRight(col);
+    return std::rotl(col, 1) | col | std::rotr(col, 1);
   }
 
   LifeState MooreZOI() const {
@@ -690,7 +680,7 @@ public:
     LifeState boundary(false);
     for (unsigned i = 0; i < N; i++) {
       uint64_t col = state[i];
-      temp[i] = col | RotateLeft(col) | RotateRight(col);
+      temp[i] = col | std::rotl(col, 1) | std::rotr(col, 1);
     }
 
     boundary[0] = state[N - 1] | temp[0] | state[1];
@@ -710,12 +700,12 @@ public:
 
   LifeState BigZOI() const {
     LifeState b(false);
-    b[0] = state[0] | RotateLeft(state[0]) | RotateRight(state[0]) |
+    b[0] = state[0] | std::rotl(state[0], 1) | std::rotr(state[0], 1) |
                  state[N - 1] | state[0 + 1];
     for (unsigned i = 1; i < N-1; i++) {
-      b[i] = state[i] | RotateLeft(state[i]) | RotateRight(state[i]) | state[i-1] | state[i+1];
+      b[i] = state[i] | std::rotl(state[i], 1) | std::rotr(state[i], 1) | state[i-1] | state[i+1];
     }
-    b[N-1] = state[N-1] | RotateLeft(state[N-1]) | RotateRight(state[N-1]) |
+    b[N-1] = state[N-1] | std::rotl(state[N-1], 1) | std::rotr(state[N-1], 1) |
                  state[N-1 - 1] | state[0];
 
     LifeState c(false);
@@ -727,21 +717,18 @@ public:
 
     LifeState zoi(false);
 
-    zoi[0] =
-      c[0] | RotateLeft(c[0]) | RotateRight(c[0]);
+    zoi[0] = c[0] | std::rotl(c[0], 1) | std::rotr(c[0], 1);
     for (unsigned i = 1; i < N - 1; i++) {
-      zoi[i] =
-        c[i] | RotateLeft(c[i]) | RotateRight(c[i]);
+      zoi[i] = c[i] | std::rotl(c[i], 1) | std::rotr(c[i], 1);
     }
-    zoi[N - 1] = c[N - 1] | RotateLeft(c[N - 1]) |
-      RotateRight(c[N - 1]);
+    zoi[N - 1] = c[N - 1] | std::rotl(c[N - 1], 1) | std::rotr(c[N - 1], 1);
 
     return zoi;
   }
 
   static inline void ConvolveInner(LifeState &result, const uint64_t (&doubledother)[N*2], uint64_t x, unsigned int k, unsigned int postshift) {
     for (unsigned i = 0; i < N; i++) {
-      result[i] |= __builtin_rotateleft64(convolve_uint64_t(x, doubledother[i+k]), postshift);
+      result[i] |= std::rotl(convolve_uint64_t(x, doubledother[i+k]), postshift);
     }
   }
 
@@ -767,16 +754,16 @@ public:
       uint64_t shifted;
 
       if((x & 1) == 0) { // Possibly wrapped
-        int lsb = __builtin_ctzll(x);
-        shifted = __builtin_rotateright64(x, lsb);
+        int lsb = std::countr_zero(x);
+        shifted = std::rotr(x, lsb);
         postshift = lsb;
       } else{
-        int lead = __builtin_clzll(~x);
-        shifted = __builtin_rotateleft64(x, lead);
+        int lead = std::countl_one(x);
+        shifted = std::rotl(x, lead);
         postshift = 64-lead;
       }
 
-      unsigned runlength = __builtin_ctzll(~shifted);
+      unsigned runlength = std::countr_one(shifted);
       runlength = std::min(runlength, (unsigned)32);
       uint64_t run = (1ULL << runlength) - 1;
 
@@ -816,7 +803,7 @@ public:
       default:           ConvolveInner(result, doubledother, run, k, postshift); break;
       }
 
-      x &= ~__builtin_rotateleft64(run, postshift);
+      x &= ~std::rotl(run, postshift);
     }
     }
 
@@ -867,8 +854,8 @@ public:
     unsigned result = 0;
     for (int i = -1; i <= 1; i++) {
       uint64_t column = state[(cell.first + i + N) % N];
-      column = RotateRight(column, (cell.second - 1 + 64) % 64);
-      result += __builtin_popcountll(column & 0b111);
+      column = std::rotr(column, (cell.second - 1 + 64) % 64);
+      result += std::popcount(column & 0b111);
     }
     return result;
   }
@@ -895,10 +882,10 @@ private:
   uint64_t inline Evolve(const uint64_t &temp, const uint64_t &bU0,
                          const uint64_t &bU1, const uint64_t &bB0,
                          const uint64_t &bB1) {
-    uint64_t sum0 = RotateLeft(temp);
+    uint64_t sum0 = std::rotl(temp, 1);
 
     uint64_t sum1 = 0;
-    Add(sum1, sum0, RotateRight(temp));
+    Add(sum1, sum0, std::rotr(temp, 1));
     Add(sum1, sum0, bU0);
 
     uint64_t sum2 = 0;
@@ -914,8 +901,8 @@ private:
   uint64_t inline Rokicki(const uint64_t &a, const uint64_t &bU0,
                           const uint64_t &bU1, const uint64_t &bB0,
                           const uint64_t &bB1) {
-    uint64_t aw = RotateLeft(a);
-    uint64_t ae = RotateRight(a);
+    uint64_t aw = std::rotl(a, 1);
+    uint64_t ae = std::rotr(a, 1);
     uint64_t s0 = aw ^ ae;
     uint64_t s1 = aw & ae;
     uint64_t ts0 = bB0 ^ bU0;
@@ -1066,13 +1053,13 @@ public:
     }
 
     if (state[foundq] != 0ULL) {
-      return std::make_pair(foundq, __builtin_ctzll(state[foundq]));
+      return std::make_pair(foundq, std::countr_zero(state[foundq]));
     } else if (state[foundq + 1] != 0ULL) {
-      return std::make_pair(foundq + 1, __builtin_ctzll(state[foundq + 1]));
+      return std::make_pair(foundq + 1, std::countr_zero(state[foundq + 1]));
     } else if (state[foundq + 2] != 0ULL) {
-      return std::make_pair(foundq + 2, __builtin_ctzll(state[foundq + 2]));
+      return std::make_pair(foundq + 2, std::countr_zero(state[foundq + 2]));
     } else if (state[foundq + 3] != 0ULL) {
-      return std::make_pair(foundq + 3, __builtin_ctzll(state[foundq + 3]));
+      return std::make_pair(foundq + 3, std::countr_zero(state[foundq + 3]));
     } else {
       return std::make_pair(-1, -1);
     }
@@ -1095,7 +1082,7 @@ public:
   static LifeState SolidRect(int x, int y, int w, int h) {
     uint64_t column;
     if (h < 64)
-      column = RotateLeft(((uint64_t)1 << h) - 1, y);
+      column = std::rotl(((uint64_t)1 << h) - 1, y);
     else
       column = ~0ULL;
 
@@ -1137,7 +1124,7 @@ public:
 
   static LifeState ColumnZOI(int i, uint64_t col) {
     LifeState result;
-    col = col | RotateLeft(col) | RotateRight(col);
+    col = col | std::rotl(col, 1) | std::rotr(col, 1);
     result[(i - 1 + N) % N] = col;
     result[i] = col;
     result[(i + 1) % N] = col;
@@ -1152,14 +1139,14 @@ public:
   std::array<int, 4> XYBounds() const {
 #if N == 64
     uint64_t popCols = PopulatedColumns();
-    popCols = __builtin_rotateright64(popCols, 32);
-    int leftMargin  = __builtin_ctzll(popCols);
-    int rightMargin = __builtin_clzll(popCols);
+    popCols = std::rotr(popCols, 32);
+    int leftMargin  = std::countr_zero(popCols);
+    int rightMargin = std::countl_zero(popCols);
 #elif N == 32
     uint32_t popCols = PopulatedColumns();
-    popCols = __builtin_rotateright32(popCols, 16);
-    int leftMargin  = __builtin_ctz(popCols);
-    int rightMargin = __builtin_clz(popCols);
+    popCols = std::rotr(popCols, 16);
+    int leftMargin  = std::countr_zero(popCols);
+    int rightMargin = std::countl_zero(popCols);
 #else
 #error "XYBounds cannot handle N = " N
 #endif
@@ -1172,9 +1159,9 @@ public:
       return std::array<int, 4>({-1, -1, -1, -1});
     }
 
-    orOfCols = __builtin_rotateright64(orOfCols, 32);
-    int topMargin = __builtin_ctzll(orOfCols);
-    int bottomMargin = __builtin_clzll(orOfCols);
+    orOfCols = std::rotr(orOfCols, 32);
+    int topMargin = std::countr_zero(orOfCols);
+    int bottomMargin = std::countl_zero(orOfCols);
 
 #if N == 64
     return std::array<int, 4>(
@@ -1291,8 +1278,8 @@ void LifeState::Step() {
   uint64_t tempand[N];
 
   for (unsigned i = 0; i < N; i++) {
-    uint64_t l = RotateLeft(state[i]);
-    uint64_t r = RotateRight(state[i]);
+    uint64_t l = std::rotl(state[i], 1);
+    uint64_t r = std::rotr(state[i], 1);
     tempxor[i] = l ^ r ^ state[i];
     tempand[i] = ((l ^ r) & state[i]) | (l & r);
   }
