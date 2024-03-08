@@ -83,6 +83,35 @@ struct Solution {
   }
 };
 
+Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
+                              bool forcedInactive, bool forcedUnchanging, bool inzoi, Transition unperturbed) {
+  auto result = Transition::ANY & ~Transition::STABLE_TO_STABLE;
+
+  // If current state is known, remove options with the wrong previous state
+  if (!unknownstable && state)
+    result &= Transition::ON_TO_OFF | Transition::ON_TO_ON;
+  if (!unknownstable && !state)
+    result &= Transition::OFF_TO_OFF | Transition::OFF_TO_ON;
+
+  if (forcedInactive && inzoi) {
+    if (unknownstable)
+      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
+    if (!unknownstable && stablestate)
+      result &= ~(Transition::OFF_TO_OFF | Transition::ON_TO_OFF);
+    if (!unknownstable && !stablestate)
+      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_ON);
+  }
+
+  if (forcedInactive && !inzoi) {
+    result &= unperturbed | Transition::OFF_TO_OFF | Transition::ON_TO_ON;
+  }
+
+  if (forcedUnchanging && inzoi)
+    result &= Transition::OFF_TO_OFF | Transition::ON_TO_ON;
+
+  return result;
+}
+
 struct FrontierGeneration {
   LifeUnknownState state;
   LifeUnknownState next;
@@ -103,57 +132,17 @@ struct FrontierGeneration {
                              next.unknownStable, LifeState());
     return history.RLEWHeader();
   }
-};
 
-Transition AllowedTransitions(bool state, bool unknownstable, bool stablestate,
-                              bool forcedInactive, bool forcedUnchanging, bool inzoi, Transition unperturbed) {
-  auto result = Transition::ANY & ~Transition::STABLE_TO_STABLE;
-
-  // If current state is known, remove options with the wrong previous state
-  if (!unknownstable && state)
-    result &= Transition::ON_TO_OFF | Transition::ON_TO_ON;
-  if (!unknownstable && !state)
-    result &= Transition::OFF_TO_OFF | Transition::OFF_TO_ON;
-
-  if (forcedInactive && inzoi) {
-    if (unknownstable)
-      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_OFF);
-    if (!unknownstable && stablestate)
-      result &= ~(Transition::OFF_TO_OFF | Transition::ON_TO_OFF);
-    if (!unknownstable && !stablestate)
-      result &= ~(Transition::OFF_TO_ON | Transition::ON_TO_ON);
-  }
-
-  // if (forcedInactive && !inzoi) {
-  //   if (unknownstable) {
-  //     result &= Transition::UNCHANGING;
-  //   }
-  //   if (!unknownstable) {
-  //     result &= unperturbed;
-  //   }
-  // }
-
-  if (forcedInactive && !inzoi) {
-    result &= unperturbed | Transition::OFF_TO_OFF | Transition::ON_TO_ON;
-  }
-
-  if (forcedUnchanging && inzoi)
-    result &= Transition::OFF_TO_OFF | Transition::ON_TO_ON;
-
-  return result;
-}
-
-Transition AllowedTransitions(const FrontierGeneration &generation,
-                              const LifeStableState &stable,
+  Transition AllowedTransitions(const LifeStableState &stable,
                               std::pair<int, int> cell) {
-  auto allowedTransitions = AllowedTransitions(
-      generation.state.state.Get(cell), stable.unknown.Get(cell),
-      stable.state.Get(cell), generation.forcedInactive.Get(cell),
-      generation.forcedUnchanging.Get(cell), stable.stateZOI.Get(cell),
-      generation.state.UnperturbedTransitionFor(cell));
+    auto allowedTransitions = ::AllowedTransitions(
+        state.state.Get(cell), stable.unknown.Get(cell), stable.state.Get(cell),
+        forcedInactive.Get(cell), forcedUnchanging.Get(cell),
+        stable.stateZOI.Get(cell), state.UnperturbedTransitionFor(cell));
 
-  return allowedTransitions;
-}
+    return allowedTransitions;
+  }
+};
 
 class SearchState {
 public:
@@ -467,7 +456,7 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
     generation.state.TransferStable(stable, cell);
     generation.next.TransferStable(stable, cell);
 
-    auto allowedTransitions = AllowedTransitions(generation, stable, cell);
+    auto allowedTransitions = generation.AllowedTransitions(stable, cell);
 
     if (allowedTransitions == Transition::IMPOSSIBLE) {
       return {false, false};
@@ -856,7 +845,7 @@ void SearchState::SearchStep() {
 
   stable.SynchroniseStateKnown(branchCell);
 
-  auto allowedTransitions = AllowedTransitions(frontier, stable, branchCell);
+  auto allowedTransitions = frontier.AllowedTransitions(stable, branchCell);
   allowedTransitions = TransitionSimplify(allowedTransitions);
   // The cell should not still be in the frontier in this case
   assert(allowedTransitions != Transition::IMPOSSIBLE);
