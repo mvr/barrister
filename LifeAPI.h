@@ -13,18 +13,11 @@
 #include <sstream>
 #include <random>
 
-#ifdef __AVX2__
-#include <immintrin.h>
-#endif
-
-// Best if multiple of 4
 #define N 64
-// #define N 32
 
 // GCC
 #ifdef __GNUC__
 #ifndef __clang__
-#include <x86intrin.h>
 
 constexpr uint64_t reverse_uint64_t(uint64_t x) {
   const uint64_t h1 = 0x5555555555555555ULL;
@@ -246,10 +239,10 @@ enum StaticSymmetry {
   D8even,
 };
 
-class LifeTarget;
 
-class __attribute__((aligned(64))) LifeState {
-public:
+struct LifeTarget;
+
+struct __attribute__((aligned(64))) LifeState {
   uint64_t state[N];
 
   constexpr LifeState() : state{0} {}
@@ -308,6 +301,33 @@ public:
     }
   }
 
+  std::pair<int, int> FindSetNeighbour(std::pair<int, int> cell) const {
+    // This could obviously be done faster by extracting the result
+    // directly from the columns, but this is probably good enough for now
+    const std::array<std::pair<int, int>, 9> directions = {std::make_pair(0, 0), {-1, 0}, {1, 0}, {0,1}, {0, -1}, {-1,-1}, {-1,1}, {1, -1}, {1, 1}};
+    for (auto d : directions) {
+      int x = (cell.first + d.first + N) % N;
+      int y = (cell.second + d.second + 64) % 64;
+      if (Get(x, y))
+        return std::make_pair(x, y);
+    }
+    return std::make_pair(-1, -1);
+  }
+
+  unsigned CountNeighboursWithCenter(std::pair<int, int> cell) const {
+    unsigned result = 0;
+    for (int i = -1; i <= 1; i++) {
+      uint64_t column = state[(cell.first + i + N) % N];
+      column = std::rotr(column, (cell.second - 1 + 64) % 64);
+      result += std::popcount(column & 0b111);
+    }
+    return result;
+  }
+
+  unsigned CountNeighbours(std::pair<int, int> cell) const {
+    return CountNeighboursWithCenter(cell) - (Get(cell) ? 1 : 0);
+  }
+
   uint64_t GetHash() const {
     uint64_t result = 0;
 
@@ -337,9 +357,6 @@ public:
     return result;
   }
 
-public:
-  void Print() const;
-
   unsigned GetPop() const {
     unsigned pop = 0;
 
@@ -350,8 +367,6 @@ public:
     return pop;
   }
 
-  std::vector<std::pair<int, int>> OnCells() const;
-
   bool IsEmpty() const {
     uint64_t all = 0;
     for (unsigned i = 0; i < N; i++) {
@@ -359,12 +374,6 @@ public:
     }
 
     return all == 0;
-  }
-
-  void Inverse() {
-    for (unsigned i = 0; i < N; i++) {
-      state[i] = ~state[i];
-    }
   }
 
   bool operator==(const LifeState &b) const {
@@ -483,17 +492,6 @@ public:
   inline bool Contains(const LifeTarget &target, int dx, int dy) const;
   inline bool Contains(const LifeTarget &target) const;
 
-  void Reverse(unsigned idxS, unsigned idxE) {
-    for (unsigned i = 0; idxS + 2*i < idxE; i++) {
-      int l = idxS + i;
-      int r = idxE - i;
-
-      uint64_t temp = state[l];
-      state[l] = state[r];
-      state[r] = temp;
-    }
-  }
-
   void Move(int x, int y) {
     uint64_t temp[2*N] = {0};
 
@@ -531,15 +529,28 @@ public:
     return result;
   }
 
-  void BitReverse() {
-    for (unsigned i = 0; i < N; i++) {
-      state[i] = __builtin_bitreverse64(state[i]);
+  void Reverse(unsigned idxS, unsigned idxE) {
+    for (unsigned i = 0; idxS + 2*i < idxE; i++) {
+      int l = idxS + i;
+      int r = idxE - i;
+
+      uint64_t temp = state[l];
+      state[l] = state[r];
+      state[r] = temp;
     }
   }
 
   void FlipY() { // even reflection across y-axis, ie (0,0) maps to (0, -1)
     Reverse(0, N - 1);
   }
+
+  void BitReverse() {
+    for (unsigned i = 0; i < N; i++) {
+      state[i] = __builtin_bitreverse64(state[i]);
+    }
+  }
+  // even reflection across x-axis, ie (0,0) maps to (0, -1)
+  void FlipX() { BitReverse(); }
 
   void Transpose(bool whichDiagonal) {
     int j, k;
@@ -562,225 +573,11 @@ public:
 
   void Transpose() { Transpose(true); }
 
-  // even reflection across x-axis, ie (0,0) maps to (0, -1)
-  void FlipX() { BitReverse(); }
-
   void Transform(SymmetryTransform transf);
 
   void Transform(int dx, int dy, SymmetryTransform transf) {
     Move(dx, dy);
     Transform(transf);
-  }
-
-  LifeState ZOI() const {
-    LifeState temp(false);
-    for (unsigned i = 0; i < N; i++) {
-      uint64_t col = state[i];
-      temp[i] = col | std::rotl(col, 1) | std::rotr(col, 1);
-    }
-
-    LifeState boundary(false);
-
-    boundary[0] = temp[N-1] | temp[0] | temp[1];
-    for(int i = 1; i < N-1; i++)
-        boundary[i] = temp[i-1] | temp[i] | temp[i+1];
-    boundary[N-1] = temp[N-2] | temp[N-1] | temp[0];
-
-    return boundary;
-  }
-
-  uint64_t ZOIColumn(int i) const {
-    uint64_t col = state[(i - 1 + N) % N] | state[i] | state[(i + 1) % N];
-    return std::rotl(col, 1) | col | std::rotr(col, 1);
-  }
-
-  LifeState MooreZOI() const {
-    LifeState temp(false);
-    LifeState boundary(false);
-    for (unsigned i = 0; i < N; i++) {
-      uint64_t col = state[i];
-      temp[i] = col | std::rotl(col, 1) | std::rotr(col, 1);
-    }
-
-    boundary[0] = state[N - 1] | temp[0] | state[1];
-
-    for (unsigned i = 1; i < N - 1; i++)
-      boundary[i] = state[i - 1] | temp[i] | state[i + 1];
-
-    boundary[N - 1] = state[N - 2] | temp[N - 1] | state[0];
-
-    return boundary;
-  }
-
-
-  LifeState GetBoundary() const {
-    return ZOI() & ~*this;
-  }
-
-  LifeState BigZOI() const {
-    LifeState b(false);
-    b[0] = state[0] | std::rotl(state[0], 1) | std::rotr(state[0], 1) |
-                 state[N - 1] | state[0 + 1];
-    for (unsigned i = 1; i < N-1; i++) {
-      b[i] = state[i] | std::rotl(state[i], 1) | std::rotr(state[i], 1) | state[i-1] | state[i+1];
-    }
-    b[N-1] = state[N-1] | std::rotl(state[N-1], 1) | std::rotr(state[N-1], 1) |
-                 state[N-1 - 1] | state[0];
-
-    LifeState c(false);
-    c[0] = b[0] | b[N - 1] | b[0 + 1];
-    for (unsigned i = 1; i < N - 1; i++) {
-      c[i] = b[i] | b[i - 1] | b[i + 1];
-    }
-    c[N - 1] = b[N - 1] | b[N - 1 - 1] | b[0];
-
-    LifeState zoi(false);
-
-    zoi[0] = c[0] | std::rotl(c[0], 1) | std::rotr(c[0], 1);
-    for (unsigned i = 1; i < N - 1; i++) {
-      zoi[i] = c[i] | std::rotl(c[i], 1) | std::rotr(c[i], 1);
-    }
-    zoi[N - 1] = c[N - 1] | std::rotl(c[N - 1], 1) | std::rotr(c[N - 1], 1);
-
-    return zoi;
-  }
-
-  static inline void ConvolveInner(LifeState &result, const uint64_t (&doubledother)[N*2], uint64_t x, unsigned int k, unsigned int postshift) {
-    for (unsigned i = 0; i < N; i++) {
-      result[i] |= std::rotl(convolve_uint64_t(x, doubledother[i+k]), postshift);
-    }
-  }
-
-  LifeState Convolve(const LifeState &other) const {
-    LifeState result;
-    uint64_t doubledother[N*2];
-    memcpy(doubledother,     other.state, N * sizeof(uint64_t));
-    memcpy(doubledother + N, other.state, N * sizeof(uint64_t));
-
-    for (unsigned j = 0; j < N; j++) {
-      unsigned k = N-j;
-      uint64_t x = state[j];
-
-      // Annoying special case
-      if(x == ~0ULL) {
-        ConvolveInner(result, doubledother, ~0ULL, k, 0);
-        continue;
-      }
-
-    while (x != 0) {
-      unsigned int postshift;
-
-      uint64_t shifted;
-
-      if((x & 1) == 0) { // Possibly wrapped
-        int lsb = std::countr_zero(x);
-        shifted = std::rotr(x, lsb);
-        postshift = lsb;
-      } else{
-        int lead = std::countl_one(x);
-        shifted = std::rotl(x, lead);
-        postshift = 64-lead;
-      }
-
-      unsigned runlength = std::countr_one(shifted);
-      runlength = std::min(runlength, (unsigned)32);
-      uint64_t run = (1ULL << runlength) - 1;
-
-      switch(run) {
-      case (1 << 1) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 2) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 3) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 4) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 5) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 6) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 7) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 8) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 9) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 10) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 11) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 12) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 13) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 14) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 15) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 16) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 17) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 18) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 19) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 20) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 21) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 22) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 23) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 24) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 25) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 26) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 27) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 28) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 29) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1 << 30) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1ULL << 31) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      case (1ULL << 32) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
-      default:           ConvolveInner(result, doubledother, run, k, postshift); break;
-      }
-
-      x &= ~std::rotl(run, postshift);
-    }
-    }
-
-    return result;
-  }
-
-  void Clear() {
-    for (unsigned i = 0; i < N; i++)
-      state[i] = 0;
-  }
-
-  LifeState MatchLive(const LifeState &live) const {
-    LifeState invThis = ~*this;
-    LifeState flipLive = live;
-    flipLive.Transform(Rotate180OddBoth);
-    return ~invThis.Convolve(flipLive);
-  }
-
-  LifeState MatchLiveAndDead(const LifeState &live, const LifeState &dead) const {
-    LifeState invThis = ~*this;
-    LifeState flipLive = live;
-    flipLive.Transform(Rotate180OddBoth);
-    LifeState flipDead = dead;
-    flipDead.Transform(Rotate180OddBoth);
-    return ~invThis.Convolve(flipLive) & ~Convolve(flipDead);
-  }
-
-  LifeState Match(const LifeState &live) const {
-    return MatchLiveAndDead(live, live.GetBoundary());
-  }
-
-  LifeState Match(const LifeTarget &target) const;
-
-  std::pair<int, int> FindSetNeighbour(std::pair<int, int> cell) const {
-    // This could obviously be done faster by extracting the result
-    // directly from the columns, but this is probably good enough for now
-    const std::array<std::pair<int, int>, 9> directions = {std::make_pair(0, 0), {-1, 0}, {1, 0}, {0,1}, {0, -1}, {-1,-1}, {-1,1}, {1, -1}, {1, 1}};
-    for (auto d : directions) {
-      int x = (cell.first + d.first + N) % N;
-      int y = (cell.second + d.second + 64) % 64;
-      if (Get(x, y))
-        return std::make_pair(x, y);
-    }
-    return std::make_pair(-1, -1);
-  }
-
-  unsigned CountNeighboursWithCenter(std::pair<int, int> cell) const {
-    unsigned result = 0;
-    for (int i = -1; i <= 1; i++) {
-      uint64_t column = state[(cell.first + i + N) % N];
-      column = std::rotr(column, (cell.second - 1 + 64) % 64);
-      result += std::popcount(column & 0b111);
-    }
-    return result;
-  }
-
-  unsigned CountNeighbours(std::pair<int, int> cell) const {
-    return CountNeighboursWithCenter(cell) - (Get(cell) ? 1 : 0);
   }
 
 private:
@@ -912,6 +709,7 @@ public:
     return LifeState::ConstantParse(rle).Moved(dx, dy);
   }
 
+  void Print() const;
   std::string RLE() const;
 
   friend std::ostream& operator<<(std::ostream& os, LifeState const& self) {
@@ -926,40 +724,6 @@ public:
     return result;
   }
 
-#ifdef __AVX2__
-  // https://stackoverflow.com/questions/56153183/is-using-avx2-can-implement-a-faster-processing-of-lzcnt-on-a-word-array
-  std::pair<int, int> FirstOn() const
-  {
-    const char *p = (const char *)state;
-    size_t len = 8*N;
-    //assert(len % 64 == 0);
-    //optimal if p is 64-byte aligned, so we're checking single cache-lines
-    const char *p_init = p;
-    const char *endp = p + len;
-    do {
-      __m256i v1 = _mm256_loadu_si256((const __m256i*)p);
-      __m256i v2 = _mm256_loadu_si256((const __m256i*)(p+32));
-      __m256i vor = _mm256_or_si256(v1,v2);
-      if (!_mm256_testz_si256(vor, vor)) {        // find the first non-zero cache line
-        __m256i v1z = _mm256_cmpeq_epi32(v1, _mm256_setzero_si256());
-        __m256i v2z = _mm256_cmpeq_epi32(v2, _mm256_setzero_si256());
-        uint32_t zero_map = _mm256_movemask_ps(_mm256_castsi256_ps(v1z));
-        zero_map |= _mm256_movemask_ps(_mm256_castsi256_ps(v2z)) << 8;
-
-        unsigned idx = __builtin_ctz(~zero_map);  // Use ctzll for GCC, because GCC is dumb and won't optimize away a movsx
-        uint32_t nonzero_chunk;
-        memcpy(&nonzero_chunk, p+4*idx, sizeof(nonzero_chunk));  // aliasing / alignment-safe load
-        if(idx % 2 == 0) {
-          return std::make_pair((p-p_init + 4*idx)/8, __builtin_ctz(nonzero_chunk));
-        } else {
-          return std::make_pair((p-p_init + 4*(idx-1))/8, __builtin_ctz(nonzero_chunk) + 32);
-        }
-      }
-      p += 64;
-    } while(p < endp);
-    return std::make_pair(-1, -1);
-  }
-#else
   std::pair<int, int> FirstOn() const {
     unsigned foundq = N;
     for (unsigned x = 0; x < N; x += 4) {
@@ -983,7 +747,8 @@ public:
       return std::make_pair(-1, -1);
     }
   }
-#endif
+
+  std::vector<std::pair<int, int>> OnCells() const;
 
   LifeState FirstCell() const {
     std::pair<int, int> pair = FirstOn();
@@ -1158,6 +923,104 @@ public:
     return {bounds[0] + w/2, bounds[1] + h/2};
   }
 
+
+  LifeState ZOI() const {
+    LifeState temp(false);
+    for (unsigned i = 0; i < N; i++) {
+      uint64_t col = state[i];
+      temp[i] = col | std::rotl(col, 1) | std::rotr(col, 1);
+    }
+
+    LifeState boundary(false);
+
+    boundary[0] = temp[N-1] | temp[0] | temp[1];
+    for(int i = 1; i < N-1; i++)
+        boundary[i] = temp[i-1] | temp[i] | temp[i+1];
+    boundary[N-1] = temp[N-2] | temp[N-1] | temp[0];
+
+    return boundary;
+  }
+
+  uint64_t ZOIColumn(int i) const {
+    uint64_t col = state[(i - 1 + N) % N] | state[i] | state[(i + 1) % N];
+    return std::rotl(col, 1) | col | std::rotr(col, 1);
+  }
+
+  LifeState MooreZOI() const {
+    LifeState temp(false);
+    LifeState boundary(false);
+    for (unsigned i = 0; i < N; i++) {
+      uint64_t col = state[i];
+      temp[i] = col | std::rotl(col, 1) | std::rotr(col, 1);
+    }
+
+    boundary[0] = state[N - 1] | temp[0] | state[1];
+
+    for (unsigned i = 1; i < N - 1; i++)
+      boundary[i] = state[i - 1] | temp[i] | state[i + 1];
+
+    boundary[N - 1] = state[N - 2] | temp[N - 1] | state[0];
+
+    return boundary;
+  }
+
+
+  LifeState GetBoundary() const {
+    return ZOI() & ~*this;
+  }
+
+  LifeState BigZOI() const {
+    LifeState b(false);
+    b[0] = state[0] | std::rotl(state[0], 1) | std::rotr(state[0], 1) |
+                 state[N - 1] | state[0 + 1];
+    for (unsigned i = 1; i < N-1; i++) {
+      b[i] = state[i] | std::rotl(state[i], 1) | std::rotr(state[i], 1) | state[i-1] | state[i+1];
+    }
+    b[N-1] = state[N-1] | std::rotl(state[N-1], 1) | std::rotr(state[N-1], 1) |
+                 state[N-1 - 1] | state[0];
+
+    LifeState c(false);
+    c[0] = b[0] | b[N - 1] | b[0 + 1];
+    for (unsigned i = 1; i < N - 1; i++) {
+      c[i] = b[i] | b[i - 1] | b[i + 1];
+    }
+    c[N - 1] = b[N - 1] | b[N - 1 - 1] | b[0];
+
+    LifeState zoi(false);
+
+    zoi[0] = c[0] | std::rotl(c[0], 1) | std::rotr(c[0], 1);
+    for (unsigned i = 1; i < N - 1; i++) {
+      zoi[i] = c[i] | std::rotl(c[i], 1) | std::rotr(c[i], 1);
+    }
+    zoi[N - 1] = c[N - 1] | std::rotl(c[N - 1], 1) | std::rotr(c[N - 1], 1);
+
+    return zoi;
+  }
+
+  LifeState Convolve(const LifeState &other) const;
+
+  LifeState MatchLive(const LifeState &live) const {
+    LifeState invThis = ~*this;
+    LifeState flipLive = live;
+    flipLive.Transform(Rotate180OddBoth);
+    return ~invThis.Convolve(flipLive);
+  }
+
+  LifeState MatchLiveAndDead(const LifeState &live, const LifeState &dead) const {
+    LifeState invThis = ~*this;
+    LifeState flipLive = live;
+    flipLive.Transform(Rotate180OddBoth);
+    LifeState flipDead = dead;
+    flipDead.Transform(Rotate180OddBoth);
+    return ~invThis.Convolve(flipLive) & ~Convolve(flipDead);
+  }
+
+  LifeState Match(const LifeState &live) const {
+    return MatchLiveAndDead(live, live.GetBoundary());
+  }
+
+  LifeState Match(const LifeTarget &target) const;
+
   LifeState ComponentContaining(const LifeState &seed, const LifeState &corona) const {
     LifeState result;
     LifeState tocheck = seed;
@@ -1189,7 +1052,6 @@ public:
     constexpr LifeState corona = LifeState::ConstantParse("b3o$5o$5o$5o$b3o!", -2, -2);
     return Components(corona);
   }
-
 };
 
 void LifeState::Step() {
@@ -1219,20 +1081,6 @@ void LifeState::Step() {
 
     state[i] = Rokicki(state[i], tempxor[idxU], tempand[idxU], tempxor[idxB], tempand[idxB]);
   }
-
-  // int s = min + 1;
-  // int e = max - 1;
-
-  // if (s == 1)
-  //   s = 0;
-
-  // if (e == N - 2)
-  //   e = N - 1;
-
-  // for (int i = s; i <= e; i++) {
-  //   state[i] = tempState[i];
-  // }
-  //
 }
 
 void LifeState::Transform(SymmetryTransform transf) {
@@ -1329,8 +1177,6 @@ void LifeState::Print() const {
     }
     printf("\n");
   }
-
-  printf("\n\n\n\n\n\n");
 }
 
 LifeState LifeState::Parse(const char *rle) {
@@ -1456,8 +1302,91 @@ std::string LifeState::RLE() const {
 }
 
 
-class LifeTarget {
-public:
+static inline void ConvolveInner(LifeState &result, const uint64_t (&doubledother)[N*2], uint64_t x, unsigned int k, unsigned int postshift) {
+  for (unsigned i = 0; i < N; i++) {
+    result[i] |= std::rotl(convolve_uint64_t(x, doubledother[i+k]), postshift);
+  }
+}
+
+LifeState LifeState::Convolve(const LifeState &other) const {
+    LifeState result;
+    uint64_t doubledother[N*2];
+    memcpy(doubledother,     other.state, N * sizeof(uint64_t));
+    memcpy(doubledother + N, other.state, N * sizeof(uint64_t));
+
+    for (unsigned j = 0; j < N; j++) {
+      unsigned k = N-j;
+      uint64_t x = state[j];
+
+      // Annoying special case
+      if(x == ~0ULL) {
+        ConvolveInner(result, doubledother, ~0ULL, k, 0);
+        continue;
+      }
+
+    while (x != 0) {
+      unsigned int postshift;
+
+      uint64_t shifted;
+
+      if((x & 1) == 0) { // Possibly wrapped
+        int lsb = std::countr_zero(x);
+        shifted = std::rotr(x, lsb);
+        postshift = lsb;
+      } else{
+        int lead = std::countl_one(x);
+        shifted = std::rotl(x, lead);
+        postshift = 64-lead;
+      }
+
+      unsigned runlength = std::countr_one(shifted);
+      runlength = std::min(runlength, (unsigned)32);
+      uint64_t run = (1ULL << runlength) - 1;
+
+      switch(run) {
+      case (1 << 1) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 2) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 3) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 4) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 5) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 6) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 7) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 8) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 9) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 10) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 11) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 12) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 13) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 14) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 15) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 16) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 17) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 18) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 19) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 20) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 21) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 22) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 23) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 24) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 25) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 26) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 27) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 28) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 29) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1 << 30) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1ULL << 31) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      case (1ULL << 32) - 1: ConvolveInner(result, doubledother, run, k, postshift); break;
+      default:           ConvolveInner(result, doubledother, run, k, postshift); break;
+      }
+
+      x &= ~std::rotl(run, postshift);
+    }
+    }
+
+    return result;
+  }
+
+struct LifeTarget {
   LifeState wanted;
   LifeState unwanted;
 
