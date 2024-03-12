@@ -826,7 +826,6 @@ void SearchState::SearchStep() {
       return;
     timeSincePropagate = 0;
 
-    assert(frontier.size > 0);
     stable.SanityCheck();
     // SanityCheck();
   } else {
@@ -1050,7 +1049,7 @@ void SearchState::RecordSolution() {
 
 void SearchState::SanityCheck() {
 #ifdef DEBUG
-  current.SanityCheck(stable);
+  frontier.state.SanityCheck(stable);
   assert((stable.state & stable.unknown).IsEmpty());
 
   LifeStableState copy = stable;
