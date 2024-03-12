@@ -134,7 +134,7 @@ struct FrontierGeneration {
   }
 
   Transition AllowedTransitions(const LifeStableState &stable,
-                              std::pair<int, int> cell) {
+                              std::pair<int, int> cell) const {
     auto allowedTransitions = ::AllowedTransitions(
         state.state.Get(cell), stable.unknown.Get(cell), stable.state.Get(cell),
         forcedInactive.Get(cell), forcedUnchanging.Get(cell),
@@ -800,6 +800,14 @@ std::pair<unsigned, std::pair<int, int>> SearchState::ChooseBranchCell() const {
   //   if (branchCell.first != -1)
   //     return {i, branchCell};
   // }
+
+  LifeState remainingCells = frontier.frontierCells;
+  for (auto cell = remainingCells.FirstOn(); cell != std::make_pair(-1, -1);
+       remainingCells.Erase(cell), cell = remainingCells.FirstOn()) {
+    auto allowedTransitions = frontier.AllowedTransitions(stable, cell);
+    if(TransitionCount(allowedTransitions) <= 2)
+      return {0, cell};
+  }
 
   auto branchCell = frontier.frontierCells.FirstOn();
   if (branchCell.first != -1)
