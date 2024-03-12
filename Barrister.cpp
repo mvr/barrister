@@ -173,22 +173,19 @@ public:
   SearchState(const SearchState &) = default;
   SearchState &operator=(const SearchState &) = default;
 
-  LifeState ForcedInactiveCells(
-      unsigned gen, const LifeUnknownState &state,
-      const LifeStableState &stable,
-      const LifeState &active, const LifeState &everActive,
-      const LifeState &changes,
-      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-      const LifeCountdown<maxCellActiveStreakGens> &streakTimer
-                                ) const;
-  LifeState ForcedUnchangingCells(
-      unsigned gen, const LifeUnknownState &state,
-      const LifeStableState &stable,
-      const LifeState &active, const LifeState &everActive,
-      const LifeState &changes,
-      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-      const LifeCountdown<maxCellActiveStreakGens> &streakTimer
-          ) const;
+LifeState ForcedInactiveCells(
+    const FrontierGeneration &gen, const LifeStableState &stable,
+    const LifeState &everActive,
+    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+    const LifeCountdown<maxCellActiveStreakGens> &streakTimer)
+    const;
+
+LifeState ForcedUnchangingCells(
+    const FrontierGeneration &gen, const LifeStableState &stable,
+    const LifeState &everActive,
+    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+    const LifeCountdown<maxCellActiveStreakGens> &streakTimer)
+    const;
 
   bool UpdateActive(FrontierGeneration &generation,
                     LifeCountdown<maxCellActiveWindowGens> &activeTimer,
@@ -221,19 +218,17 @@ public:
 };
 
 LifeState SearchState::ForcedInactiveCells(
-    unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
-    const LifeState &active,
-    const LifeState &everActive, const LifeState &changes,
+    const FrontierGeneration &gen, const LifeStableState &stable,
+    const LifeState &everActive,
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    const LifeCountdown<maxCellActiveStreakGens> &streakTimer
-        ) const {
-  if (gen < params->minFirstActiveGen) {
+    const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
+  if (gen.gen < params->minFirstActiveGen) {
     return ~LifeState();
   }
 
-  auto activePop = active.GetPop();
+  auto activePop = gen.active.GetPop();
 
-  if (hasInteracted && !params->reportOscillators && gen > interactionStart + params->maxActiveWindowGens)
+  if (hasInteracted && !params->reportOscillators && gen.gen > interactionStart + params->maxActiveWindowGens)
     return ~LifeState();
 
   if (params->maxActiveCells != -1 && activePop > (unsigned)params->maxActiveCells)
@@ -242,10 +237,10 @@ LifeState SearchState::ForcedInactiveCells(
   LifeState result;
 
   if (params->maxActiveCells != -1 && activePop == (unsigned)params->maxActiveCells)
-    result |= ~active; // Or maybe just return
+    result |= ~gen.active; // Or maybe just return
 
   if (params->activeBounds.first != -1 && activePop > 0) {
-    result |= ~active.BufferAround(params->activeBounds);
+    result |= ~gen.active.BufferAround(params->activeBounds);
   }
 
   if (params->maxEverActiveCells != -1 && everActive.GetPop() == (unsigned)params->maxEverActiveCells) {
@@ -257,12 +252,12 @@ LifeState SearchState::ForcedInactiveCells(
   }
 
   if (params->maxComponentActiveCells != -1 && activePop > (unsigned)params->maxComponentActiveCells) {
-    for (auto &c : active.Components()) {
+    for (auto &c : gen.active.Components()) {
       auto componentPop = c.GetPop();
       if(componentPop > (unsigned)params->maxComponentActiveCells)
         return ~LifeState();
       if(componentPop == (unsigned)params->maxComponentActiveCells)
-        result |= ~active & c.BigZOI();
+        result |= ~gen.active & c.BigZOI();
     }
   }
 
@@ -289,16 +284,16 @@ LifeState SearchState::ForcedInactiveCells(
 
   if (params->maxCellActiveWindowGens != -1 &&
       hasInteracted &&
-      gen > interactionStart + (unsigned)params->maxCellActiveWindowGens)
+      gen.gen > interactionStart + (unsigned)params->maxCellActiveWindowGens)
     result |= activeTimer.finished;
 
   if (params->maxCellActiveStreakGens != -1 &&
       hasInteracted &&
-      gen > interactionStart + (unsigned)params->maxCellActiveStreakGens)
+      gen.gen > interactionStart + (unsigned)params->maxCellActiveStreakGens)
     result |= streakTimer.finished;
 
   if (params->maxCellStationaryDistance != -1) {
-    LifeState unchanging = ~(changes | (state.unknown & ~state.unknownStable));
+    LifeState unchanging = ~(gen.changes | (gen.state.unknown & ~gen.state.unknownStable));
     result |= unchanging.MatchLive(LifeState::NZOIAround({0, 0}, params->maxCellStationaryDistance));
   }
 
@@ -306,39 +301,38 @@ LifeState SearchState::ForcedInactiveCells(
 }
 
 LifeState SearchState::ForcedUnchangingCells(
-    unsigned gen, const LifeUnknownState &state, const LifeStableState &stable,
-    const LifeState &active, const LifeState &everActive,
-    const LifeState &changes,
+    const FrontierGeneration &gen, const LifeStableState &stable,
+    const LifeState &everActive,
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
-
+    const LifeCountdown<maxCellActiveStreakGens> &streakTimer)
+    const {
   LifeState result;
   if (params->maxChanges != -1) {
-    unsigned changesPop = changes.GetPop();
+    unsigned changesPop = gen.changes.GetPop();
     if (changesPop > (unsigned)params->maxChanges)
       return ~LifeState();
     if (changesPop == (unsigned)params->maxChanges) {
-      result |= ~changes;
+      result |= ~gen.changes;
     }
   }
 
   if (params->maxComponentChanges != -1) {
-    for (auto &c : changes.Components()) {
+    for (auto &c : gen.changes.Components()) {
       unsigned changesPop = c.GetPop();
       if (changesPop > (unsigned)params->maxComponentChanges)
         return ~LifeState();
       if (changesPop == (unsigned)params->maxComponentChanges) {
-        result |= ~changes & c.BigZOI();
+        result |= ~gen.changes & c.BigZOI();
       }
     }
   }
 
   if (params->changesBounds.first != -1) {
-    result |= ~changes.BufferAround(params->changesBounds);
+    result |= ~gen.changes.BufferAround(params->changesBounds);
   }
 
   if (params->componentChangesBounds.first != -1) {
-    for (auto &c : changes.Components()) {
+    for (auto &c : gen.changes.Components()) {
       auto wh = c.WidthHeight();
       if (wh.first > params->componentChangesBounds.first ||
           wh.second > params->componentChangesBounds.second)
@@ -429,16 +423,18 @@ bool SearchState::UpdateActive(FrontierGeneration &generation,
 
   everActive |= generation.active;
 
-  generation.forcedInactive = ForcedInactiveCells(
-      generation.gen, generation.next, stable, generation.active, everActive,
-      generation.changes, activeTimer, streakTimer) & ~params->exempt;
+  generation.forcedInactive =
+      ForcedInactiveCells(generation, stable, everActive, activeTimer,
+                          streakTimer) &
+      ~params->exempt;
 
   if (!(generation.active & generation.forcedInactive).IsEmpty())
     return false;
 
-  generation.forcedUnchanging = ForcedUnchangingCells(
-      generation.gen, generation.next, stable, generation.active, everActive,
-      generation.changes, activeTimer, streakTimer) & ~params->exempt;
+  generation.forcedUnchanging =
+      ForcedUnchangingCells(generation, stable, everActive, activeTimer,
+                            streakTimer) &
+      ~params->exempt;
 
   if (!(generation.changes & generation.forcedUnchanging).IsEmpty())
     return false;
