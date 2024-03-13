@@ -55,7 +55,6 @@ const unsigned maxFrontierGens = 6;
 const unsigned maxBranchingGens = maxFrontierGens;
 const unsigned maxBranchFastCount = 1;
 const unsigned maxCalculateRounds = 1;
-const unsigned maxFastLookaheadGens = 3;
 
 const unsigned maxCellActiveWindowGens = 0;
 const unsigned maxCellActiveStreakGens = 0;
@@ -192,7 +191,6 @@ public:
 
   std::pair<bool, bool> TestActive(FrontierGeneration &generation);
 
-  bool FastLookahead();
   std::tuple<bool, bool> PopulateFrontier();
   bool UpdateFrontierStrip(unsigned column);
   bool CalculateFrontier();
@@ -500,46 +498,6 @@ std::pair<bool, bool> SearchState::SetForced(FrontierGeneration &generation) {
   }
 
   return {true, anyChanges};
-}
-
-bool SearchState::FastLookahead() {
-  LifeUnknownState prev = frontier.state;
-  LifeUnknownState generation;
-  unsigned gen = currentGen;
-
-  for (unsigned i = 0; i < maxFastLookaheadGens; i++) {
-    gen++;
-
-    generation = prev.StepMaintaining(stable);
-
-    LifeState active = generation.ActiveComparedTo(stable) & stable.stateZOI;
-    LifeState changes = generation.ChangesComparedTo(prev) & stable.stateZOI;
-
-    everActive |= active;
-
-    LifeState forcedInactive = ForcedInactiveCells(
-        gen, generation, stable, active, everActive, changes, activeTimer, streakTimer);
-
-    if (!(active & forcedInactive).IsEmpty())
-      return false;
-
-    LifeState forcedUnchanging = ForcedUnchangingCells(
-      gen, generation, stable,
-      active, everActive, changes, activeTimer, streakTimer);
-
-    if (!(changes & forcedUnchanging).IsEmpty())
-      return false;
-
-    bool alive =
-        !((prev.state ^ generation.state) & ~prev.unknown & ~generation.unknown)
-             .IsEmpty();
-
-    if (!alive)
-      break;
-
-    prev = generation;
-  }
-  return true;
 }
 
 std::tuple<bool, bool> SearchState::PopulateFrontier() {
