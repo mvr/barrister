@@ -173,19 +173,17 @@ public:
   SearchState(const SearchState &) = default;
   SearchState &operator=(const SearchState &) = default;
 
-LifeState ForcedInactiveCells(
-    const FrontierGeneration &gen, const LifeStableState &stable,
-    const LifeState &everActive,
-    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    const LifeCountdown<maxCellActiveStreakGens> &streakTimer)
-    const;
+  LifeState ForcedInactiveCells(
+      const FrontierGeneration &gen, const LifeState &everActive,
+      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+      const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const;
 
-LifeState ForcedUnchangingCells(
-    const FrontierGeneration &gen, const LifeStableState &stable,
-    const LifeState &everActive,
-    const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
-    const LifeCountdown<maxCellActiveStreakGens> &streakTimer)
-    const;
+
+  LifeState ForcedUnchangingCells(
+      const FrontierGeneration &gen, const LifeState &everActive,
+      const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
+      const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const;
+
 
   bool UpdateActive(FrontierGeneration &generation,
                     LifeCountdown<maxCellActiveWindowGens> &activeTimer,
@@ -218,7 +216,7 @@ LifeState ForcedUnchangingCells(
 };
 
 LifeState SearchState::ForcedInactiveCells(
-    const FrontierGeneration &gen, const LifeStableState &stable,
+    const FrontierGeneration &gen,
     const LifeState &everActive,
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
     const LifeCountdown<maxCellActiveStreakGens> &streakTimer) const {
@@ -301,7 +299,7 @@ LifeState SearchState::ForcedInactiveCells(
 }
 
 LifeState SearchState::ForcedUnchangingCells(
-    const FrontierGeneration &gen, const LifeStableState &stable,
+    const FrontierGeneration &gen,
     const LifeState &everActive,
     const LifeCountdown<maxCellActiveWindowGens> &activeTimer,
     const LifeCountdown<maxCellActiveStreakGens> &streakTimer)
@@ -424,16 +422,14 @@ bool SearchState::UpdateActive(FrontierGeneration &generation,
   everActive |= generation.active;
 
   generation.forcedInactive =
-      ForcedInactiveCells(generation, stable, everActive, activeTimer,
-                          streakTimer) &
+      ForcedInactiveCells(generation, everActive, activeTimer, streakTimer) &
       ~params->exempt;
 
   if (!(generation.active & generation.forcedInactive).IsEmpty())
     return false;
 
   generation.forcedUnchanging =
-      ForcedUnchangingCells(generation, stable, everActive, activeTimer,
-                            streakTimer) &
+      ForcedUnchangingCells(generation, everActive, activeTimer, streakTimer) &
       ~params->exempt;
 
   if (!(generation.changes & generation.forcedUnchanging).IsEmpty())
@@ -1101,7 +1097,7 @@ bool PassesFilters(const SearchParams &params, const Solution &solution) {
     if (i < solution.interactionGen)
       continue;
 
-    for (int fi = 0; fi < params.filters.size(); fi++) {
+    for (unsigned fi = 0; fi < params.filters.size(); fi++) {
       auto &f = params.filters[fi];
 
       if (!(state.unknown & f.mask).IsEmpty())

@@ -1005,13 +1005,13 @@ PropagateResult LifeStableState::SignalNeighboursStrip(unsigned column) {
   const unsigned offset = (width - 1) / 2;
   if (offset <= column && column + width - 1 - offset < N) {
     #pragma clang loop vectorize_width(4)
-    for (int i = 0; i < width; i++) {
+    for (unsigned i = 0; i < width; i++) {
       int orig = column + i - offset;
       SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
       SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);
     }
   } else {
-    for (int i = 0; i < width; i++) {
+    for (unsigned i = 0; i < width; i++) {
       int orig = (column + i - offset + N) % N;
       SetOff(orig, signalled_off[i] & nearbyUnknown[i]);
       SetOn( orig, signalled_on[i]  & nearbyUnknown[i]);
