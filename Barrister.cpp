@@ -801,6 +801,7 @@ void SearchState::SearchStep() {
   assert(branchCell.first != -1);
 
   stable.SynchroniseStateKnown(branchCell);
+  frontier.state.TransferStable(stable, branchCell);
 
   auto allowedTransitions = frontier.AllowedTransitions(stable, branchCell);
   allowedTransitions = TransitionSimplify(allowedTransitions);
