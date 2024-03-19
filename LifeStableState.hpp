@@ -312,10 +312,8 @@ void LifeStableState::SetOff(std::pair<int, int> cell) {
 }
 
 LifeState LifeStableState::Vulnerable() const {
-  LifeState state3(false), state2(false), state1(false), state0(false);
-  LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
-  CountNeighbourhood(state, state3, state2, state1, state0);
-  CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
+  NeighbourCount stateCount(state);
+  NeighbourCount unknownCount(unknown);
 
   LifeState new_vulnerable_on(false);
   LifeState new_vulnerable_off(false);
@@ -332,14 +330,14 @@ LifeState LifeStableState::Vulnerable() const {
     uint64_t d5 = dead5[i];
     uint64_t d6 = dead6[i];
 
-    uint64_t s2 = state2[i];
-    uint64_t s1 = state1[i];
-    uint64_t s0 = state0[i];
+    uint64_t s2 = stateCount.bit2[i];
+    uint64_t s1 = stateCount.bit1[i];
+    uint64_t s0 = stateCount.bit0[i];
 
-    uint64_t unk3 = unknown3[i];
-    uint64_t unk2 = unknown2[i];
-    uint64_t unk1 = unknown1[i];
-    uint64_t unk0 = unknown0[i];
+    uint64_t unk3 = unknownCount.bit3[i];
+    uint64_t unk2 = unknownCount.bit2[i];
+    uint64_t unk1 = unknownCount.bit1[i];
+    uint64_t unk0 = unknownCount.bit0[i];
 
     uint64_t vulnerable_on = 0;
     uint64_t vulnerable_off = 0;
@@ -364,10 +362,8 @@ LifeState LifeStableState::Vulnerable() const {
 PropagateResult LifeStableState::PropagateSimpleStep() {
   LifeState startUnknown = unknown;
 
-  LifeState state3(false), state2(false), state1(false), state0(false);
-  LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
-  CountNeighbourhood(state, state3, state2, state1, state0);
-  CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
+  NeighbourCount stateCount(state);
+  NeighbourCount unknownCount(unknown);
 
   LifeState new_off(false), new_on(false), new_signal_off(false), new_signal_on(false);
 
@@ -379,14 +375,14 @@ PropagateResult LifeStableState::PropagateSimpleStep() {
 
   #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
-    uint64_t on2 = state2[i];
-    uint64_t on1 = state1[i];
-    uint64_t on0 = state0[i];
+    uint64_t on2 = stateCount.bit2[i];
+    uint64_t on1 = stateCount.bit1[i];
+    uint64_t on0 = stateCount.bit0[i];
 
-    uint64_t unk3 = unknown3[i];
-    uint64_t unk2 = unknown2[i];
-    uint64_t unk1 = unknown1[i];
-    uint64_t unk0 = unknown0[i];
+    uint64_t unk3 = unknownCount.bit3[i];
+    uint64_t unk2 = unknownCount.bit2[i];
+    uint64_t unk1 = unknownCount.bit1[i];
+    uint64_t unk0 = unknownCount.bit0[i];
 
     unk1 |= unk2 | unk3;
     unk0 |= unk2 | unk3;
@@ -514,24 +510,22 @@ PropagateResult LifeStableState::SynchroniseStateKnown() {
 }
 
 PropagateResult LifeStableState::UpdateOptions() {
-  LifeState state3(false), state2(false), state1(false), state0(false);
-  LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
-  CountNeighbourhood(state, state3, state2, state1, state0);
-  CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
+  NeighbourCount stateCount(state);
+  NeighbourCount unknownCount(unknown);
 
   uint64_t has_abort = 0;
   uint64_t changes = 0;
 
   #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
-    uint64_t on2 = state2[i];
-    uint64_t on1 = state1[i];
-    uint64_t on0 = state0[i];
+    uint64_t on2 = stateCount.bit2[i];
+    uint64_t on1 = stateCount.bit1[i];
+    uint64_t on0 = stateCount.bit0[i];
 
-    uint64_t unk3 = unknown3[i];
-    uint64_t unk2 = unknown2[i];
-    uint64_t unk1 = unknown1[i];
-    uint64_t unk0 = unknown0[i];
+    uint64_t unk3 = unknownCount.bit3[i];
+    uint64_t unk2 = unknownCount.bit2[i];
+    uint64_t unk1 = unknownCount.bit1[i];
+    uint64_t unk0 = unknownCount.bit0[i];
 
     uint64_t stateon = state[i];
     uint64_t stateunk = unknown[i];
@@ -575,10 +569,8 @@ PropagateResult LifeStableState::UpdateOptions() {
 }
 
 PropagateResult LifeStableState::SignalNeighbours() {
-  LifeState state3(false), state2(false), state1(false), state0(false);
-  LifeState max3(false), max2(false), max1(false), max0(false);
-  CountNeighbourhood(state, state3, state2, state1, state0);
-  CountNeighbourhood(state | unknown, max3, max2, max1, max0);
+  NeighbourCount stateCount(state);
+  NeighbourCount maxCount(state | unknown);
 
   LifeState new_signal_off(false), new_signal_on(false);
 
@@ -593,14 +585,14 @@ PropagateResult LifeStableState::SignalNeighbours() {
     uint64_t d5 = dead5[i];
     uint64_t d6 = dead6[i];
 
-    uint64_t s2 = state2[i];
-    uint64_t s1 = state1[i];
-    uint64_t s0 = state0[i];
+    uint64_t s2 = stateCount.bit2[i];
+    uint64_t s1 = stateCount.bit1[i];
+    uint64_t s0 = stateCount.bit0[i];
 
-    uint64_t m3 = max3[i];
-    uint64_t m2 = max2[i];
-    uint64_t m1 = max1[i];
-    uint64_t m0 = max0[i];
+    uint64_t m3 = maxCount.bit3[i];
+    uint64_t m2 = maxCount.bit2[i];
+    uint64_t m1 = maxCount.bit1[i];
+    uint64_t m0 = maxCount.bit0[i];
 
     uint64_t stateon = state[i];
     uint64_t stateunk = unknown[i];
@@ -1263,13 +1255,12 @@ CompletionResult LifeStableState::CompleteStableStep(
   std::pair<int, int> newPlacement = {-1, -1};
   newPlacement = (Vulnerable() & settable).FirstOn();
 
-  if(newPlacement.first == -1) {
-    LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
-    CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
+  if (newPlacement.first == -1) {
+    NeighbourCount unknownCount(unknown);
 
-    newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & ~unknown0)).FirstOn();
+    newPlacement = (settable & (~unknownCount.bit3 & ~unknownCount.bit2 & unknownCount.bit1 & ~unknownCount.bit0)).FirstOn();
     if(newPlacement.first == -1)
-      newPlacement = (settable & (~unknown3 & ~unknown2 & unknown1 & unknown0)).FirstOn();
+      newPlacement = (settable & (~unknownCount.bit3 & ~unknownCount.bit2 & unknownCount.bit1 & unknownCount.bit0)).FirstOn();
     if(newPlacement.first == -1)
       newPlacement = settable.FirstOn();
     if(newPlacement.first == -1)

@@ -152,34 +152,32 @@ public:
 };
 
 LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable) const {
-  LifeUnknownState result;
+  LifeUnknownState result{LifeState(false), LifeState(false), LifeState(false)};
 
-  LifeState state3(false), state2(false), state1(false), state0(false);
-  LifeState unknown3(false), unknown2(false), unknown1(false), unknown0(false);
-
-  CountNeighbourhood(state, state3, state2, state1, state0);
-  CountNeighbourhood(unknown, unknown3, unknown2, unknown1, unknown0);
-
-  // TODO: These could be cached in LifeStableState, as before
-  LifeState stable3(false), stable2(false), stable1(false), stable0(false);
-  CountNeighbourhood(stable.state, stable3, stable2, stable1, stable0);
+  NeighbourCount stateCount(state);
+  NeighbourCount unknownCount(unknown);
+  NeighbourCount stableCount(stable.state);
 
   LifeState nearUnstableUnknown = (unknown & ~unknownStable).ZOI();
-  LifeState differentCountToStable = state3 | (state2 ^ stable2) | (state1 ^ stable1) | (state0 ^ stable0);
+  LifeState differentCountToStable = stateCount.bit3 |
+                                     (stateCount.bit2 ^ stableCount.bit2) |
+                                     (stateCount.bit1 ^ stableCount.bit1) |
+                                     (stateCount.bit0 ^ stableCount.bit0);
 
-  LifeState restorable = ~(state ^ stable.state) & ~nearUnstableUnknown & ~differentCountToStable;
+  LifeState restorable = ~((state ^ stable.state) | nearUnstableUnknown | differentCountToStable);
+  LifeState refineable = ~(restorable | nearUnstableUnknown);
 
   #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
-    uint64_t on3 = state3[i];
-    uint64_t on2 = state2[i];
-    uint64_t on1 = state1[i];
-    uint64_t on0 = state0[i];
+    // uint64_t on3 = stateCount.bit3[i];
+    uint64_t on2 = stateCount.bit2[i];
+    uint64_t on1 = stateCount.bit1[i];
+    uint64_t on0 = stateCount.bit0[i];
 
-    uint64_t unk3 = unknown3[i];
-    uint64_t unk2 = unknown2[i];
-    uint64_t unk1 = unknown1[i];
-    uint64_t unk0 = unknown0[i];
+    uint64_t unk3 = unknownCount.bit3[i];
+    uint64_t unk2 = unknownCount.bit2[i];
+    uint64_t unk1 = unknownCount.bit1[i];
+    uint64_t unk0 = unknownCount.bit0[i];
 
     uint64_t current_on = state[i];
     uint64_t current_unknown = unknown[i];
@@ -199,27 +197,23 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
     result.state[i] = (result.state[i] & ~toRestore) | (stable.state[i] & toRestore);
     result.unknown[i] = (result.unknown[i] & ~toRestore) | (stable.unknown[i] & toRestore);
     result.unknownStable[i] = stable.unknown[i] & toRestore;
+    refineable[i] &= result.unknown[i] & ~result.unknownStable[i];
   }
-
-  LifeState refineable = result.unknown & ~result.unknownStable & ~restorable & ~nearUnstableUnknown;
 
   if (refineable.IsEmpty())
     return result;
 
-  LifeState diff3(false), diff2(false), diff1(false), diff0(false);
-  FourBitSubtract(stable3, stable2, stable1, stable0,
-                  state3, state2, state1, state0,
-                  diff3, diff2, diff1, diff0);
+  NeighbourCount diff = stableCount.Subtract(stateCount);
 
   #pragma clang loop vectorize_width(4)
   for (int i = 0; i < N; i++) {
     uint64_t current_on = state[i];
     uint64_t current_unknown = unknown[i];
 
-    uint64_t on3 = state3[i];
-    uint64_t on2 = state2[i];
-    uint64_t on1 = state1[i];
-    uint64_t on0 = state0[i];
+    uint64_t on3 = stateCount.bit3[i];
+    uint64_t on2 = stateCount.bit2[i];
+    uint64_t on1 = stateCount.bit1[i];
+    uint64_t on0 = stateCount.bit0[i];
 
     uint64_t l2 = stable.live2[i];
     uint64_t l3 = stable.live3[i];
@@ -230,10 +224,10 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
     uint64_t d5 = stable.dead5[i];
     uint64_t d6 = stable.dead6[i];
 
-    uint64_t m3 = diff3[i];
-    uint64_t m2 = diff2[i];
-    uint64_t m1 = diff1[i];
-    uint64_t m0 = diff0[i];
+    uint64_t m3 = diff.bit3[i];
+    uint64_t m2 = diff.bit2[i];
+    uint64_t m1 = diff.bit1[i];
+    uint64_t m0 = diff.bit0[i];
 
     uint64_t next_on = 0;
     uint64_t next_unknown = 0;

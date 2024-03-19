@@ -4,12 +4,14 @@
 
 #include "LifeAPI.h"
 
-inline void HalfAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina, const uint64_t inb) {
+inline void HalfAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina,
+                    const uint64_t inb) {
   outbit = ina ^ inb;
   outcarry = ina & inb;
 }
 
-inline void FullAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina, const uint64_t inb, const uint64_t inc) {
+inline void FullAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina,
+                    const uint64_t inb, const uint64_t inc) {
   uint64_t halftotal = ina ^ inb;
   outbit = halftotal ^ inc;
   uint64_t halfcarry1 = ina & inb;
@@ -17,12 +19,19 @@ inline void FullAdd(uint64_t &outbit, uint64_t &outcarry, const uint64_t ina, co
   outcarry = halfcarry1 | halfcarry2;
 }
 
-inline void HalfAdd(LifeState &__restrict__ outbit, LifeState &__restrict__ outcarry, const LifeState &__restrict__ ina, const LifeState &__restrict__ inb) {
+inline void HalfAdd(LifeState &outbit,
+                    LifeState &outcarry,
+                    const LifeState &ina,
+                    const LifeState &inb) {
   outbit = ina ^ inb;
   outcarry = ina & inb;
 }
 
-inline void FullAdd(LifeState &__restrict__ outbit, LifeState &__restrict__ outcarry, const LifeState &__restrict__ ina, const LifeState &__restrict__ inb, const LifeState &__restrict__ inc) {
+inline void FullAdd(LifeState &outbit,
+                    LifeState &outcarry,
+                    const LifeState &ina,
+                    const LifeState &inb,
+                    const LifeState &inc) {
   LifeState halftotal = ina ^ inb;
   outbit = halftotal ^ inc;
   LifeState halfcarry1 = ina & inb;
@@ -198,6 +207,93 @@ void CountNeighbourhood(const LifeState &__restrict__ state,
   }
 }
 
+struct NeighbourCount {
+  LifeState bit3;
+  LifeState bit2;
+  LifeState bit1;
+  LifeState bit0;
+
+  NeighbourCount()
+  : bit3{false}, bit2{false}, bit1{false}, bit0{false} {}
+
+  NeighbourCount operator~() const {
+    NeighbourCount result;
+    result.bit3 = ~bit3;
+    result.bit2 = ~bit2;
+    result.bit1 = ~bit1;
+    result.bit0 = ~bit0;
+    return result;
+  }
+
+  static void CountRows(const LifeState &state,
+                        uint64_t (&col0)[N + 2],
+                        uint64_t (&col1)[N + 2]) {
+    for (unsigned i = 0; i < N; i++) {
+      uint64_t a = state.state[i];
+      uint64_t l = std::rotl(a, 1);
+      uint64_t r = std::rotr(a, 1);
+
+      col0[i+1] = l ^ r ^ a;
+      col1[i+1] = ((l ^ r) & a) | (l & r);
+    }
+    col0[0] = col0[N]; col0[N+1] = col0[1];
+    col1[0] = col1[N]; col1[N+1] = col1[1];
+  }
+
+  NeighbourCount(const LifeState &state)
+      : bit3{false}, bit2{false}, bit1{false}, bit0{false} {
+    uint64_t col0[N + 2];
+    uint64_t col1[N + 2];
+    CountRows(state, col0, col1);
+
+    for (unsigned i = 0; i < N; i++) {
+      uint64_t u_on0 = col0[i];
+      uint64_t c_on0 = col0[i+1];
+      uint64_t l_on0 = col0[i+2];
+      uint64_t u_on1 = col1[i];
+      uint64_t c_on1 = col1[i+1];
+      uint64_t l_on1 = col1[i+2];
+
+      uint64_t on3, on2, on1, on0;
+
+      uint64_t uc0, uc1, uc2, uc_carry0;
+      HalfAdd(uc0, uc_carry0, u_on0, c_on0);
+      FullAdd(uc1, uc2, u_on1, c_on1, uc_carry0);
+
+      uint64_t on_carry1, on_carry0;
+      HalfAdd(on0, on_carry0, uc0, l_on0);
+      FullAdd(on1, on_carry1, uc1, l_on1, on_carry0);
+      HalfAdd(on2, on3, uc2, on_carry1);
+
+      bit3.state[i] = on3;
+      bit2.state[i] = on2;
+      bit1.state[i] = on1;
+      bit0.state[i] = on0;
+    }
+  }
+  inline NeighbourCount Add(const NeighbourCount &other, const LifeState &incarry) const {
+    NeighbourCount result;
+    LifeState carry = incarry;
+    FullAdd(result.bit0, carry, bit0, other.bit0, carry);
+    FullAdd(result.bit1, carry, bit1, other.bit1, carry);
+    FullAdd(result.bit2, carry, bit2, other.bit2, carry);
+    FullAdd(result.bit3, carry, bit3, other.bit3, carry);
+    return result;
+  }
+
+  inline NeighbourCount operator+(const NeighbourCount &other) const {
+    return Add(other, LifeState());
+  }
+
+  inline NeighbourCount Subtract(const NeighbourCount &other) const {
+    return Add(~other, ~LifeState());
+  }
+
+  inline NeighbourCount operator-(const NeighbourCount &other) const {
+    return Add(~other, ~LifeState());
+  }
+};
+
 std::array<uint64_t, 4> inline CountNeighbourhoodColumn(const LifeState &state, int column) {
   std::array<uint64_t, 4> nearby;
   for (int i = 0; i < 4; i++) {
@@ -246,10 +342,10 @@ std::array<uint64_t, 4> inline CountNeighbourhoodColumn(const LifeState &state, 
 
 void inline CountNeighbourhoodStrip(
     const std::array<uint64_t, 6> &state,
-    std::array<uint64_t, 4> &__restrict__ bit3,
-    std::array<uint64_t, 4> &__restrict__ bit2,
-    std::array<uint64_t, 4> &__restrict__ bit1,
-    std::array<uint64_t, 4> &__restrict__ bit0) {
+    std::array<uint64_t, 4> &bit3,
+    std::array<uint64_t, 4> &bit2,
+    std::array<uint64_t, 4> &bit1,
+    std::array<uint64_t, 4> &bit0) {
 
   std::array<uint64_t, 6> col0;
   std::array<uint64_t, 6> col1;
