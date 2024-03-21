@@ -39,56 +39,38 @@ inline void FullAdd(LifeState &outbit,
   outcarry = halfcarry1 | halfcarry2;
 }
 
-inline void FourBitAdd(const LifeState &__restrict__ a3,
-                       const LifeState &__restrict__ a2,
-                       const LifeState &__restrict__ a1,
-                       const LifeState &__restrict__ a0,
-                       const LifeState &__restrict__ b3,
-                       const LifeState &__restrict__ b2,
-                       const LifeState &__restrict__ b1,
-                       const LifeState &__restrict__ b0,
-                       const LifeState &__restrict__ incarry,
-                       LifeState &__restrict__ result3,
-                       LifeState &__restrict__ result2,
-                       LifeState &__restrict__ result1,
-                       LifeState &__restrict__ result0) {
-  LifeState carry = incarry;
-  FullAdd(result0, carry, a0, b0, carry);
-  FullAdd(result1, carry, a1, b1, carry);
-  FullAdd(result2, carry, a2, b2, carry);
-  FullAdd(result3, carry, a3, b3, carry);
+inline void HalfAdd(uint64_t mask,
+                    LifeState &outbit,
+                    LifeState &outcarry,
+                    const LifeState &ina,
+                    const LifeState &inb) {
+  for (auto s : StripIterator(mask)) {
+  #pragma clang loop vectorize_width(4)
+  for (int i = 0; i < 4; i++) {
+    outbit[s][i] = ina[s][i] ^ inb[s][i];
+    outcarry[s][i] = ina[s][i] & inb[s][i];
+  }
+  }
 }
 
-inline void FourBitAdd(const LifeState &__restrict__ a3,
-                       const LifeState &__restrict__ a2,
-                       const LifeState &__restrict__ a1,
-                       const LifeState &__restrict__ a0,
-                       const LifeState &__restrict__ b3,
-                       const LifeState &__restrict__ b2,
-                       const LifeState &__restrict__ b1,
-                       const LifeState &__restrict__ b0,
-                       LifeState &__restrict__ result3,
-                       LifeState &__restrict__ result2,
-                       LifeState &__restrict__ result1,
-                       LifeState &__restrict__ result0) {
-  FourBitAdd(a3, a2, a1, a0, b3, b2, b1, b0, LifeState(), result3, result2, result1, result0);
+inline void FullAdd(uint64_t mask,
+                    LifeState &outbit,
+                    LifeState &outcarry,
+                    const LifeState &ina,
+                    const LifeState &inb,
+                    const LifeState &inc) {
+  for (auto s : StripIterator(mask)) {
+  #pragma clang loop vectorize_width(4)
+  for (int i = 0; i < 4; i++) {
+    uint64_t halftotal = ina[s][i] ^ inb[s][i];
+    outbit[s][i] = halftotal ^ inc[s][i];
+    uint64_t halfcarry1 = ina[s][i] & inb[s][i];
+    uint64_t halfcarry2 = inc[s][i] & halftotal;
+    outcarry[s][i] = halfcarry1 | halfcarry2;
+  }
+  }
 }
 
-// Two's complement
-inline void FourBitSubtract(const LifeState &__restrict__ a3,
-                       const LifeState &__restrict__ a2,
-                       const LifeState &__restrict__ a1,
-                       const LifeState &__restrict__ a0,
-                       const LifeState &__restrict__ b3,
-                       const LifeState &__restrict__ b2,
-                       const LifeState &__restrict__ b1,
-                       const LifeState &__restrict__ b0,
-                       LifeState &__restrict__ result3,
-                       LifeState &__restrict__ result2,
-                       LifeState &__restrict__ result1,
-                       LifeState &__restrict__ result0) {
-  FourBitAdd(a3, a2, a1, a0, ~b3, ~b2, ~b1, ~b0, ~LifeState(), result3, result2, result1, result0);
-}
 
 inline void FullAdd(std::array<uint64_t, 4> &__restrict__ outbit,
                     std::array<uint64_t, 4> &__restrict__ outcarry,
@@ -243,6 +225,21 @@ struct NeighbourCount {
 
   inline NeighbourCount operator-(const NeighbourCount &other) const {
     return Add(~other, ~LifeState());
+  }
+
+  inline NeighbourCount Add(uint64_t mask, const NeighbourCount &other, const LifeState &incarry) const {
+    NeighbourCount result;
+    LifeState carry = incarry;
+    LifeState carry2(false);
+    FullAdd(mask, result.bit0, carry2, bit0, other.bit0, carry);
+    FullAdd(mask, result.bit1, carry,  bit1, other.bit1, carry2);
+    FullAdd(mask, result.bit2, carry2, bit2, other.bit2, carry);
+    FullAdd(mask, result.bit3, carry,  bit3, other.bit3, carry2);
+    return result;
+  }
+
+  inline NeighbourCount Subtract(uint64_t mask, const NeighbourCount &other) const {
+    return Add(mask, ~other, ~LifeState());
   }
 };
 

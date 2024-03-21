@@ -203,31 +203,38 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
   if (refineable.IsEmpty())
     return result;
 
-  NeighbourCount diff = stableCount.Subtract(stateCount);
+  uint64_t mask = refineable.PopulatedColumns();
+  NeighbourCount diff = stableCount.Subtract(mask, stateCount);
 
+  for (auto s : StripIterator(mask)) {
   #pragma clang loop vectorize_width(4)
-  for (int i = 0; i < N; i++) {
-    uint64_t current_on = state[i];
-    uint64_t current_unknown = unknown[i];
+  for (int i = 0; i < 4; i++) {
+    uint64_t current_on = state[s][i];
+    uint64_t current_unknown = unknown[s][i];
 
     uint64_t on3 = stateCount.bit3[i];
     uint64_t on2 = stateCount.bit2[i];
     uint64_t on1 = stateCount.bit1[i];
     uint64_t on0 = stateCount.bit0[i];
 
-    uint64_t l2 = stable.live2[i];
-    uint64_t l3 = stable.live3[i];
-    uint64_t d0 = stable.dead0[i];
-    uint64_t d1 = stable.dead1[i];
-    uint64_t d2 = stable.dead2[i];
-    uint64_t d4 = stable.dead4[i];
-    uint64_t d5 = stable.dead5[i];
-    uint64_t d6 = stable.dead6[i];
+    uint64_t unk3 = unknownCount.bit3[s][i];
+    uint64_t unk2 = unknownCount.bit2[s][i];
+    uint64_t unk1 = unknownCount.bit1[s][i];
+    uint64_t unk0 = unknownCount.bit0[s][i];
 
-    uint64_t m3 = diff.bit3[i];
-    uint64_t m2 = diff.bit2[i];
-    uint64_t m1 = diff.bit1[i];
-    uint64_t m0 = diff.bit0[i];
+    uint64_t l2 = stable.live2[s][i];
+    uint64_t l3 = stable.live3[s][i];
+    uint64_t d0 = stable.dead0[s][i];
+    uint64_t d1 = stable.dead1[s][i];
+    uint64_t d2 = stable.dead2[s][i];
+    uint64_t d4 = stable.dead4[s][i];
+    uint64_t d5 = stable.dead5[s][i];
+    uint64_t d6 = stable.dead6[s][i];
+
+    uint64_t m3 = diff.bit3[s][i];
+    uint64_t m2 = diff.bit2[s][i];
+    uint64_t m1 = diff.bit1[s][i];
+    uint64_t m0 = diff.bit0[s][i];
 
     uint64_t next_on = 0;
     uint64_t next_unknown = 0;
@@ -242,11 +249,11 @@ LifeUnknownState LifeUnknownState::StepMaintaining(const LifeStableState &stable
     next_on &= ~next_unknown;
     next_unknown_stable &= current_unknown;
 
-    result.state[i] = (result.state[i] & ~refineable[i]) | (next_on & refineable[i]);
-    result.unknown[i] = (result.unknown[i] & ~refineable[i]) | (next_unknown & refineable[i]);
-    result.unknownStable[i] = (result.unknownStable[i] & ~refineable[i]) | (next_unknown_stable & refineable[i]);
+    result.state[s][i] = (result.state[s][i] & ~refineable[s][i]) | (next_on & refineable[s][i]);
+    result.unknown[s][i] = (result.unknown[s][i] & ~refineable[s][i]) | (next_unknown & refineable[s][i]);
+    result.unknownStable[s][i] = (result.unknownStable[s][i] & ~refineable[s][i]) | (next_unknown_stable & refineable[s][i]);
   }
-
+  }
   return result;
 }
 
