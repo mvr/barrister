@@ -941,6 +941,30 @@ public:
     return boundary;
   }
 
+  // Convolve with 3o$obo$3o!
+  LifeState ZOIHollow() const {
+    LifeState temp(false);
+
+    for (unsigned i = 0; i < N; i++) {
+      uint64_t col = state[i];
+      temp[i] = col | std::rotl(col, 1) | std::rotr(col, 1);
+    }
+
+    LifeState tempmid(false);
+    for (unsigned i = 0; i < N; i++) {
+      uint64_t col = state[i];
+      tempmid[i] = std::rotl(col, 1) | std::rotr(col, 1);
+    }
+
+    LifeState boundary(false);
+    boundary[0] = temp[N-1] | tempmid[0] | temp[1];
+    for(int i = 1; i < N-1; i++)
+        boundary[i] = temp[i-1] | tempmid[i] | temp[i+1];
+    boundary[N-1] = temp[N-2] | tempmid[N-1] | temp[0];
+
+    return boundary;
+  }
+
   uint64_t ZOIColumn(int i) const {
     uint64_t col = state[(i - 1 + N) % N] | state[i] | state[(i + 1) % N];
     return std::rotl(col, 1) | col | std::rotr(col, 1);

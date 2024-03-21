@@ -112,6 +112,14 @@ class StableOptions:
     def unknown():
         return StableOptions(False, False, False, False, False, False, False, False)
 
+    @staticmethod
+    def on():
+        return StableOptions(False, False, True, True, True, True, True, True)
+
+    @staticmethod
+    def off():
+        return StableOptions(True, True, False, False, False, False, False, False)
+
     def copy(self):
         return dataclasses.replace(self)
 
@@ -257,6 +265,12 @@ class StableOptions:
             upperset = list(filter(lambda u: u.to_three_state() == UNKNOWN, upperset))
 
         return upperset
+
+    @staticmethod
+    def compatible_options_state(state):
+        if state == ON: return StableOptions.on().upperset()
+        if state == OFF: return StableOptions.off().upperset()
+        return StableOptions.unknown().upperset()
 
     def restrict_to(self, unknown_neighbourhood):
         return self.meet(StableOptions.maximal_options(unknown_neighbourhood))
