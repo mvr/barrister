@@ -159,54 +159,6 @@ inline void FourBitSubtract(const std::array<uint64_t, 4> &__restrict__ a3,
              {~0ULL, ~0ULL, ~0ULL, ~0ULL}, result3, result2, result1, result0);
 }
 
-void CountRows(const LifeState &__restrict__ state, uint64_t (&__restrict__ col0)[N + 2], uint64_t (&__restrict__ col1)[N + 2]) {
-  for (unsigned i = 0; i < N; i++) {
-    uint64_t a = state.state[i];
-    uint64_t l = std::rotl(a, 1);
-    uint64_t r = std::rotr(a, 1);
-
-    col0[i+1] = l ^ r ^ a;
-    col1[i+1] = ((l ^ r) & a) | (l & r);
-  }
-}
-
-void CountNeighbourhood(const LifeState &__restrict__ state,
-                              LifeState &__restrict__ bit3,
-                              LifeState &__restrict__ bit2,
-                              LifeState &__restrict__ bit1,
-                              LifeState &__restrict__ bit0) {
-  uint64_t col0[N + 2];
-  uint64_t col1[N + 2];
-  CountRows(state, col0, col1);
-
-  col0[0] = col0[N]; col0[N+1] = col0[1];
-  col1[0] = col1[N]; col1[N+1] = col1[1];
-  for (unsigned i = 0; i < N; i++) {
-    uint64_t u_on0 = col0[i];
-    uint64_t c_on0 = col0[i+1];
-    uint64_t l_on0 = col0[i+2];
-    uint64_t u_on1 = col1[i];
-    uint64_t c_on1 = col1[i+1];
-    uint64_t l_on1 = col1[i+2];
-
-    uint64_t on3, on2, on1, on0;
-
-    uint64_t uc0, uc1, uc2, uc_carry0;
-    HalfAdd(uc0, uc_carry0, u_on0, c_on0);
-    FullAdd(uc1, uc2, u_on1, c_on1, uc_carry0);
-
-    uint64_t on_carry1, on_carry0;
-    HalfAdd(on0, on_carry0, uc0, l_on0);
-    FullAdd(on1, on_carry1, uc1, l_on1, on_carry0);
-    HalfAdd(on2, on3, uc2, on_carry1);
-
-    bit3.state[i] = on3;
-    bit2.state[i] = on2;
-    bit1.state[i] = on1;
-    bit0.state[i] = on0;
-  }
-}
-
 struct NeighbourCount {
   LifeState bit3;
   LifeState bit2;

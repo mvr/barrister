@@ -52,7 +52,6 @@
 // generation or two
 
 const unsigned maxFrontierGens = 6;
-const unsigned maxBranchingGens = maxFrontierGens;
 const unsigned maxBranchFastCount = 1;
 const unsigned maxCalculateRounds = 1;
 
@@ -640,13 +639,6 @@ std::pair<bool, bool> SearchState::TryAdvance() {
 }
 
 bool SearchState::CalculateFrontier() {
-  frontier.state.TransferStable(stable);
-
-  // bool consistent = FastLookahead();
-  // if (!consistent) {
-  //   return false;
-  // }
-  bool consistent;
 
   unsigned rounds = 0;
 
@@ -658,8 +650,7 @@ bool SearchState::CalculateFrontier() {
     if (rounds > maxCalculateRounds)
       break;
 
-    bool someChanges;
-    std::tie(consistent, someChanges) = PopulateFrontier();
+    auto [consistent, someChanges] = PopulateFrontier();
     if (!consistent) {
       return false;
     }
@@ -698,8 +689,7 @@ bool SearchState::CalculateFrontier() {
     }
   }
 
-  bool didAdvance = false;
-  std::tie(consistent, didAdvance) = TryAdvance();
+  auto [consistent, didAdvance] = TryAdvance();
   if (!consistent)
     return false;
 
@@ -845,10 +835,6 @@ void SearchState::SearchStep() {
       }
     }
 
-    // bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
-    // if (!quickCheck)
-    //   continue;
-
     newSearch.SearchStep();
   }
   // TODO: move body to a function, make sure it becomes a tail call correctly
@@ -883,10 +869,6 @@ void SearchState::SearchStep() {
         *stableAtInteraction = stable;
       }
     }
-
-    // bool quickCheck = newSearch.UpdateFrontierStrip(branchCell.first);
-    // if (!quickCheck)
-    //   return;
 
     [[clang::musttail]]
     return newSearch.SearchStep();
@@ -940,18 +922,6 @@ void SearchState::PrintSolution(const Solution &solution) {
     std::cout << LifeState().RLE() << std::endl;
   break;
   }
-  // Old:
-  // std::cout << "Completed:" << std::endl;
-  // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-  // LifeState remainingHistory = stable.unknownStable & ~completed.ZOI().MooreZOI(); // ZOI().MooreZOI() gives a BigZOI without the diagonals
-  // LifeState stator = params->stator | (stable.state & ~everActive) | (completed & ~stable.state);
-  // LifeHistoryState history(starting | (completed & ~startingStableOff), remainingHistory , LifeState(), stator);
-  // std::cout << history.RLE() << std::endl;
-
-  // std::cout << "Completion failed!" << std::endl;
-  // std::cout << "x = 0, y = 0, rule = LifeHistory" << std::endl;
-  // LifeHistoryState history;
-  // std::cout << history.RLE() << std::endl;
 }
 
 void SearchState::RecordOscillator() {
@@ -1050,7 +1020,6 @@ bool PassesFilters(const SearchParams &params, const Solution &solution) {
     filterTime = std::max(filterTime, f.gen);
   }
 
-  // TODO:
   std::vector<bool> filterPassed(params.filters.size(), false);
   for (unsigned i = 0; i < filterTime; i++) {
     state = state.StepMaintaining(solution.stable);
@@ -1252,6 +1221,3 @@ int main(int, char *argv[]) {
     }
   }
 }
-
-
-// Meta search
