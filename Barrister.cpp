@@ -665,18 +665,20 @@ bool SearchState::CalculateFrontier() {
     }
     anyChanges = anyChanges || someChanges;
 
-    auto propagateResult = stable.Propagate();
-    if (!propagateResult.consistent)
-      return false;
-    anyChanges = anyChanges || propagateResult.changed;
-
     // This is more important now than in old Barrister: we otherwise
     // spend a fair bit of time searching uncompletable parts of the
     // search space
 
     LifeState toTest = stable.Vulnerable() & stable.Differences(lastTest).ZOI();
     lastTest = stable;
-    propagateResult = stable.TestUnknowns(toTest);
+    auto propagateResult = stable.TestUnknowns(toTest);
+
+    if (!propagateResult.consistent) {
+      return false;
+    }
+    anyChanges = anyChanges || propagateResult.changed;
+
+    propagateResult = stable.Propagate();
     if (!propagateResult.consistent) {
       return false;
     }
