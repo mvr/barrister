@@ -630,7 +630,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
         return {false, false};
       }
     } else {
-      if (currentGen > params->maxFirstActiveGen)
+      if (currentGen >= params->maxFirstActiveGen)
         return {false, false};
     }
   }
