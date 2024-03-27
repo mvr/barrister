@@ -1217,11 +1217,6 @@ PropagateResult LifeStableState::TestUnknowns(const LifeState &cells) {
     remainingCells &= unknown;
   }
 
-  auto result = StabiliseOptions();
-  if (!result.consistent)
-    return {false, false};
-  anyChanges = anyChanges || result.changed;
-
   return {true, anyChanges};
 }
 
