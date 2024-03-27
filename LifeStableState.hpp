@@ -354,8 +354,8 @@ LifeState LifeStableState::Vulnerable() const {
     new_vulnerable_center_off[i] = vulnerable_center_off;
   }
 
-  LifeState on = (new_vulnerable_on.ZOI() & ~new_vulnerable_on) | (new_vulnerable_center_on & unknown);
-  LifeState off = (new_vulnerable_off.ZOI() & ~new_vulnerable_off) | (new_vulnerable_center_off & unknown);
+  LifeState on = new_vulnerable_on.ZOIHollow() | new_vulnerable_center_on;
+  LifeState off = new_vulnerable_off.ZOIHollow() | new_vulnerable_center_off;
   return on & off;
 }
 
