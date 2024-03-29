@@ -288,7 +288,7 @@ LifeState SearchState::ForcedInactiveCells(
     result |= streakTimer.finished;
 
   if (params->maxCellStationaryDistance != -1) {
-    LifeState unchanging = ~(gen.changes | (gen.state.unknown & ~gen.state.unknownStable));
+    LifeState unchanging = ~(gen.changes | (gen.next.unknown & ~gen.next.unknownStable));
     result |= unchanging.MatchLive(LifeState::NZOIAround({0, 0}, params->maxCellStationaryDistance));
   }
 
