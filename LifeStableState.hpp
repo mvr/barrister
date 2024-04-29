@@ -121,7 +121,7 @@ public:
   PropagateResult PropagateStep();
   PropagateResult Propagate();
 
-  PropagateResult SynchroniseStateKnownColumn(unsigned column);
+  std::pair<uint64_t, uint64_t> SynchroniseStateKnownColumn(unsigned column);
 
   PropagateResult PropagateSimpleStepStrip(unsigned column);
   PropagateResult PropagateSimpleStrip(unsigned column);
@@ -489,8 +489,8 @@ PropagateResult LifeStableState::SynchroniseStateKnown() {
   live2 |= knownOff;
   live3 |= knownOff;
 
-  LifeState impossibles = ~maybeLive & ~maybeDead;
-  if (!impossibles.IsEmpty())
+  LifeState abort = ~maybeLive & ~maybeDead;
+  if (!abort.IsEmpty())
     return {false, false};
 
   changes |= ~state & (maybeLive & ~maybeDead);
@@ -796,7 +796,7 @@ PropagateResult LifeStableState::PropagateSimpleStepStrip(unsigned column) {
 }
 
 
-PropagateResult LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
+std::pair<uint64_t, uint64_t> LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
   uint64_t changes = 0;
 
   uint64_t knownOn = ~unknown[i] & state[i];
@@ -815,43 +815,44 @@ PropagateResult LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
   live2[i] |= knownOff;
   live3[i] |= knownOff;
 
-  uint64_t impossibles = ~maybeLive & ~maybeDead;
-  if (impossibles != 0)
-    return {false, false};
-
   changes |= ~state[i] & (maybeLive & ~maybeDead);
   state[i] |= maybeLive & ~maybeDead;
 
   changes |= ~unknown[i] & (maybeLive & maybeDead);
   unknown[i] &= maybeLive & maybeDead;
 
-  return {true, changes != 0};
+  uint64_t abort = ~maybeLive & ~maybeDead;
+  return {abort, changes};
 }
 
 PropagateResult LifeStableState::SynchroniseStateKnownStrip(unsigned column) {
-  bool anyChanges = false;
-
-  const unsigned width = 8;
+  const unsigned width = 6;
   const unsigned offset = (width - 1) / 2; // 0, 0, 1, 1, 2, 2
   if (offset <= column && column + width - 1 - offset < N) {
+    uint64_t abort = 0;
+    uint64_t changes = 0;
+
     #pragma clang loop vectorize_width(4)
     for (unsigned i = 0; i < width; i++) {
       const unsigned c = column + i - offset;
-      auto result = SynchroniseStateKnownColumn(c);
-      if(!result.consistent)
-        return {false, false};
-      anyChanges = anyChanges || result.changed;
+      auto [column_abort, column_changes] = SynchroniseStateKnownColumn(c);
+      abort |= column_abort;
+      changes |= column_changes;
     }
+    return {abort == 0, changes != 0};
   } else {
+    uint64_t abort = 0;
+    uint64_t changes = 0;
+
     for (unsigned i = 0; i < width; i++) {
       const unsigned c = (column + i + N - offset) % N;
       auto result = SynchroniseStateKnownColumn(c);
-      if(!result.consistent)
-        return {false, false};
-      anyChanges = anyChanges || result.changed;
+      auto [column_abort, column_changes] = SynchroniseStateKnownColumn(c);
+      abort |= column_abort;
+      changes |= column_changes;
     }
+    return {abort == 0, changes != 0};
   }
-  return {true, anyChanges};
 }
 
 PropagateResult LifeStableState::SynchroniseStateKnown(std::pair<int, int> cell) {
