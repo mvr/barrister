@@ -264,7 +264,6 @@ void LifeStableState::RestrictOptions(std::pair<int, int> cell,
 
 void LifeStableState::SetOn(const LifeState &which) {
   state |= which;
-  stateZOI |= which.ZOI();
   unknown &= ~which;
   dead0 |= which;
   dead1 |= which;
@@ -282,7 +281,6 @@ void LifeStableState::SetOff(const LifeState &which) {
 
 void LifeStableState::SetOn(unsigned i, uint64_t which) {
   state[i] |= which;
-  stateZOI |= LifeState::ColumnZOI(i, which);
   unknown[i] &= ~which;
   dead0[i] |= which;
   dead1[i] |= which;
@@ -301,7 +299,6 @@ void LifeStableState::SetOff(unsigned i, uint64_t which) {
 void LifeStableState::SetOn(std::pair<int, int> cell) {
   state.Set(cell);
   unknown.Erase(cell);
-  stateZOI |= LifeState::CellZOI(cell);
   RestrictOptions(cell, StableOptions::LIVE);
 }
 
@@ -499,10 +496,6 @@ PropagateResult LifeStableState::SynchroniseStateKnown() {
   changes |= ~state & (maybeLive & ~maybeDead);
   state |= maybeLive & ~maybeDead;
 
-  LifeState newZOI = state.ZOI();
-  changes |= ~stateZOI & newZOI;
-  stateZOI |= newZOI;
-
   changes |= ~unknown & (maybeLive & maybeDead);
   unknown &= maybeLive & maybeDead;
 
@@ -678,6 +671,9 @@ PropagateResult LifeStableState::Propagate() {
     done = !result.changed;
     changedEver = changedEver || !done;
   }
+  if (changedEver) {
+    stateZOI |= state.ZOI();
+  }
   return {true, changedEver};
 }
 
@@ -826,9 +822,6 @@ PropagateResult LifeStableState::SynchroniseStateKnownColumn(unsigned i) {
   changes |= ~state[i] & (maybeLive & ~maybeDead);
   state[i] |= maybeLive & ~maybeDead;
 
-  changes |= ~stateZOI[i] & state.ZOIColumn(i);
-  stateZOI[i] |= state.ZOIColumn(i);
-
   changes |= ~unknown[i] & (maybeLive & maybeDead);
   unknown[i] &= maybeLive & maybeDead;
 
@@ -881,10 +874,6 @@ PropagateResult LifeStableState::SynchroniseStateKnown(std::pair<int, int> cell)
   bool maybeDead = !(dead0.Get(cell) && dead1.Get(cell) && dead2.Get(cell) && dead4.Get(cell) && dead5.Get(cell) && dead6.Get(cell));
   state.Set(cell, maybeLive && !maybeDead);
   unknown.Set(cell, maybeLive && maybeDead);
-
-  if (maybeLive && !maybeDead) {
-    stateZOI |= LifeState::CellZOI(cell);
-  }
 
   return {true, false};
 }
@@ -1000,11 +989,6 @@ PropagateResult LifeStableState::SignalNeighboursStrip(unsigned column) {
   }
   if(signalled_overlaps != 0)
     return {false, false};
-
-  for (int i = 1; i < 5; i++) {
-   signalled_off[i] &= ~new_signal_off[i];
-   signalled_on[i] &= ~new_signal_on[i];
-  }
 
   const unsigned width = 6;
   const unsigned offset = (width - 1) / 2;
@@ -1168,6 +1152,29 @@ PropagateResult LifeStableState::PropagateStrip(unsigned column) {
       return {false, false};
     done = !result.changed;
     changedEver = changedEver || !done;
+  }
+  if (changedEver) {
+    // Update the ZOI for the width 6 strip, so modifies a width 8 strip
+    const unsigned width = 8;
+    const unsigned offset = (width - 1) / 2;
+    if (offset <= column && column + width - 1 - offset < N) {
+      #pragma clang loop vectorize_width(4)
+      for (unsigned i = 1; i < width-1; i++) {
+        int orig = column + i - offset;
+        uint64_t smeared = std::rotl(state[orig], 1) | state[orig] | std::rotr(state[orig], 1);
+        stateZOI[orig-1] |= smeared;
+        stateZOI[orig]   |= smeared;
+        stateZOI[orig+1] |= smeared;
+      }
+    } else {
+      for (unsigned i = 1; i < width-1; i++) {
+        int orig = (column + i - offset + N) % N;
+        uint64_t smeared = std::rotl(state[orig], 1) | state[orig] | std::rotr(state[orig], 1);
+        stateZOI[(orig-1 + N)%N] |= smeared;
+        stateZOI[orig]   |= smeared;
+        stateZOI[(orig+1 + N)%N] |= smeared;
+      }
+    }
   }
   return {true, changedEver};
 }
