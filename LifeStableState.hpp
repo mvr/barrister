@@ -652,9 +652,10 @@ PropagateResult LifeStableState::PropagateStep() {
   if (!signalresult.consistent)
     return {false, false};
 
-  PropagateResult simpleresult = PropagateSimpleStep();
-  if (!simpleresult.consistent)
-    return {false, false};
+  // PropagateResult simpleresult = PropagateSimpleStep();
+  // if (!simpleresult.consistent)
+  //   return {false, false};
+  PropagateResult simpleresult = {true, false};
 
   bool changed = simpleresult.changed || optionsresult.changed ||
                  knownresult.changed || signalresult.changed;
