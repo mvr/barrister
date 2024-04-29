@@ -36,6 +36,13 @@ def life_stable(center, count):
 def int2bin(n, count):
     return "".join([str((n >> y) & 1) for y in range(count-1, -1, -1)])
 
+# known_off, known_on
+def known2bin(n):
+    if n == OFF: return "10"
+    if n == ON:  return "01"
+    if n == UNKNOWN:  return "00"
+    return "--"
+
 def int2hot(n, count):
     result = ["0"] * count
     result[n] = "1"

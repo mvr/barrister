@@ -511,7 +511,7 @@ PropagateResult LifeStableState::SynchroniseStateKnown() {
 
 PropagateResult LifeStableState::UpdateOptions() {
   NeighbourCount stateCount(state);
-  NeighbourCount unknownCount(unknown);
+  NeighbourCount offCount(~unknown & ~state);
 
   uint64_t has_abort = 0;
   uint64_t changes = 0;
@@ -522,13 +522,13 @@ PropagateResult LifeStableState::UpdateOptions() {
     uint64_t on1 = stateCount.bit1[i];
     uint64_t on0 = stateCount.bit0[i];
 
-    uint64_t unk3 = unknownCount.bit3[i];
-    uint64_t unk2 = unknownCount.bit2[i];
-    uint64_t unk1 = unknownCount.bit1[i];
-    uint64_t unk0 = unknownCount.bit0[i];
+    uint64_t off3 = offCount.bit3[i];
+    uint64_t off2 = offCount.bit2[i];
+    uint64_t off1 = offCount.bit1[i];
+    uint64_t off0 = offCount.bit0[i];
 
-    uint64_t stateon = state[i];
-    uint64_t stateunk = unknown[i];
+    uint64_t known_on = state[i];
+    uint64_t known_off = ~unknown[i] & ~state[i];
 
     uint64_t abort = 0;
 
@@ -1035,6 +1035,10 @@ PropagateResult LifeStableState::SignalNeighboursStrip(unsigned column) {
 PropagateResult LifeStableState::UpdateOptionsStrip(unsigned column) {
   std::array<uint64_t, 6> nearbyState = state.GetStrip<6>(column);
   std::array<uint64_t, 6> nearbyUnknown = unknown.GetStrip<6>(column);
+  std::array<uint64_t, 6> nearbyOff;
+  for (int i = 0; i < 6; i++) {
+    nearbyOff[i] = ~nearbyUnknown[i] & ~nearbyState[i];
+  }
 
   std::array<uint64_t, 4> nearbylive2 = live2.GetStrip<4>(column);
   std::array<uint64_t, 4> nearbylive3 = live3.GetStrip<4>(column);
@@ -1046,9 +1050,9 @@ PropagateResult LifeStableState::UpdateOptionsStrip(unsigned column) {
   std::array<uint64_t, 4> nearbydead6 = dead6.GetStrip<4>(column);
 
   std::array<uint64_t, 4> state3, state2, state1, state0;
-  std::array<uint64_t, 4> unknown3, unknown2, unknown1, unknown0;
+  std::array<uint64_t, 4> offState3, offState2, offState1, offState0;
   CountNeighbourhoodStrip(nearbyState, state3, state2, state1, state0);
-  CountNeighbourhoodStrip(nearbyUnknown, unknown3, unknown2, unknown1, unknown0);
+  CountNeighbourhoodStrip(nearbyOff, offState3, offState2, offState1, offState0);
 
   uint64_t has_abort = 0;
   uint64_t changes = 0;
@@ -1059,13 +1063,13 @@ PropagateResult LifeStableState::UpdateOptionsStrip(unsigned column) {
     uint64_t on1 = state1[i-1];
     uint64_t on0 = state0[i-1];
 
-    uint64_t unk3 = unknown3[i-1];
-    uint64_t unk2 = unknown2[i-1];
-    uint64_t unk1 = unknown1[i-1];
-    uint64_t unk0 = unknown0[i-1];
+    uint64_t off3 = offState3[i-1];
+    uint64_t off2 = offState2[i-1];
+    uint64_t off1 = offState1[i-1];
+    uint64_t off0 = offState0[i-1];
 
-    uint64_t stateon = nearbyState[i];
-    uint64_t stateunk = nearbyUnknown[i];
+    uint64_t known_on = nearbyState[i];
+    uint64_t known_off = nearbyOff[i];
 
     uint64_t abort = 0;
 

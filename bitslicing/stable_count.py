@@ -30,8 +30,11 @@ def options_function(center, oncount, unkcount):
         return StableOptions(not 2 in r, not 3 in r, not 0 in r, not 1 in r, not 2 in r, not 4 in r, not 5 in r, not 6 in r)
 
 def emit_boolean(state, live_count, unknown_count, result):
-    inputs = int2bin(state, 2) + \
-        int2bin(live_count, 3) + int2bin(unknown_count, 4)
+    inputs = ""
+    # inputs += int2bin(state, 2)
+    inputs += known2bin(state)
+    inputs += int2bin(live_count, 3)
+    inputs += int2bin(9-unknown_count-live_count, 4)
     if result == ABORT:
         outputs = "--------" + "1"
     else:
@@ -54,7 +57,8 @@ def emit_rule(live_count, unknown_count):
 
     return result
 
-innames = ["stateunk", "stateon", "on2", "on1", "on0", "unk3", "unk2", "unk1", "unk0"]
+innames = ["known_off", "known_on", "on2", "on1", "on0",
+           "off3", "off2", "off1", "off0"]
 outnames = ["l2", "l3",
             "d0", "d1", "d2", "d4", "d5", "d6",
             "abort"]
