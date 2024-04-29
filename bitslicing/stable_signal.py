@@ -9,6 +9,8 @@ def new_signal_function(o, n):
     n2 = n.restrict_to(o2)
     if n2 is None: return "--"
 
+    n2 = n.restrict_to(o)
+
     if n2.unknown == 0:
         if n2.count == n.count:
             return "01"
