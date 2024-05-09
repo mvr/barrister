@@ -136,7 +136,7 @@ struct FrontierGeneration {
     auto allowedTransitions = ::AllowedTransitions(
         state.state.Get(cell), stable.unknown.Get(cell), stable.state.Get(cell),
         forcedInactive.Get(cell), forcedUnchanging.Get(cell),
-        stable.stateZOI.Get(cell), state.UnperturbedTransitionFor(cell));
+        stable.dead0.Get(cell), state.UnperturbedTransitionFor(cell));
 
     return allowedTransitions;
   }
@@ -413,8 +413,8 @@ StableOptions SearchState::OptionsFor(const LifeUnknownState &state,
 bool SearchState::UpdateActive(FrontierGeneration &generation,
                                LifeCountdown<maxCellActiveWindowGens> &activeTimer,
                                LifeCountdown<maxCellActiveStreakGens> &streakTimer) {
-  generation.active = generation.next.ActiveComparedTo(stable) & stable.stateZOI & ~params->exempt;
-  generation.changes = generation.next.ChangesComparedTo(generation.state) & stable.stateZOI & ~params->exempt;
+  generation.active = generation.next.ActiveComparedTo(stable) & stable.dead0 & ~params->exempt;
+  generation.changes = generation.next.ChangesComparedTo(generation.state) & stable.dead0 & ~params->exempt;
 
   everActive |= generation.active;
 
@@ -550,7 +550,7 @@ std::tuple<bool, bool> SearchState::PopulateFrontier() {
     bool isInert = ((generation.state.state ^ generation.next.state) &
                    ~generation.state.unknown & ~generation.next.unknown)
                       .IsEmpty() ||
-                  (stable.stateZOI & ~params->exempt & ~generation.next.unknown).IsEmpty();
+                  (stable.dead0 & ~params->exempt & ~generation.next.unknown).IsEmpty();
 
     if (isInert)
       break;
@@ -594,7 +594,7 @@ std::pair<bool, bool> SearchState::TryAdvance() {
     frontier.next = frontier.next.StepMaintaining(stable);
     currentGen += 1;
 
-    LifeState active = frontier.state.ActiveComparedTo(stable) & stable.stateZOI & ~params->exempt;
+    LifeState active = frontier.state.ActiveComparedTo(stable) & stable.dead0 & ~params->exempt;
     everActive |= active;
 
     if (params->maxCellActiveWindowGens != -1) {
@@ -823,8 +823,6 @@ void SearchState::SearchStep() {
     newSearch.frontier.SetTransition(branchCell, transition);
 
     if (frontier.state.TransitionIsPerturbation(branchCell, transition)) {
-      newSearch.stable.stateZOI.Set(branchCell);
-
       if(transition == Transition::OFF_TO_ON || transition == Transition::ON_TO_OFF)
         newSearch.everActive.Set(branchCell);
 
@@ -858,8 +856,6 @@ void SearchState::SearchStep() {
     newSearch.frontier.SetTransition(branchCell, transition);
 
     if (frontier.state.TransitionIsPerturbation(branchCell, transition)) {
-      newSearch.stable.stateZOI.Set(branchCell);
-
       if(transition == Transition::OFF_TO_ON || transition == Transition::ON_TO_OFF)
         newSearch.everActive.Set(branchCell);
 
@@ -1056,7 +1052,7 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
     LifeUnknownState state = params.startingState;
     state.TransferStable(clearedStable);
 
-    LifeState stator = clearedStable.stateZOI & ~clearedStable.unknown;
+    LifeState stator = clearedStable.dead0 & ~clearedStable.unknown;
 
     // Fast forward to when the catalyst has just recovered
     for (unsigned i = 0; i < s.recoveryGen; i++) {
@@ -1068,12 +1064,12 @@ std::vector<Solution> TrimSolutions(SearchParams &params, std::vector<Solution> 
 
     // Add hashes to the list until the catalyst is destroyed/interacted with a second time
     for (unsigned i = s.recoveryGen; i < maxGen; i++) {
-      bool isRecovered = ((clearedStable.state ^ state.state) & clearedStable.stateZOI & ~params.exempt).IsEmpty();
+      bool isRecovered = ((clearedStable.state ^ state.state) & clearedStable.dead0 & ~params.exempt).IsEmpty();
       if (!isRecovered) {
         break;
       }
 
-      LifeState perturbed = state.state & ~clearedStable.stateZOI;
+      LifeState perturbed = state.state & ~clearedStable.dead0;
 
       uint64_t hash = perturbed.GetHash();
       bool hashSeen = false;
@@ -1148,7 +1144,7 @@ void MetaSearchStep(unsigned round, std::vector<Solution> &allSolutions, SearchP
     newParams.minFirstActiveGen = s.interactionGen;
     newParams.stable = s.interactionStable.Graft(s.stable);
     newParams.startingState.TransferStable(newParams.stable);
-    newParams.exempt |= newParams.stable.stateZOI & ~s.stator;
+    newParams.exempt |= newParams.stable.dead0 & ~s.stator;
     newParams.stator |= s.stator;
     if (round == 1) {
       newParams.minFirstActiveGen = std::max(s.interactionGen, params.minMetaFirstActiveGen);

@@ -51,13 +51,6 @@ public:
   LifeState state;
   LifeState unknown;
 
-  // This is a superset of state.ZOI(), but may have more cells
-  //
-  // If the active pattern is perturbed somewhere, we know the cell
-  // must be in state.ZOI() eventually even if we don't know exactly
-  // which cell is on
-  LifeState stateZOI;
-
   // IMPORTANT: These are stored flipped to the meaning of StableOptions, so
   // 0 is possible, 1 is ruled out
   LifeState live2;
@@ -74,7 +67,6 @@ public:
   void Move(int x, int y) {
     state.Move(x, y);
     unknown.Move(x, y);
-    stateZOI.Move(x, y);
     live2.Move(x, y);
     live3.Move(x, y);
     dead0.Move(x, y);
@@ -172,7 +164,6 @@ LifeStableState LifeStableState::Join(const LifeStableState &other) const {
 
   result.unknown = unknown | other.unknown | (state ^ other.state);
   result.state = state & ~result.unknown;
-  result.stateZOI = stateZOI & other.stateZOI;
 
   result.live2 = live2 & other.live2;
   result.live3 = live3 & other.live3;
@@ -189,18 +180,17 @@ LifeStableState LifeStableState::Join(const LifeStableState &other) const {
 LifeStableState LifeStableState::Graft(const LifeStableState &other) const {
   LifeStableState result;
 
-  result.unknown = unknown & ~(~other.unknown & other.stateZOI);
+  result.unknown = unknown & ~(~other.unknown & other.dead0);
   result.state = state | other.state;
-  result.stateZOI = stateZOI | other.stateZOI;
 
-  result.live2 = live2 | (other.live2 & other.stateZOI);
-  result.live3 = live3 | (other.live3 & other.stateZOI);
-  result.dead0 = dead0 | (other.dead0 & other.stateZOI);
-  result.dead1 = dead1 | (other.dead1 & other.stateZOI);
-  result.dead2 = dead2 | (other.dead2 & other.stateZOI);
-  result.dead4 = dead4 | (other.dead4 & other.stateZOI);
-  result.dead5 = dead5 | (other.dead5 & other.stateZOI);
-  result.dead6 = dead6 | (other.dead6 & other.stateZOI);
+  result.live2 = live2 | (other.live2 & other.dead0);
+  result.live3 = live3 | (other.live3 & other.dead0);
+  result.dead0 = dead0 | (other.dead0 & other.dead0);
+  result.dead1 = dead1 | (other.dead1 & other.dead0);
+  result.dead2 = dead2 | (other.dead2 & other.dead0);
+  result.dead4 = dead4 | (other.dead4 & other.dead0);
+  result.dead5 = dead5 | (other.dead5 & other.dead0);
+  result.dead6 = dead6 | (other.dead6 & other.dead0);
 
   return result;
 }
@@ -208,11 +198,10 @@ LifeStableState LifeStableState::Graft(const LifeStableState &other) const {
 LifeStableState LifeStableState::ClearUnmodified() const {
   LifeStableState result = *this;
 
-  LifeState toClear = unknown & ~(stateZOI.ZOI());
+  LifeState toClear = unknown & ~(dead0.ZOI());
 
   result.unknown = unknown & ~toClear;
   result.state = state;
-  result.stateZOI = stateZOI;
 
   result.UpdateOptions();
 
@@ -224,7 +213,6 @@ LifeState LifeStableState::Differences(const LifeStableState &other) const {
 
   result |= state ^ other.state;
   result |= unknown ^ other.unknown;
-  result |= stateZOI ^ other.stateZOI;
 
   result |= live2 ^ other.live2;
   result |= live3 ^ other.live3;
@@ -459,8 +447,6 @@ PropagateResult LifeStableState::PropagateSimple() {
     done = !result.changed;
   }
 
-  stateZOI |= state.ZOI();
-
   if (changed) {
     auto result = StabiliseOptions();
     if (!result.consistent)
@@ -671,9 +657,6 @@ PropagateResult LifeStableState::Propagate() {
       return {false, false};
     done = !result.changed;
     changedEver = changedEver || !done;
-  }
-  if (changedEver) {
-    stateZOI |= state.ZOI();
   }
   return {true, changedEver};
 }
@@ -891,7 +874,6 @@ PropagateResult LifeStableState::PropagateSimpleStrip(unsigned column) {
     done = !result.changed;
   }
 
-  stateZOI |= state.ZOI(); // TODO!
 
   if (changed) {
     auto result = StabiliseOptionsStrip(column);
@@ -1155,29 +1137,6 @@ PropagateResult LifeStableState::PropagateStrip(unsigned column) {
     done = !result.changed;
     changedEver = changedEver || !done;
   }
-  if (changedEver) {
-    // Update the ZOI for the width 6 strip, so modifies a width 8 strip
-    const unsigned width = 8;
-    const unsigned offset = (width - 1) / 2;
-    if (offset <= column && column + width - 1 - offset < N) {
-      #pragma clang loop vectorize_width(4)
-      for (unsigned i = 1; i < width-1; i++) {
-        int orig = column + i - offset;
-        uint64_t smeared = std::rotl(state[orig], 1) | state[orig] | std::rotr(state[orig], 1);
-        stateZOI[orig-1] |= smeared;
-        stateZOI[orig]   |= smeared;
-        stateZOI[orig+1] |= smeared;
-      }
-    } else {
-      for (unsigned i = 1; i < width-1; i++) {
-        int orig = (column + i - offset + N) % N;
-        uint64_t smeared = std::rotl(state[orig], 1) | state[orig] | std::rotr(state[orig], 1);
-        stateZOI[(orig-1 + N)%N] |= smeared;
-        stateZOI[orig]   |= smeared;
-        stateZOI[(orig+1 + N)%N] |= smeared;
-      }
-    }
-  }
   return {true, changedEver};
 }
 
@@ -1252,7 +1211,7 @@ CompletionResult LifeStableState::CompleteStableStep(
     return CompletionResult::COMPLETED;
   }
 
-  LifeState settable = PerturbedUnknowns() & stateZOI.ZOI();
+  LifeState settable = PerturbedUnknowns() & dead0.ZOI();
 
   if (settable.IsEmpty()) {
     // We win
