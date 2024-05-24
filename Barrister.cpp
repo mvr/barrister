@@ -689,6 +689,9 @@ bool SearchState::CalculateFrontier() {
     }
   }
 
+  frontier.state.TransferStable(stable);
+  frontier.next.TransferStable(stable);
+
   auto [consistent, didAdvance] = TryAdvance();
   if (!consistent)
     return false;
