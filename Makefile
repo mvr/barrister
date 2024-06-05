@@ -20,6 +20,8 @@ Barrister: Barrister.cpp LifeAPI.h *.hpp bitslicing/*.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o Barrister Barrister.cpp $(LDFLAGS)
 CompleteStill: CompleteStill.cpp LifeAPI.h *.hpp bitslicing/*.hpp
 	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o CompleteStill CompleteStill.cpp $(LDFLAGS)
+CalculateRotors: CalculateRotors.cpp LifeAPI.h *.hpp bitslicing/*.hpp
+	$(CC) $(CFLAGS) $(INSTRUMENTFLAGS) -o CalculateRotors CalculateRotors.cpp $(LDFLAGS)
 
 instrument: Barrister.cpp LifeAPI.h *.hpp
 	mkdir -p instrumenting
