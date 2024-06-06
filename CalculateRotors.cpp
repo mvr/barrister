@@ -5,7 +5,7 @@
 #include "LifeStableState.hpp"
 #include "RotorDescription.hpp"
 
-unsigned DeterminePeriod(const LifeState &state) {
+std::pair<LifeState, unsigned> DeterminePeriod(const LifeState &state) {
   LifeState current = state;
 
   std::stack<std::pair<uint64_t, int>> minhashes;
@@ -21,7 +21,7 @@ unsigned DeterminePeriod(const LifeState &state) {
 
       if(minhashes.top().first == newhash) {
         unsigned p = i - minhashes.top().second;
-        return p;
+        return {current, p};
       }
 
       if(minhashes.top().first > newhash)
@@ -32,12 +32,16 @@ unsigned DeterminePeriod(const LifeState &state) {
 
     current.Step();
   }
-  return 0;
+  return {current, 0};
 }
 
-int main(int, char *argv[]) {
+int main(int argc, char *argv[]) {
   std::set<std::string> seenRotors;
-  for (auto r : ReadRotors("knownrotors"))
+
+  std::string rotorfile = "knownrotors";
+  if (argc > 1)
+    rotorfile = argv[1];
+  for (auto r : ReadRotors(rotorfile))
     seenRotors.insert(r);
 
   std::string rle;
@@ -49,17 +53,17 @@ int main(int, char *argv[]) {
   }
 
   LifeState input = LifeState::Parse(rle.c_str());
-  unsigned period = DeterminePeriod(input);
+  auto [osc, period] = DeterminePeriod(input);
 
   if (period == 0)
     std::cout << "Not Oscillating?" << std::endl;
 
   std::cout << "Oscillating! Period: " << period << std::endl;
 
-  LifeUnknownState unknownState {input, LifeState(), LifeState()};
+  LifeUnknownState unknownState {osc, LifeState(), LifeState()};
   LifeStableState stable;
-  stable.SetOn(input);
-  stable.SetOff(~input);
+  stable.SetOn(osc);
+  stable.SetOff(~osc);
 
   for(auto &r : GetSeparatedRotorDesc(unknownState, stable, period)) {
     auto rotorDesc = r.ToString();
