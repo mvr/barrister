@@ -98,7 +98,7 @@ LifeHistoryState LifeHistoryState::Parse(const std::string &rle) {
       cnt = 0;
     } else if (ch == '!') {
       break;
-    } else if (ch == '\n' || ch == ' ') {
+    } else if (ch == '\r' || ch == '\n' || ch == ' ') {
       continue;
     } else {
       if (cnt == 0)
