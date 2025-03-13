@@ -171,9 +171,15 @@ SearchParams SearchParams::FromToml(toml::value &toml) {
   std::string rle = toml::find<std::string>(toml, "pattern");
   LifeHistoryState pat = LifeHistoryState::ParseWHeader(rle);
 
-  std::vector<int> patternCenterVec = toml::find_or<std::vector<int>>(toml, "pattern-center", {0, 0});
-  std::pair<int, int> patternCenter = {-patternCenterVec[0], -patternCenterVec[1]};
-  pat.Move(patternCenter);
+  std::vector<int> patternCenterVec = toml::find_or<std::vector<int>>(toml, "pattern-center", {-1, -1});
+  std::pair<int, int> patternShift;
+  if (patternCenterVec[0] != -1) {
+    patternShift = {-patternCenterVec[0], -patternCenterVec[1]};
+  } else {
+    auto wh = (pat.state | pat.history).WidthHeight();
+    patternShift = {-wh.first, -wh.second};
+  }
+  pat.Move(patternShift);
 
   params.stable.state = pat.marked | pat.original;
   params.stable.unknown = pat.history;
